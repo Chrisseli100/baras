@@ -6,132 +6,102 @@ The **Battle Analysis and Raid Assessment System** (BARAS) is the ultimate compa
   <img src="etc/app-icon.png" alt="BARAS Icon" width="150">
 </p>
 
-**NOTE**: BARAS is still undergoing active development. Open an issue on github or send bug reports and feature requests to: baras-app@proton.me
+For user-facing documentation, visit the [official website](https://baras-app.github.io).
 
 ## Installation
 
-### Windows
-
-1. Download the `.exe` file from the [Releases page](https://github.com/baras-app/baras/releases)
-2. Run the `.exe`
-
-### macOS
-
-1. Download the `.dmg` file from the [Releases page](https://github.com/baras-app/baras/releases)
-2. Open the `.dmg` and drag **BARAS.app** to your `Applications` folder. Once the application is extracted you can discard the `.dmg` file
-3. **Important - First Run Setup:**
-
-   BARAS is not signed with an Apple Developer certificate, so macOS will block it by default.
-
-   Open **Terminal** (search "Terminal" in Spotlight) and run the command:
-     ```bash
-     xattr -cr /Applications/BARAS.app
- This removes the quarantine flag so all components of the app can run.
-
-  #### 4. Grant File Access:
-
-  BARAS needs permission to read your SWTOR combat logs (usually in ~/Documents).
-
-  ##### Scoped Permissions 
-
-  If no data appears after after selecting your log folder:
-    - Go to System Settings → Privacy & Security → Files and Folders
-    - Find BARAS and enable Documents Folder access (or wherever the location of your logs directory is)
-
-  ##### Full Permissions ⚠️ Last resort only
-  
-  If the above doesn't work, you can grant Full Disk Access in **System Settings → Privacy & Security → Full Disk Access**
-  
-  BARAS is a memory safe program and only accesses 1) the selected log directory 2) The application config directory and 3) the application data directory. However, giving the application full acess to the system is not best practices.
-  
-5. Launch BARAS and select your combat log directory 
-
-### Linux
-
-  1. Download the `.AppImage` file from the [Releases page](https://github.com/baras-app/baras/releases)
-
-  2. Make the AppImage executable:
-     ```bash
-     chmod +x BARAS_*.AppImage
-
-  3. Run the application:
-  ./BARAS_*.AppImage
-
-  3. Or double-click the file if your file manager supports AppImages.
-
-  #### NVIDIA Graphics Cards
-
-  If you have an NVIDIA GPU and the app crashes or shows a blank window, run with:
-
-  `WEBKIT_DISABLE_DMABUF_RENDERER=1 ./BARAS_*.AppImage`
-
-  To make this permanent, create a launcher script or add the variable to your .bashrc:
-
-  `export WEBKIT_DISABLE_DMABUF_RENDERER=1`
-
-  #### Optional: Desktop Integration
-
-  To add BARAS to your application menu, use a tool like https://github.com/TheAssassin/AppImageLauncher or https://flathub.org/apps/it.mijorus.gearlever.
-
-## Features
-
-### General
-
-**Full of features. No bloat**
-
-- **Lean** - Unlike Darth Baras the Wide, BARAS is tiny. Pure Rust, event-driven, smart caching that only loads the data you need.
-- **Fast** - BARAS will chew through even the largest log files quicker than you can blink.
-- **Linux Wayland Support** - Play SWTOR on Linux? BARAS has first-class support for Wayland-based desktop environments! Buttery smooth overlay movement, cross-monitor dragging, and position saving all supported. On Linux it should "just work".
-- **Global Keyboard Shortcuts** (Windows Only) - Save keyboard shortcuts to toggle overlays on and off, to lock and unlock raid frames.
-- **Minimize to system Tray** - Declutter your desktop. Let BARAS run in the background and access it from the system tray. It's so tiny you might not even know it's there.
-- **File Management** - Load in historical files, easily see the character and date. Set BARAS to automatically delete empty files and old logs.
-- **Parsely Integration** - Upload logs directly to parsely.io from the UI.
-
-## Planned Features
-
-- [x] Complete data exploration tool
-- [x] Raid challenges and boss phase tracking
-- [x] Class and ability icons
-- [x] Timer/effect audio cues
-- [ ] Complete default encounter timers and effects
-- [ ] World Bosses
-- [ ] Improved dummy parse handling
-- [ ] PvP Support
-- [ ] Multi-file data persistance
-- [ ] MacOS Support
+See the [installation guide](https://baras-app.github.io/getting-started/installation/) on the official website to install a release version and view documentation and features.
 
 ## Platform Support
 
-| Platform      | Status                                        |
-| ------------- | --------------------------------------------- |
-| Windows 10/11 | ✔️ Native |
-| Linux         | ✔️ X11, Wayland Native |
-| MacOS         | 🟡 Native (experimental) | 
+| Platform      | Status                   |
+| ------------- | ------------------------ |
+| Windows 10/11 | ✔️ Native                |
+| Linux         | ✔️ X11, Wayland Native   |
+| MacOS         | 🟡 Native (experimental) |
 
-## Quick Start
+## Building from Source
 
-1. **Enable Combat Logging in SWTOR**
-   - In-game: Preferences → Combat Logging → Enable Combat Logging
-   - Or use the command: `/combatlog`
+### Prerequisites
 
-2. **Point BARAS to your logs**
-   - BARAS will automatically look for the default combat log directory
-   - Or manually set it in Settings → Log Directory
+- [Rust](https://rustup.rs/) (stable toolchain)
+- `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
+- [Dioxus CLI](https://dioxuslabs.com/): `cargo install dioxus-cli`
+- [Tauri CLI](https://v2.tauri.app/): `cargo install tauri-cli`
+- [just](https://github.com/casey/just) command runner (optional, for convenience commands)
 
-3. **Configure your overlays**
-   - Enable the overlays you want in Overlays
-   - Position and resize them by dragging
-   - Lock them in place when you're done. (Note: overlay positions only save when locked)
+#### Linux Dependencies
+
+```
+sudo apt-get install -y \
+  libwebkit2gtk-4.1-dev \
+  libjavascriptcoregtk-4.1-dev \
+  libappindicator3-dev \
+  librsvg2-dev \
+  patchelf \
+  libxdo-dev \
+  libasound2-dev
+```
+
+### Development
+
+Build the parse-worker sidecar, then start the Tauri dev server with hot-reload:
+
+```
+just dev
+```
+
+This runs `cargo tauri dev` with the frontend served on `localhost:1420`.
+
+### Release Build
+
+Build the parse-worker sidecar and bundle platform-specific artifacts:
+
+```
+just bundle
+```
+
+There is no cross-platform compilation, the file type produced depends on your operating system:
+
+- **Linux**: AppImage and `.deb` in `target/release/bundle/`
+- **Windows**: NSIS installer in `target/release/bundle/nsis/`
+- **macOS**: `.dmg` in `target/release/bundle/dmg/`
+
+**Note:** You will receive an error message informing you that the compiled application is unsigned. This does not prevent the application from running.
+
+### Manual Steps
+
+If not using `just`, the parse-worker sidecar must be built and placed before the Tauri build:
+
+```bash
+# 1. Build the parse-worker
+cargo build --release -p baras-parse-worker
+
+# 2. Copy to Tauri's sidecar binaries directory with the target triple suffix
+mkdir -p app/src-tauri/binaries
+cp target/release/baras-parse-worker app/src-tauri/binaries/baras-parse-worker-<TARGET_TRIPLE>
+#   Linux:   baras-parse-worker-x86_64-unknown-linux-gnu
+#   Windows: baras-parse-worker-x86_64-pc-windows-msvc.exe
+#   macOS:   baras-parse-worker-aarch64-apple-darwin
+
+# 3. Build the app
+cd app && cargo tauri build
+```
+
+### Validate Definitions
+
+The `baras-validate` CLI tool replays combat logs against encounter definitions:
+
+```
+cargo run --bin baras-validate -- --boss revan --log test-log-files/operations/hm_tos_revan.txt
+```
 
 ## Configuration
 
-Configuration files are stored in:
+Application configuration directories are stored in:
 
 - **Windows**: `%APPDATA%\baras\`
-- **macOS**: `~/Library/Application Support/baras/`
-- **Linux**: `~/.config/baras/`
-
-All configuration files are in a human readable TOML format.
+- **Linux/macOS**: `~/.config/baras/`
 
 - `config.toml` - the primary configuration file saving global settings and overlay profiles
 - `encounters` - timer definitions for bosses. Adding a file in the same format will load it into the app.
