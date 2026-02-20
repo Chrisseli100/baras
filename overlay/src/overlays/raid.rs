@@ -542,7 +542,9 @@ impl RaidOverlay {
     }
 
     fn gap(&self) -> f32 {
-        self.frame.scaled(self.config.frame_spacing)
+        // frame_spacing is a user-configured pixel value — use it directly
+        // without scaling (unlike BASE_PADDING which is a design constant)
+        self.config.frame_spacing
     }
 
     /// Calculate frame width based on container size and column count
@@ -829,9 +831,9 @@ impl RaidOverlay {
         }
 
         // Effect indicators (TOP-LEFT, to match SWTOR's debuff placement)
-        let effect_size = self.render_effects(raid_frame, x, y);
+        self.render_effects(raid_frame, x, y);
 
-        // Role & class icons (BOTTOM-LEFT, below effects row)
+        // Role & class icons (BOTTOM-LEFT, anchored to frame bottom)
         let show_role = self.config.show_role_icons;
         let show_class = self.config.show_class_icons;
         if show_role || show_class {
@@ -841,14 +843,16 @@ impl RaidOverlay {
                 x,
                 y,
                 h,
-                effect_size,
                 show_role,
                 show_class,
             );
         }
     }
 
-    /// Render role and/or class icons at bottom-left, below the effects row.
+    /// Render role and/or class icons at the bottom-left of the frame.
+    ///
+    /// Icons are anchored to the frame bottom so they always render regardless
+    /// of effect row size or frame spacing.
     ///
     /// Layout:
     /// - Role icon only: role glyph PNG at bottom-left
@@ -863,19 +867,13 @@ impl RaidOverlay {
         x: f32,
         y: f32,
         h: f32,
-        effect_size: f32,
         show_role: bool,
         show_class: bool,
     ) {
         let icon_size = (self.frame_height() * 0.3).clamp(10.0, 20.0);
         let icon_x = x + 3.0;
-        // Position below effects row: y + effect_row_height + small gap
-        let icon_y = y + effect_size + 6.0;
-
-        // Don't render if it would overflow the frame
-        if icon_y + icon_size > y + h - 2.0 {
-            return;
-        }
+        // Anchor to frame bottom with small margin
+        let icon_y = y + h - icon_size - 2.0;
 
         let mut cursor_x = icon_x;
 
@@ -1098,7 +1096,7 @@ impl RaidOverlay {
             }
         }
 
-        // Return effect row height for role icon positioning
+        // Return effect row height (used by placeholder rendering in move mode)
         effect_size + vertical_offset.max(3.0)
     }
 
