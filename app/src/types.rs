@@ -112,6 +112,9 @@ pub struct OverlayStatus {
     pub overlays_visible: bool,
     pub move_mode: bool,
     pub rearrange_mode: bool,
+    /// Whether overlays are currently suppressed by any auto-hide condition
+    #[serde(default)]
+    pub auto_hidden: bool,
 }
 
 /// Area visit info for display in file browser

@@ -5,12 +5,11 @@
 
 use crate::overlay::{OverlayCommand, OverlayManager, OverlayType, SharedOverlayState};
 use crate::service::ServiceHandle;
+use tauri::Emitter;
 use tracing::{error, info, warn};
 
 #[cfg(target_os = "linux")]
 use futures_util::StreamExt;
-#[cfg(target_os = "linux")]
-use tauri::Emitter;
 
 /// Check if running on Wayland (Linux only)
 #[cfg(target_os = "linux")]
@@ -287,6 +286,9 @@ pub fn spawn_register_hotkeys(
 }
 
 /// Hotkey handler: Toggle overlay visibility
+///
+/// If auto-hide is active, show_all() records intent but does not spawn overlays.
+/// A toast event is emitted so the frontend can inform the user.
 async fn toggle_visibility_hotkey(
     overlay_state: SharedOverlayState,
     service_handle: ServiceHandle,
@@ -302,7 +304,14 @@ async fn toggle_visibility_hotkey(
     if is_visible {
         let _ = OverlayManager::hide_all(&overlay_state, &service_handle).await;
     } else {
+        // show_all() records overlays_visible=true in config. If auto-hide is
+        // active the spawn is a no-op; emit toast so user knows why.
         let _ = OverlayManager::show_all(&overlay_state, &service_handle).await;
+        if service_handle.shared.auto_hide.is_auto_hidden() {
+            let _ = service_handle
+                .app_handle
+                .emit("overlays-auto-hidden-toast", ());
+        }
     }
 }
 

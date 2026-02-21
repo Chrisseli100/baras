@@ -5,7 +5,6 @@
 //! back to the service registry.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use crate::overlay::{
     MetricType, OverlayCommand, OverlayManager, OverlayType, SharedOverlayState, create_all_entries,
@@ -13,7 +12,6 @@ use crate::overlay::{
 use crate::service::{OverlayUpdate, ServiceHandle};
 use crate::state::SharedState;
 use baras_overlay::{OverlayData, RaidRegistryAction};
-use tauri::Emitter;
 use tokio::sync::mpsc;
 
 /// Spawn the overlay update router task.
@@ -486,43 +484,34 @@ async fn process_overlay_update(
                 return;
             }
 
-            // Check if overlays are currently visible and running
-            let currently_visible = overlay_state
-                .lock()
-                .ok()
-                .is_some_and(|s| s.overlays_visible && !s.overlays.is_empty());
+            // Set the conversation flag — if we're transitioning from not-hidden
+            // to hidden, actually tear down the overlay windows
+            let was_hidden = shared.auto_hide.is_auto_hidden();
+            shared.auto_hide.set_conversation(true);
 
-            if currently_visible {
-                // Remember that we hid them and that they were visible
-                shared
-                    .overlays_visible_before_conversation
-                    .store(true, Ordering::SeqCst);
-                shared
-                    .conversation_hiding_active
-                    .store(true, Ordering::SeqCst);
+            if !was_hidden {
                 let _ = OverlayManager::temporary_hide_all(overlay_state, service_handle).await;
             }
+            service_handle.emit_overlay_status_changed();
         }
         OverlayUpdate::ConversationEnded => {
-            // Only restore if we were the ones who hid them
-            if shared.conversation_hiding_active.load(Ordering::SeqCst) {
-                shared
-                    .conversation_hiding_active
-                    .store(false, Ordering::SeqCst);
-
-                if shared
-                    .overlays_visible_before_conversation
-                    .load(Ordering::SeqCst)
-                {
-                    shared
-                        .overlays_visible_before_conversation
-                        .store(false, Ordering::SeqCst);
-                    let _ =
-                        OverlayManager::temporary_show_all(overlay_state, service_handle).await;
-                }
+            // Only act if we were actually in conversation auto-hide
+            if !shared.auto_hide.is_conversation_active() {
+                return;
             }
+
+            // Clear the conversation flag — temporary_show_all checks
+            // is_auto_hidden() internally, so if not-live is still active
+            // overlays will stay hidden
+            shared.auto_hide.set_conversation(false);
+            let _ = OverlayManager::temporary_show_all(overlay_state, service_handle).await;
+            service_handle.emit_overlay_status_changed();
         }
         OverlayUpdate::NotLiveStateChanged { is_live } => {
+            // Always track the raw condition state so apply_not_live_auto_hide
+            // knows the current state when the user toggles the setting ON
+            shared.auto_hide.set_session_not_live(!is_live);
+
             // Check if auto-hide when not live is enabled
             let hide_enabled = shared
                 .config
@@ -535,31 +524,33 @@ async fn process_overlay_update(
             }
 
             if !is_live {
-                // Session is no longer live — hide overlays if they're visible
-                let currently_visible = overlay_state
-                    .lock()
-                    .ok()
-                    .is_some_and(|s| s.overlays_visible && !s.overlays.is_empty());
+                // Session is no longer live — set the flag, hide if needed
+                let was_hidden = shared.auto_hide.is_auto_hidden();
+                shared.auto_hide.set_not_live(true);
 
-                if currently_visible {
-                    shared.activate_not_live_hiding();
+                if !was_hidden {
                     let _ =
                         OverlayManager::temporary_hide_all(overlay_state, service_handle).await;
-                    // Notify frontend so it re-fetches session info (stale_session will now be true)
-                    let _ = service_handle
-                        .app_handle
-                        .emit("session-updated", "ProcessMonitorNotLive");
                 }
             } else {
-                // Session is live again — restore overlays if we were the ones who hid them
-                if shared.deactivate_not_live_hiding() {
-                    let _ = OverlayManager::temporary_show_all(
-                        overlay_state,
-                        service_handle,
-                    )
-                    .await;
+                // Session is live again — but verify the session is truly live
+                // before restoring. This prevents a flash when resuming live tailing
+                // to a stale/empty session: the is_live:true event fires from the
+                // mode switch, but the underlying session is still not-live.
+                if !shared.auto_hide.is_not_live_active() {
+                    return;
                 }
+                if shared.is_session_not_live().await {
+                    // Session is still effectively not-live; correct the condition
+                    // flag and keep overlays hidden
+                    shared.auto_hide.set_session_not_live(true);
+                    return;
+                }
+                shared.auto_hide.set_not_live(false);
+                let _ =
+                    OverlayManager::temporary_show_all(overlay_state, service_handle).await;
             }
+            service_handle.emit_overlay_status_changed();
         }
     }
 }

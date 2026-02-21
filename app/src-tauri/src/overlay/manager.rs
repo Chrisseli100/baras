@@ -391,6 +391,8 @@ impl OverlayManager {
 
     /// Show a single overlay (enable + spawn if visible).
     /// Updates config and spawns overlay if global visibility is on.
+    /// Respects auto-hide: if any auto-hide condition is active, the overlay is
+    /// enabled in config but NOT spawned (it will appear when auto-hide clears).
     pub async fn show(
         kind: OverlayType,
         state: &SharedOverlayState,
@@ -403,6 +405,12 @@ impl OverlayManager {
 
         // Only spawn if global visibility is enabled
         if !config.overlay_settings.overlays_visible {
+            return Ok(true);
+        }
+
+        // Don't spawn if auto-hide is active — overlay is enabled in config
+        // and will appear when auto-hide clears via temporary_show_all()
+        if service.shared.auto_hide.is_auto_hidden() {
             return Ok(true);
         }
 
@@ -501,11 +509,14 @@ impl OverlayManager {
     }
 
     /// Show all enabled overlays.
+    /// Always records intent (overlays_visible=true) in config, but if auto-hide
+    /// is active the overlays are not actually spawned — they will appear when
+    /// auto-hide clears via temporary_show_all().
     pub async fn show_all(
         state: &SharedOverlayState,
         service: &ServiceHandle,
     ) -> Result<Vec<MetricType>, String> {
-        // Update visibility in config
+        // Update visibility in config (always — this records user intent)
         let mut config = service.config().await;
         config.overlay_settings.overlays_visible = true;
         service.update_config(config.clone()).await?;
@@ -514,6 +525,13 @@ impl OverlayManager {
         {
             let mut s = state.lock().map_err(|e| e.to_string())?;
             s.overlays_visible = true;
+        }
+
+        // If auto-hide is active, don't spawn — intent is recorded, overlays
+        // will appear when auto-hide clears
+        if service.shared.auto_hide.is_auto_hidden() {
+            service.emit_overlay_status_changed();
+            return Ok(vec![]);
         }
 
         let enabled_keys = config.overlay_settings.enabled_types();
@@ -667,8 +685,9 @@ impl OverlayManager {
         Ok(true)
     }
 
-    /// Restore overlays after temporary hide (does NOT modify config).
-    /// Only respawns overlays that are enabled in config.
+    /// Restore overlays after an auto-hide condition clears (does NOT modify config).
+    /// Only respawns overlays if no auto-hide condition remains active and
+    /// global visibility is still enabled in config.
     pub async fn temporary_show_all(
         state: &SharedOverlayState,
         service: &ServiceHandle,
@@ -677,6 +696,11 @@ impl OverlayManager {
 
         // Only restore if global visibility is still enabled in config
         if !config.overlay_settings.overlays_visible {
+            return Ok(());
+        }
+
+        // Don't restore if another auto-hide condition is still active
+        if service.shared.auto_hide.is_auto_hidden() {
             return Ok(());
         }
 
@@ -858,8 +882,8 @@ impl OverlayManager {
                     let _ = handle.tx.try_send(OverlayCommand::Shutdown);
                 }
                 service.set_overlay_active(key, false);
-            } else if !running && enabled && globally_visible {
-                // Start if not running but enabled (only if global visibility is on)
+            } else if !running && enabled && globally_visible && !service.shared.auto_hide.is_auto_hidden() {
+                // Start if not running but enabled (only if global visibility is on and not auto-hidden)
                 if let Ok(result) = Self::spawn(overlay_type, settings)
                     && let Ok(mut s) = state.lock()
                 {
@@ -889,8 +913,8 @@ impl OverlayManager {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
 
-        // Only respawn raid if global visibility is on
-        let raid_respawned = if globally_visible
+        // Only respawn raid if global visibility is on and not auto-hidden
+        let raid_respawned = if globally_visible && !service.shared.auto_hide.is_auto_hidden()
             && (raid_was_running || raid_enabled)
             && let Ok(result) = Self::spawn(OverlayType::Raid, settings)
             && let Ok(mut s) = state.lock()

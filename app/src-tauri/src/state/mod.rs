@@ -15,6 +15,87 @@ use tokio::sync::RwLock;
 use baras_core::context::{AppConfig, DirectoryIndex, LogAreaCache, ParsingSession};
 use baras_core::query::QueryContext;
 
+// ─── Centralized Auto-Hide State ─────────────────────────────────────────────
+
+/// Centralized auto-hide state — the sole authority on whether overlays should
+/// be suppressed. All overlay spawn paths check `is_auto_hidden()` before
+/// creating windows. Each auto-hide condition sets its own flag; overlays are
+/// hidden when ANY flag is true.
+pub struct AutoHideState {
+    /// Hidden because the local player is in a conversation
+    conversation_active: AtomicBool,
+    /// Hidden because the session is not live (historical, stale, game closed)
+    not_live_active: AtomicBool,
+    /// Raw condition state: whether the session is currently not-live, regardless
+    /// of whether the hide_when_not_live setting is enabled. Updated by every
+    /// `NotLiveStateChanged` event. Used by `apply_not_live_auto_hide` to know
+    /// the current condition when the user toggles the setting ON.
+    session_not_live: AtomicBool,
+}
+
+impl AutoHideState {
+    pub fn new() -> Self {
+        Self {
+            conversation_active: AtomicBool::new(false),
+            not_live_active: AtomicBool::new(false),
+            session_not_live: AtomicBool::new(false),
+        }
+    }
+
+    /// Returns true if ANY auto-hide condition is active.
+    /// This is the single check all overlay spawn paths use.
+    pub fn is_auto_hidden(&self) -> bool {
+        self.conversation_active.load(Ordering::SeqCst)
+            || self.not_live_active.load(Ordering::SeqCst)
+    }
+
+    /// Whether conversation auto-hide is currently active.
+    pub fn is_conversation_active(&self) -> bool {
+        self.conversation_active.load(Ordering::SeqCst)
+    }
+
+    /// Whether not-live auto-hide is currently active.
+    pub fn is_not_live_active(&self) -> bool {
+        self.not_live_active.load(Ordering::SeqCst)
+    }
+
+    /// Whether the session is currently in a not-live state (condition flag).
+    /// This is independent of the hide_when_not_live setting — it tracks the
+    /// raw condition from NotLiveStateChanged events.
+    pub fn is_session_not_live(&self) -> bool {
+        self.session_not_live.load(Ordering::SeqCst)
+    }
+
+    /// Update the raw session not-live condition state.
+    /// Called on every NotLiveStateChanged event regardless of settings.
+    pub fn set_session_not_live(&self, not_live: bool) {
+        self.session_not_live.store(not_live, Ordering::SeqCst);
+    }
+
+    /// Set conversation auto-hide state.
+    /// Returns the new `is_auto_hidden()` value after the change.
+    pub fn set_conversation(&self, active: bool) -> bool {
+        self.conversation_active.store(active, Ordering::SeqCst);
+        self.is_auto_hidden()
+    }
+
+    /// Set not-live auto-hide state.
+    /// Returns the new `is_auto_hidden()` value after the change.
+    pub fn set_not_live(&self, active: bool) -> bool {
+        self.not_live_active.store(active, Ordering::SeqCst);
+        self.is_auto_hidden()
+    }
+
+    /// Clear all auto-hide state.
+    pub fn clear_all(&self) {
+        self.conversation_active.store(false, Ordering::SeqCst);
+        self.not_live_active.store(false, Ordering::SeqCst);
+        self.session_not_live.store(false, Ordering::SeqCst);
+    }
+}
+
+// ─── Shared State ────────────────────────────────────────────────────────────
+
 /// State shared between the combat service and Tauri commands.
 ///
 /// This is the central state container that coordinates:
@@ -59,17 +140,9 @@ pub struct SharedState {
     /// Whether raid frame rearrange mode is active (bypasses rendering gates)
     pub rearrange_mode: AtomicBool,
 
-    // ─── Conversation auto-hide state ───────────────────────────────────────
-    /// Whether overlays are temporarily hidden due to conversation
-    pub conversation_hiding_active: AtomicBool,
-    /// Whether overlays were visible before conversation started (for restore)
-    pub overlays_visible_before_conversation: AtomicBool,
-
-    // ─── Not-live auto-hide state ────────────────────────────────────────────
-    /// Whether overlays are temporarily hidden because session is not live
-    pub not_live_hiding_active: AtomicBool,
-    /// Whether overlays were visible before not-live hide triggered (for restore)
-    pub overlays_visible_before_not_live: AtomicBool,
+    // ─── Centralized auto-hide ───────────────────────────────────────────────
+    /// Unified auto-hide state — the single source of truth for overlay suppression
+    pub auto_hide: AutoHideState,
 
     /// Shared query context for DataFusion queries (reuses SessionContext)
     pub query_context: QueryContext,
@@ -99,12 +172,8 @@ impl SharedState {
             cooldowns_overlay_active: AtomicBool::new(false),
             dot_tracker_overlay_active: AtomicBool::new(false),
             rearrange_mode: AtomicBool::new(false),
-            // Conversation auto-hide state
-            conversation_hiding_active: AtomicBool::new(false),
-            overlays_visible_before_conversation: AtomicBool::new(false),
-            // Not-live auto-hide state
-            not_live_hiding_active: AtomicBool::new(false),
-            overlays_visible_before_not_live: AtomicBool::new(false),
+            // Centralized auto-hide state
+            auto_hide: AutoHideState::new(),
             // Shared query context for DataFusion (reuses SessionContext across queries)
             query_context: QueryContext::new(),
             // Area cache - loaded from disk later in service startup
@@ -113,7 +182,7 @@ impl SharedState {
     }
 
     /// Check if the current session is "not live" — i.e. historical, stale, or has no player.
-    /// Returns `true` if overlays should be auto-hidden.
+    /// Returns `true` if overlays should be auto-hidden due to not-live conditions.
     pub async fn is_session_not_live(&self) -> bool {
         if !self.is_live_tailing.load(Ordering::SeqCst) {
             return true;
@@ -145,26 +214,6 @@ impl SharedState {
         }
 
         false
-    }
-
-    /// Mark overlays as auto-hidden due to not-live state.
-    /// Stores that overlays were visible before hiding so they can be restored.
-    pub fn activate_not_live_hiding(&self) {
-        self.not_live_hiding_active.store(true, Ordering::SeqCst);
-        self.overlays_visible_before_not_live
-            .store(true, Ordering::SeqCst);
-    }
-
-    /// Clear the not-live auto-hide state and return whether overlays should be restored.
-    pub fn deactivate_not_live_hiding(&self) -> bool {
-        if !self.not_live_hiding_active.load(Ordering::SeqCst) {
-            return false;
-        }
-        self.not_live_hiding_active.store(false, Ordering::SeqCst);
-        let was_visible = self.overlays_visible_before_not_live.load(Ordering::SeqCst);
-        self.overlays_visible_before_not_live
-            .store(false, Ordering::SeqCst);
-        was_visible
     }
 
     /// Execute a function with mutable access to the current session.

@@ -44,6 +44,8 @@ pub struct OverlayStatusResponse {
     pub overlays_visible: bool,
     pub move_mode: bool,
     pub rearrange_mode: bool,
+    /// Whether overlays are currently suppressed by any auto-hide condition
+    pub auto_hidden: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +92,7 @@ pub async fn hide_all_overlays(
 
 /// Apply or remove the "not live" auto-hide based on current session state.
 /// Called by the frontend when the user toggles the hide_when_not_live setting.
+/// Ensures overlay display state is immediately synchronized with the new setting.
 #[tauri::command]
 pub async fn apply_not_live_auto_hide(
     state: State<'_, SharedOverlayState>,
@@ -99,23 +102,32 @@ pub async fn apply_not_live_auto_hide(
     let shared = &service.shared;
 
     if config.overlay_settings.hide_when_not_live {
-        // Setting was just enabled — check if we should hide now
-        if shared.is_session_not_live().await {
-            let currently_visible = state
-                .lock()
-                .ok()
-                .is_some_and(|s| s.overlays_visible && !s.overlays.is_empty());
+        // Setting was just enabled — check if the session is currently not live.
+        // We check both the tracked condition flag (from prior NotLiveStateChanged
+        // events that may have fired while the setting was off) AND the async
+        // session check (for conditions like stale session that don't emit events).
+        let should_hide =
+            shared.auto_hide.is_session_not_live() || shared.is_session_not_live().await;
 
-            if currently_visible {
-                shared.activate_not_live_hiding();
+        if should_hide {
+            let was_hidden = shared.auto_hide.is_auto_hidden();
+            shared.auto_hide.set_not_live(true);
+
+            // Only tear down windows if we're transitioning to hidden
+            if !was_hidden {
                 let _ = OverlayManager::temporary_hide_all(&state, &service).await;
-                return Ok(true);
             }
+            service.emit_overlay_status_changed();
+            return Ok(true);
         }
     } else {
-        // Setting was just disabled — restore if we were hiding
-        if shared.deactivate_not_live_hiding() {
+        // Setting was just disabled — clear the not-live flag
+        if shared.auto_hide.is_not_live_active() {
+            shared.auto_hide.set_not_live(false);
+            // temporary_show_all checks is_auto_hidden() internally,
+            // so if conversation hiding is still active, overlays stay hidden
             let _ = OverlayManager::temporary_show_all(&state, &service).await;
+            service.emit_overlay_status_changed();
             return Ok(true);
         }
     }
@@ -236,6 +248,7 @@ pub async fn get_overlay_status(
         overlays_visible: config.overlay_settings.overlays_visible,
         move_mode,
         rearrange_mode,
+        auto_hidden: service.shared.auto_hide.is_auto_hidden(),
     })
 }
 

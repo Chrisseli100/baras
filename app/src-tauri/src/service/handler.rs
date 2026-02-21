@@ -294,7 +294,7 @@ impl ServiceHandle {
             // rather than the static directory-index snapshot which becomes stale during tailing.
             let live_last_event = session.last_event_time;
             Self::is_session_stale(live_last_event, start_datetime)
-                || self.shared.not_live_hiding_active.load(Ordering::SeqCst)
+                || self.shared.auto_hide.is_not_live_active()
         } else {
             false
         };

@@ -56,6 +56,7 @@ pub fn App() -> Element {
     let mut overlays_visible = use_signal(|| true);
     let mut move_mode = use_signal(|| false);
     let mut rearrange_mode = use_signal(|| false);
+    let mut auto_hidden = use_signal(|| false);
 
     // Directory and file state
     let mut log_directory = use_signal(String::new);
@@ -203,6 +204,7 @@ pub fn App() -> Element {
                 &mut overlays_visible,
                 &mut move_mode,
                 &mut rearrange_mode,
+                &mut auto_hidden,
             );
         }
 
@@ -383,10 +385,23 @@ pub fn App() -> Element {
                     let _ = overlays_visible.try_write().map(|mut w| *w = status.overlays_visible);
                     let _ = move_mode.try_write().map(|mut w| *w = status.move_mode);
                     let _ = rearrange_mode.try_write().map(|mut w| *w = status.rearrange_mode);
+                    let _ = auto_hidden.try_write().map(|mut w| *w = status.auto_hidden);
                 }
             });
         });
         api::tauri_listen("overlay-status-changed", &closure).await;
+        closure.forget();
+    });
+
+    // Listen for auto-hidden toast events (from hotkey/tray show while auto-hidden)
+    use_future(move || async move {
+        let closure = Closure::new(move |_event: JsValue| {
+            spawn_local(async move {
+                let mut toast = use_toast();
+                toast.show("Overlays are currently auto-hidden".to_string(), ToastSeverity::Normal);
+            });
+        });
+        api::tauri_listen("overlays-auto-hidden-toast", &closure).await;
         closure.forget();
     });
 
@@ -448,10 +463,8 @@ pub fn App() -> Element {
         .unwrap_or(false);
     let show_empty_state = !has_player;
 
-    // Auto-hide indicator: overlays are auto-hidden when setting is enabled and session is not live
-    let is_stale = session.as_ref().map(|s| s.stale_session).unwrap_or(false);
-    let overlays_auto_hidden = overlay_settings().hide_when_not_live
-        && (!live_tailing || session_ended() || is_stale || !has_player);
+    // Auto-hide state is provided by the backend as the single source of truth
+    let overlays_auto_hidden = auto_hidden();
 
     // ─────────────────────────────────────────────────────────────────────────
     // Render
@@ -645,7 +658,7 @@ pub fn App() -> Element {
                                                 &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
                                                 &mut effects_a_enabled, &mut effects_b_enabled,
                                                 &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
-                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode);
+                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
                                         }
                                     }
                                 });
@@ -664,12 +677,19 @@ pub fn App() -> Element {
                         class: if is_visible { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
                         title: if is_visible { "Hide overlays" } else { "Show overlays" },
                         disabled: !any_enabled,
-                        onclick: move |_| { spawn(async move {
-                            if api::toggle_visibility(is_visible).await {
-                                overlays_visible.set(!is_visible);
-                                if is_visible { move_mode.set(false); }
-                            }
-                        }); },
+                        onclick: move |_| {
+                            let mut toast = use_toast();
+                            spawn(async move {
+                                if api::toggle_visibility(is_visible).await {
+                                    overlays_visible.set(!is_visible);
+                                    if is_visible { move_mode.set(false); }
+                                    // If trying to show but auto-hide is active, inform user
+                                    if !is_visible && auto_hidden() {
+                                        toast.show("Overlays are currently auto-hidden".to_string(), ToastSeverity::Normal);
+                                    }
+                                }
+                            });
+                        },
                         i { class: if is_visible { "fa-solid fa-eye" } else { "fa-solid fa-eye-slash" } }
                     }
                     if overlays_auto_hidden {
@@ -1143,7 +1163,7 @@ pub fn App() -> Element {
                                                             &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
                                                             &mut effects_a_enabled, &mut effects_b_enabled,
                                                             &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
-                                                            &mut overlays_visible, &mut move_mode, &mut rearrange_mode);
+                                                            &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
                                                     }
                                                 }
                                             });
@@ -1184,12 +1204,18 @@ pub fn App() -> Element {
                             button {
                                 class: if is_visible && any_enabled { "btn btn-control btn-visible" } else { "btn btn-control btn-hidden" },
                                 disabled: !any_enabled,
-                                onclick: move |_| { spawn(async move {
-                                    if api::toggle_visibility(is_visible).await {
-                                        overlays_visible.set(!is_visible);
-                                        if is_visible { move_mode.set(false); }
-                                    }
-                                }); },
+                                onclick: move |_| {
+                                    let mut toast = use_toast();
+                                    spawn(async move {
+                                        if api::toggle_visibility(is_visible).await {
+                                            overlays_visible.set(!is_visible);
+                                            if is_visible { move_mode.set(false); }
+                                            if !is_visible && auto_hidden() {
+                                                toast.show("Overlays are currently auto-hidden".to_string(), ToastSeverity::Normal);
+                                            }
+                                        }
+                                    });
+                                },
                                 if is_visible { i { class: "fa-solid fa-eye" } span { " Visible" } }
                                 else { i { class: "fa-solid fa-eye-slash" } span { " Hidden" } }
                             }
@@ -2308,6 +2334,7 @@ fn apply_status(
     overlays_visible: &mut Signal<bool>,
     move_mode: &mut Signal<bool>,
     rearrange_mode: &mut Signal<bool>,
+    auto_hidden: &mut Signal<bool>,
 ) {
     let map: HashMap<MetricType, bool> = MetricType::all()
         .iter()
@@ -2329,6 +2356,7 @@ fn apply_status(
     overlays_visible.set(status.overlays_visible);
     move_mode.set(status.move_mode);
     rearrange_mode.set(status.rearrange_mode);
+    auto_hidden.set(status.auto_hidden);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -247,7 +247,7 @@ impl SignalHandler for CombatSignalHandler {
                 let _ = self.trigger_tx.try_send(MetricsTrigger::CombatStarted);
                 let _ = self.session_event_tx.send(SessionEvent::CombatStarted);
                 // If overlays were auto-hidden for not-live, restore them — combat means live
-                if self.shared.not_live_hiding_active.load(Ordering::SeqCst) {
+                if self.shared.auto_hide.is_not_live_active() {
                     let _ = self
                         .overlay_tx
                         .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
@@ -275,6 +275,13 @@ impl SignalHandler for CombatSignalHandler {
                 registry.update_discipline(*entity_id, *class_id, *discipline_id);
                 // Notify frontend of player info change
                 let _ = self.session_event_tx.send(SessionEvent::PlayerInitialized);
+                // Player just initialized — if not-live auto-hide is active, the session
+                // is now live. Re-evaluate so overlays restore without waiting for combat.
+                if self.shared.auto_hide.is_not_live_active() {
+                    let _ = self
+                        .overlay_tx
+                        .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
+                }
             }
             GameSignal::EffectApplied {
                 effect_id,
@@ -1651,6 +1658,13 @@ impl CombatService {
             let _ = self
                 .overlay_tx
                 .try_send(OverlayUpdate::NotLiveStateChanged { is_live: false });
+        } else {
+            // Session IS live (player detected, recent data) — tell the router so it
+            // can clear not-live auto-hide. Without this, overlays stay stuck hidden
+            // when file_modified()'s early is_live:true was blocked by the flash guard.
+            let _ = self
+                .overlay_tx
+                .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
         }
 
         // Trigger initial metrics send after file processing

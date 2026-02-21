@@ -56,7 +56,8 @@ fn spawn_auto_show_overlays(overlay_state: SharedOverlayState, service_handle: S
                 .unwrap_or(true); // safe default: assume running if check fails
 
             if !game_running || service_handle.shared.is_session_not_live().await {
-                service_handle.shared.activate_not_live_hiding();
+                service_handle.shared.auto_hide.set_session_not_live(true);
+                service_handle.shared.auto_hide.set_not_live(true);
                 return;
             }
         }

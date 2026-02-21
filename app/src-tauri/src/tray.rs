@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use tauri::{
-    AppHandle, Manager, Runtime,
+    AppHandle, Emitter, Manager, Runtime,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
@@ -94,6 +94,9 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
 }
 
 /// Toggle visibility of all overlays
+///
+/// If auto-hide is active, show_all() records intent but does not spawn overlays.
+/// A toast event is emitted so the frontend can inform the user.
 async fn toggle_all_overlays(
     overlay_state: Arc<Mutex<OverlayState>>,
     service_handle: ServiceHandle,
@@ -106,5 +109,10 @@ async fn toggle_all_overlays(
         let _ = OverlayManager::hide_all(&overlay_state, &service_handle).await;
     } else {
         let _ = OverlayManager::show_all(&overlay_state, &service_handle).await;
+        if service_handle.shared.auto_hide.is_auto_hidden() {
+            let _ = service_handle
+                .app_handle
+                .emit("overlays-auto-hidden-toast", ());
+        }
     }
 }
