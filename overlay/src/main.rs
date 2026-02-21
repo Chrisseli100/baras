@@ -1357,6 +1357,7 @@ mod examples {
         for (col, (entries, _label)) in boss_counts.iter().enumerate() {
             let boss_config = BossHealthConfig {
                 show_target: true,
+                dynamic_background: true,
                 ..Default::default()
             };
             let window_config = OverlayConfig {
