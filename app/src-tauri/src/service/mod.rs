@@ -370,6 +370,10 @@ pub struct CombatService {
     icon_cache: Option<Arc<baras_overlay::icons::IconCache>>,
     /// Pending file to switch to when it gets content (deferred rotation for empty files)
     pending_file: Option<PathBuf>,
+    /// Poll timer for checking if the pending file has content.
+    /// Active only when `pending_file` is `Some`. Works around OS-level event
+    /// coalescing (e.g. Windows may merge Create+Modify into a single Create).
+    pending_file_interval: Option<tokio::time::Interval>,
     /// Handle for the game process monitor task
     process_monitor_handle: Option<tokio::task::JoinHandle<()>>,
 }
@@ -448,6 +452,7 @@ impl CombatService {
             loaded_area_id: 0,
             icon_cache,
             pending_file: None,
+            pending_file_interval: None,
             process_monitor_handle: None,
         };
 
@@ -872,108 +877,122 @@ impl CombatService {
         self.start_watcher().await;
 
         loop {
-            let Some(cmd) = self.cmd_rx.recv().await else {
-                break;
-            };
+            tokio::select! {
+                cmd = self.cmd_rx.recv() => {
+                    let Some(cmd) = cmd else { break; };
 
-            match cmd {
-                ServiceCommand::StartTailing(path) => {
-                    self.start_tailing(path).await;
-                }
-                ServiceCommand::StopTailing => {
-                    self.stop_tailing().await;
-                }
-                ServiceCommand::RefreshIndex => {
-                    self.refresh_index().await;
-                }
-                ServiceCommand::Shutdown => {
-                    self.stop_tailing().await;
-                    break;
-                }
-                ServiceCommand::StartWatcher => {
-                    self.start_watcher().await;
-                }
-                ServiceCommand::FileDetected(path) => {
-                    self.file_detected(path).await;
-                }
-                ServiceCommand::FileModified(path) => {
-                    self.file_modified(path).await;
-                }
-                ServiceCommand::FileRemoved(path) => {
-                    self.file_removed(path).await;
-                }
-                ServiceCommand::DirectoryChanged => {
-                    self.on_directory_changed().await;
-                }
-                ServiceCommand::ReloadTimerDefinitions => {
-                    self.reload_timer_definitions().await;
-                }
-                ServiceCommand::ReloadEffectDefinitions => {
-                    self.reload_effect_definitions().await;
-                }
-                ServiceCommand::OpenHistoricalFile(path) => {
-                    // Pause live tailing and open the historical file
-                    self.shared.is_live_tailing.store(false, Ordering::SeqCst);
-                    let _ = self
-                        .app_handle
-                        .emit("session-updated", "TailingModeChanged");
-                    let _ = self
-                        .overlay_tx
-                        .try_send(OverlayUpdate::NotLiveStateChanged { is_live: false });
-                    self.start_tailing(path).await;
-                }
-                ServiceCommand::ResumeLiveTailing => {
-                    // Resume live tailing and switch to newest file
-                    self.shared.is_live_tailing.store(true, Ordering::SeqCst);
-                    let _ = self
-                        .app_handle
-                        .emit("session-updated", "TailingModeChanged");
-                    let _ = self
-                        .overlay_tx
-                        .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
-                    let newest = {
-                        let index = self.shared.directory_index.read().await;
-                        index.newest_file().map(|f| f.path.clone())
-                    };
-                    if let Some(path) = newest {
-                        self.start_tailing(path).await;
-                    }
-                }
-                ServiceCommand::RefreshRaidFrames => {
-                    // Immediately send updated raid frame data to overlay
-                    // Pass true to bypass early-out gates (ensures clear is reflected)
-                    let data = build_raid_frame_data(&self.shared, true, self.icon_cache.as_ref())
-                        .await
-                        .unwrap_or_else(|| baras_overlay::RaidFrameData { frames: vec![] });
-                    let _ = self
-                        .overlay_tx
-                        .try_send(OverlayUpdate::EffectsUpdated(data));
-                }
-                ServiceCommand::SendNotesToOverlay(notes_data) => {
-                    // Send specific boss notes to the overlay
-                    let _ = self.overlay_tx.try_send(OverlayUpdate::NotesUpdated(notes_data));
-                }
-                ServiceCommand::StartProcessMonitor => {
-                    self.start_process_monitor();
-                }
-                ServiceCommand::ReloadAreaDefinitions(area_id) => {
-                    // Reload definitions for the new area and update notes overlay
-                    if area_id == 0 {
-                        // Left raid area (fleet, etc.) - clear notes
-                        let _ = self.overlay_tx.try_send(OverlayUpdate::NotesUpdated(NotesData::default()));
-                    } else if let Some(bosses) = self.load_area_definitions(area_id) {
-                        // Send notes from new area's boss definitions
-                        self.send_notes_from_bosses(&bosses);
-                        // Also load definitions into the session
-                        let session_guard = self.shared.session.read().await;
-                        if let Some(session) = session_guard.as_ref() {
-                            let mut session = session.write().await;
-                            session.load_boss_definitions(bosses);
+                    match cmd {
+                        ServiceCommand::StartTailing(path) => {
+                            self.start_tailing(path).await;
                         }
-                    } else {
-                        // No definitions for this area - clear notes
-                        let _ = self.overlay_tx.try_send(OverlayUpdate::NotesUpdated(NotesData::default()));
+                        ServiceCommand::StopTailing => {
+                            self.stop_tailing().await;
+                        }
+                        ServiceCommand::RefreshIndex => {
+                            self.refresh_index().await;
+                        }
+                        ServiceCommand::Shutdown => {
+                            self.stop_tailing().await;
+                            break;
+                        }
+                        ServiceCommand::StartWatcher => {
+                            self.start_watcher().await;
+                        }
+                        ServiceCommand::FileDetected(path) => {
+                            self.file_detected(path).await;
+                        }
+                        ServiceCommand::FileModified(path) => {
+                            self.file_modified(path).await;
+                        }
+                        ServiceCommand::FileRemoved(path) => {
+                            self.file_removed(path).await;
+                        }
+                        ServiceCommand::DirectoryChanged => {
+                            self.on_directory_changed().await;
+                        }
+                        ServiceCommand::ReloadTimerDefinitions => {
+                            self.reload_timer_definitions().await;
+                        }
+                        ServiceCommand::ReloadEffectDefinitions => {
+                            self.reload_effect_definitions().await;
+                        }
+                        ServiceCommand::OpenHistoricalFile(path) => {
+                            // Pause live tailing and open the historical file
+                            self.shared.is_live_tailing.store(false, Ordering::SeqCst);
+                            let _ = self
+                                .app_handle
+                                .emit("session-updated", "TailingModeChanged");
+                            let _ = self
+                                .overlay_tx
+                                .try_send(OverlayUpdate::NotLiveStateChanged { is_live: false });
+                            self.start_tailing(path).await;
+                        }
+                        ServiceCommand::ResumeLiveTailing => {
+                            // Resume live tailing and switch to newest file
+                            self.shared.is_live_tailing.store(true, Ordering::SeqCst);
+                            let _ = self
+                                .app_handle
+                                .emit("session-updated", "TailingModeChanged");
+                            let _ = self
+                                .overlay_tx
+                                .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
+                            let newest = {
+                                let index = self.shared.directory_index.read().await;
+                                index.newest_file().map(|f| f.path.clone())
+                            };
+                            if let Some(path) = newest {
+                                self.start_tailing(path).await;
+                            }
+                        }
+                        ServiceCommand::RefreshRaidFrames => {
+                            // Immediately send updated raid frame data to overlay
+                            // Pass true to bypass early-out gates (ensures clear is reflected)
+                            let data = build_raid_frame_data(&self.shared, true, self.icon_cache.as_ref())
+                                .await
+                                .unwrap_or_else(|| baras_overlay::RaidFrameData { frames: vec![] });
+                            let _ = self
+                                .overlay_tx
+                                .try_send(OverlayUpdate::EffectsUpdated(data));
+                        }
+                        ServiceCommand::SendNotesToOverlay(notes_data) => {
+                            // Send specific boss notes to the overlay
+                            let _ = self.overlay_tx.try_send(OverlayUpdate::NotesUpdated(notes_data));
+                        }
+                        ServiceCommand::StartProcessMonitor => {
+                            self.start_process_monitor();
+                        }
+                        ServiceCommand::ReloadAreaDefinitions(area_id) => {
+                            // Reload definitions for the new area and update notes overlay
+                            if area_id == 0 {
+                                // Left raid area (fleet, etc.) - clear notes
+                                let _ = self.overlay_tx.try_send(OverlayUpdate::NotesUpdated(NotesData::default()));
+                            } else if let Some(bosses) = self.load_area_definitions(area_id) {
+                                // Send notes from new area's boss definitions
+                                self.send_notes_from_bosses(&bosses);
+                                // Also load definitions into the session
+                                let session_guard = self.shared.session.read().await;
+                                if let Some(session) = session_guard.as_ref() {
+                                    let mut session = session.write().await;
+                                    session.load_boss_definitions(bosses);
+                                }
+                            } else {
+                                // No definitions for this area - clear notes
+                                let _ = self.overlay_tx.try_send(OverlayUpdate::NotesUpdated(NotesData::default()));
+                            }
+                        }
                     }
+                }
+                // Fallback poll: check if the pending file has content.
+                // Only fires when pending_file_interval is Some (i.e. a deferred
+                // file switch is waiting). Works around OS-level event coalescing
+                // where Create+Modify get merged into a single Create event.
+                _ = async {
+                    match self.pending_file_interval {
+                        Some(ref mut interval) => interval.tick().await,
+                        None => std::future::pending::<tokio::time::Instant>().await,
+                    }
+                } => {
+                    self.check_pending_file().await;
                 }
             }
         }
@@ -1125,6 +1144,11 @@ impl CombatService {
                 "Empty log file detected, deferring switch until content arrives"
             );
             self.pending_file = Some(path);
+            // Start polling for content — the OS may not deliver a separate
+            // Modify event after the Create (Windows coalesces them).
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+            interval.tick().await; // consume the immediate first tick
+            self.pending_file_interval = Some(interval);
             // Emit event so frontend can show "session ended" indicator
             let _ = self.app_handle.emit("session-ended", ());
             let _ = self
@@ -1138,6 +1162,7 @@ impl CombatService {
             "Log file rotation detected, switching to new file"
         );
         self.pending_file = None;
+        self.pending_file_interval = None;
         self.start_tailing(path).await;
     }
 
@@ -1160,28 +1185,52 @@ impl CombatService {
             let _ = self.app_handle.emit("log-files-changed", ());
         }
 
-        // Check if this is the pending file we deferred switching to
+        // If this is the pending file, delegate to the shared resolution logic
         if self.pending_file.as_ref() == Some(&path) {
-            // Check if file now has content (character name was extracted)
-            let has_content = {
-                let index = self.shared.directory_index.read().await;
-                index
-                    .newest_file()
-                    .map(|f| f.path == path && !f.is_empty)
-                    .unwrap_or(false)
-            };
+            self.check_pending_file().await;
+        }
+    }
 
-            if has_content {
-                info!(
-                    file = %path.display(),
-                    "Pending file now has content, switching"
-                );
-                self.pending_file = None;
-                let _ = self
-                    .overlay_tx
-                    .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
-                self.start_tailing(path).await;
+    /// Check if the pending file now has content and switch to it if so.
+    /// Called both from `file_modified()` (on OS events) and from the poll
+    /// timer (as a fallback when the OS coalesces Create+Modify events).
+    async fn check_pending_file(&mut self) {
+        let path = match self.pending_file.clone() {
+            Some(p) => p,
+            None => {
+                // No pending file — disable the poll timer if it's running
+                self.pending_file_interval = None;
+                return;
             }
+        };
+
+        // Re-stat the file and try to extract character data
+        {
+            let mut index = self.shared.directory_index.write().await;
+            if index.is_missing_character(&path) {
+                index.refresh_missing_characters();
+            }
+        }
+
+        let has_content = {
+            let index = self.shared.directory_index.read().await;
+            index
+                .newest_file()
+                .map(|f| f.path == path && !f.is_empty)
+                .unwrap_or(false)
+        };
+
+        if has_content {
+            info!(
+                file = %path.display(),
+                "Pending file now has content, switching"
+            );
+            self.pending_file = None;
+            self.pending_file_interval = None;
+            let _ = self
+                .overlay_tx
+                .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
+            self.start_tailing(path).await;
         }
     }
 
