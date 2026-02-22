@@ -1319,6 +1319,26 @@ button:active {
   border-color: rgba(212, 168, 80, 0.3);
 }
 
+/* Character mismatch warning banner */
+.session-mismatch-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 1em;
+  margin-bottom: 0.5em;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: clamp(0.75rem, 1.5vh, 0.9rem);
+  line-height: 1.4;
+}
+
+.session-mismatch-warning i {
+  flex-shrink: 0;
+  font-size: 1.1em;
+}
+
 /* Parsely upload button */
 .btn-session-upload {
   display: inline-flex;

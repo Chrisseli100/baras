@@ -331,6 +331,8 @@ impl ServiceHandle {
             session_end,
             duration_formatted,
             stale_session,
+            character_mismatch: cache.character_mismatch,
+            missing_area: cache.missing_area,
         })
     }
 

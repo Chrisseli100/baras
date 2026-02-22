@@ -50,6 +50,14 @@ pub struct SessionCache {
     /// Timestamp of last combat exit - used to detect fake combat splits
     /// (e.g., loot chest "enemies" or Kephess SM walker phase)
     pub last_combat_exit_time: Option<NaiveDateTime>,
+
+    // Log file corruption detection
+    /// True if a different character's events were detected in this log file
+    /// (e.g., hibernation caused a second login to append to the same file)
+    pub character_mismatch: bool,
+    /// True if the log file started without an AreaEntered event
+    /// (e.g., crash/disconnect caused SWTOR to resume logging without area context)
+    pub missing_area: bool,
 }
 
 impl Default for SessionCache {
@@ -71,6 +79,8 @@ impl SessionCache {
             seen_npc_instances: HashSet::new(),
             player_disciplines: HashMap::new(),
             last_combat_exit_time: None,
+            character_mismatch: false,
+            missing_area: false,
         };
         cache.push_new_encounter();
         cache
@@ -312,6 +322,8 @@ impl SessionCache {
                 .values()
                 .map(WorkerPlayerDiscipline::from_player)
                 .collect(),
+            character_mismatch: self.character_mismatch,
+            missing_area: self.missing_area,
             elapsed_ms: 0, // Filled in by caller
         }
     }
@@ -370,6 +382,14 @@ impl SessionCache {
 
         // Restore area generation counter
         self.current_area.generation = generation_count;
+
+        // Restore log file corruption flags
+        if output.character_mismatch {
+            self.character_mismatch = true;
+        }
+        if output.missing_area {
+            self.missing_area = true;
+        }
 
         generation_count
     }

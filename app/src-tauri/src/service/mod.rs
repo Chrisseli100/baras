@@ -3089,4 +3089,8 @@ pub struct SessionInfo {
     pub duration_formatted: Option<String>,
     /// True if the log file's last event is older than 30 minutes (no active session)
     pub stale_session: bool,
+    /// True if this log file contains events from multiple characters (corrupted)
+    pub character_mismatch: bool,
+    /// True if the log file started without an AreaEntered event
+    pub missing_area: bool,
 }

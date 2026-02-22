@@ -140,6 +140,12 @@ pub struct ParseWorkerOutput {
     pub area: WorkerAreaInfo,
     /// Player disciplines for all players in session (for Data Explorer enrichment).
     pub player_disciplines: Vec<WorkerPlayerDiscipline>,
+    /// True if a character mismatch was detected during parsing.
+    #[serde(default)]
+    pub character_mismatch: bool,
+    /// True if the log file started without an AreaEntered event.
+    #[serde(default)]
+    pub missing_area: bool,
     /// Elapsed time in milliseconds.
     pub elapsed_ms: u128,
 }

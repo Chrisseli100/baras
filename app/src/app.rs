@@ -800,8 +800,8 @@ pub fn App() -> Element {
                 // Session Tab
                 // ─────────────────────────────────────────────────────────────
                 if ui_state.read().active_tab == MainTab::Session {
-                    // Empty states: show when no player data yet
-                    if show_empty_state {
+                    // Empty states: show when no player data yet (but not if missing_area already detected)
+                    if show_empty_state && !session.as_ref().is_some_and(|s| s.missing_area) {
                         if !live_tailing {
                             // Loading a historical file
                             div { class: "session-empty",
@@ -840,11 +840,28 @@ pub fn App() -> Element {
                         }
                     }
 
+                    // Incomplete log file: no AreaEntered event at start of file
+                    if session.as_ref().is_some_and(|s| s.missing_area) {
+                        div { class: "session-empty alert",
+                            i { class: "fa-solid fa-triangle-exclamation" }
+                            p { "Incomplete Log File" }
+                            p { class: "hint", "No area data found. Boss encounters and timers are unavailable. Relog or toggle combat logging in game settings to start a new log." }
+                        }
+                    }
+
                     // Session panel with info - only show when we have player data
                     if let Some(ref info) = session {
-                    if has_player {
+                    if has_player && !info.missing_area {
                         section {
                             class: if live_tailing && !session_ended() && !info.stale_session { "session-panel" } else { "session-panel historical" },
+
+                            // Character mismatch warning (corrupted log file)
+                            if info.character_mismatch {
+                                div { class: "session-mismatch-warning",
+                                    i { class: "fa-solid fa-triangle-exclamation" }
+                                    " This log file contains multiple characters. Data may be inaccurate. Please relog to start a new session."
+                                }
+                            }
 
                             // Session toolbar: header + upload button
                             div { class: "session-toolbar",

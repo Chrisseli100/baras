@@ -52,6 +52,16 @@ impl EventProcessor {
         // 1c. Area transitions
         signals.extend(self.handle_area_transition(&event, cache));
 
+        // Detect missing area: if no AreaEntered has been seen after the first event,
+        // the log file is incomplete (e.g., crash/disconnect caused SWTOR to resume
+        // logging without emitting an initial AreaEntered).
+        if !cache.missing_area
+            && cache.current_area.area_id == 0
+            && event.effect.type_id != effect_type_id::AREAENTERED
+        {
+            cache.missing_area = true;
+        }
+
         // 1d. NPC first seen tracking (for ANY NPC, not just bosses)
         signals.extend(self.handle_npc_first_seen(&event, cache));
 
@@ -409,6 +419,16 @@ impl EventProcessor {
     ) -> Vec<GameSignal> {
         if event.effect.type_id != effect_type_id::AREAENTERED {
             return Vec::new();
+        }
+
+        // Detect character mismatch: if a different player enters an area after the
+        // local character was already established, the log file contains data from
+        // multiple logins (e.g., hibernation caused a second login to append here).
+        if cache.player_initialized
+            && event.source_entity.log_id != 0
+            && event.source_entity.log_id != cache.player.id
+        {
+            cache.character_mismatch = true;
         }
 
         self.update_area_from_event(event, cache);
