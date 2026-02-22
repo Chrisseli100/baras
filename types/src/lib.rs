@@ -1884,6 +1884,9 @@ pub struct CombatTimeOverlayConfig {
     /// When true, background shrinks to fit content
     #[serde(default)]
     pub dynamic_background: bool,
+    /// When true, overlay clears when combat ends; otherwise keeps last time
+    #[serde(default = "default_true")]
+    pub clear_after_combat: bool,
 }
 
 impl Default for CombatTimeOverlayConfig {
@@ -1893,6 +1896,7 @@ impl Default for CombatTimeOverlayConfig {
             font_scale: 1.0,
             font_color: overlay_colors::WHITE,
             dynamic_background: false,
+            clear_after_combat: true,
         }
     }
 }

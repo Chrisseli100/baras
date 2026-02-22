@@ -1491,6 +1491,19 @@ pub fn SettingsPanel(
                     }
 
                     div { class: "setting-row",
+                        label { "Clear After Combat" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.combat_time.clear_after_combat,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.combat_time.clear_after_combat = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
                         label { "Font Scale" }
                         input {
                             r#type: "range",

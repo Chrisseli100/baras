@@ -175,7 +175,12 @@ async fn process_overlay_update(
                 state.get_combat_time_tx().cloned()
             };
 
-            if let Some(tx) = combat_time_tx {
+            // Only send combat time while in combat; the CombatEnded handler
+            // clears the overlay separately and we must not overwrite that clear
+            // with the final DataUpdated that arrives after combat ends.
+            if let Some(tx) = combat_time_tx
+                && shared.in_combat.load(std::sync::atomic::Ordering::SeqCst)
+            {
                 let _ = tx
                     .send(OverlayCommand::UpdateData(OverlayData::CombatTime(
                         baras_overlay::CombatTimeData {

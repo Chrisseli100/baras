@@ -1015,6 +1015,7 @@ pub fn create_combat_time_overlay(
         font_scale: ct_config.font_scale,
         font_color: ct_config.font_color,
         dynamic_background: ct_config.dynamic_background,
+        clear_after_combat: ct_config.clear_after_combat,
     };
 
     let factory = move || {

@@ -21,12 +21,14 @@ use crate::widgets::Header;
 pub struct CombatTimeConfig {
     /// Whether to show the "Combat Time" title and separator
     pub show_title: bool,
-    /// Font scale multiplier (0.5 - 3.0)
+    /// Font scale multiplier (0.5 - 3.0) — applies to the time digits only
     pub font_scale: f32,
     /// Font color (RGBA)
     pub font_color: [u8; 4],
     /// When true, background shrinks to fit content
     pub dynamic_background: bool,
+    /// When true, overlay clears when combat ends; otherwise keeps last time
+    pub clear_after_combat: bool,
 }
 
 impl Default for CombatTimeConfig {
@@ -36,6 +38,7 @@ impl Default for CombatTimeConfig {
             font_scale: 1.0,
             font_color: [255, 255, 255, 255],
             dynamic_background: false,
+            clear_after_combat: true,
         }
     }
 }
@@ -103,14 +106,16 @@ impl CombatTimeOverlay {
 
     /// Render the overlay
     pub fn render(&mut self) {
-        let scale = self.config.font_scale;
         let padding = self.frame.scaled(BASE_PADDING);
-        let font_size = self.frame.scaled(BASE_FONT_SIZE) * scale;
+        let base_font_size = self.frame.scaled(BASE_FONT_SIZE);
+        let time_font_size = base_font_size * self.config.font_scale;
+        let header_font_size = base_font_size * 0.85;
         let header_spacing = self.frame.scaled(BASE_HEADER_SPACING);
         let color = color_from_rgba(self.config.font_color);
 
         // Calculate content height for dynamic background
-        let content_height = self.content_height(padding, font_size, header_spacing);
+        let content_height =
+            self.content_height(padding, time_font_size, header_font_size, header_spacing);
         if self.config.dynamic_background {
             self.frame.begin_frame_with_content_height(content_height);
         } else {
@@ -128,21 +133,35 @@ impl CombatTimeOverlay {
         // Optional title header with separator
         if self.config.show_title {
             let content_width = self.content_width(padding);
-            y = Header::new("Combat Time").with_color(color).render(
-                &mut self.frame,
-                padding,
-                y,
-                content_width,
-                font_size * 0.85,
-                header_spacing,
-            );
+            y = Header::new("Combat Time")
+                .with_color(color)
+                .with_centered(true)
+                .render(
+                    &mut self.frame,
+                    padding,
+                    y,
+                    content_width,
+                    header_font_size,
+                    header_spacing,
+                );
         }
 
         // Formatted time value (bold, glowed for transparent bg readability)
         let time_str = formatting::format_duration_u64(self.data.encounter_time_secs);
-        let time_y = y + font_size;
-        self.frame
-            .draw_text_with_glow(&time_str, padding, time_y, font_size, color, true, false);
+        let (text_width, _) =
+            self.frame
+                .measure_text_styled(&time_str, time_font_size, true, false);
+        let time_x = (self.frame.width() as f32 - text_width) / 2.0;
+        let time_y = y + time_font_size;
+        self.frame.draw_text_with_glow(
+            &time_str,
+            time_x,
+            time_y,
+            time_font_size,
+            color,
+            true,
+            false,
+        );
 
         self.frame.end_frame();
     }
@@ -153,7 +172,13 @@ impl CombatTimeOverlay {
     }
 
     /// Calculate the total content height for dynamic background sizing
-    fn content_height(&self, padding: f32, font_size: f32, header_spacing: f32) -> f32 {
+    fn content_height(
+        &self,
+        padding: f32,
+        time_font_size: f32,
+        header_font_size: f32,
+        header_spacing: f32,
+    ) -> f32 {
         if self.data.encounter_time_secs == 0 {
             return 0.0;
         }
@@ -162,11 +187,11 @@ impl CombatTimeOverlay {
 
         if self.config.show_title {
             let scale = self.frame.scale_factor();
-            h += Header::new("").height(font_size * 0.85, header_spacing, scale);
+            h += Header::new("").height(header_font_size, header_spacing, scale);
         }
 
         // Time value row
-        h += font_size;
+        h += time_font_size;
         h += padding;
         h
     }
@@ -179,6 +204,11 @@ impl CombatTimeOverlay {
 impl Overlay for CombatTimeOverlay {
     fn update_data(&mut self, data: OverlayData) -> bool {
         if let OverlayData::CombatTime(combat_time_data) = data {
+            // When clear_after_combat is disabled, ignore zero-time clears
+            // so the last combat time remains visible
+            if combat_time_data.encounter_time_secs == 0 && !self.config.clear_after_combat {
+                return false;
+            }
             let changed = self.data.encounter_time_secs != combat_time_data.encounter_time_secs;
             self.data = combat_time_data;
             changed

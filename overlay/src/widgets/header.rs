@@ -13,6 +13,7 @@ pub struct Header {
     pub title: String,
     pub color: Color,
     pub show_separator: bool,
+    pub centered: bool,
 }
 
 impl Header {
@@ -21,6 +22,7 @@ impl Header {
             title: title.into(),
             color: colors::white(),
             show_separator: true,
+            centered: false,
         }
     }
 
@@ -31,6 +33,11 @@ impl Header {
 
     pub fn with_separator(mut self, show: bool) -> Self {
         self.show_separator = show;
+        self
+    }
+
+    pub fn with_centered(mut self, centered: bool) -> Self {
+        self.centered = centered;
         self
     }
 
@@ -56,7 +63,13 @@ impl Header {
         spacing: f32,
     ) -> f32 {
         let title_y = y + font_size;
-        frame.draw_text_glowed(&self.title, x, title_y, font_size, self.color);
+        let title_x = if self.centered {
+            let (text_width, _) = frame.measure_text(&self.title, font_size);
+            x + (width - text_width) / 2.0
+        } else {
+            x
+        };
+        frame.draw_text_glowed(&self.title, title_x, title_y, font_size, self.color);
 
         if self.show_separator {
             let sep_y = title_y + spacing + 2.0;

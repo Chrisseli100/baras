@@ -405,6 +405,7 @@ impl OverlayManager {
                     font_scale: cfg.font_scale,
                     font_color: cfg.font_color,
                     dynamic_background: cfg.dynamic_background,
+                    clear_after_combat: cfg.clear_after_combat,
                 };
                 OverlayConfigUpdate::CombatTime(ct_config, settings.combat_time_opacity, eu)
             }
