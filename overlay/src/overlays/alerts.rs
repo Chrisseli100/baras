@@ -165,10 +165,16 @@ impl AlertsOverlay {
             let mut shadow = colors::text_shadow();
             shadow.set_alpha(shadow.alpha() * opacity);
 
+            // Center text horizontally
+            let (text_width, _) =
+                self.frame
+                    .measure_text_styled(&entry.text, font_size, true, false);
+            let text_x = (self.frame.width() as f32 - text_width) / 2.0;
+
             // Draw shadow (offset +1, +1) then bold text on top
             self.frame.draw_text_styled(
                 &entry.text,
-                padding + 1.0,
+                text_x + 1.0,
                 y + 1.0,
                 font_size,
                 shadow,
@@ -177,7 +183,7 @@ impl AlertsOverlay {
             );
             self.frame.draw_text_styled(
                 &entry.text,
-                padding,
+                text_x,
                 y,
                 font_size,
                 color_from_rgba(color),
