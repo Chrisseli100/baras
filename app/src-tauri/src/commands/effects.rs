@@ -664,8 +664,8 @@ use zip::ZipArchive;
 static ICON_NAME_CACHE: std::sync::OnceLock<Mutex<HashMap<u64, String>>> =
     std::sync::OnceLock::new();
 
-/// Lazy-loaded case-insensitive zip filename index: lowercase name → actual zip entry name
-static ZIP_NAME_INDEX: std::sync::OnceLock<HashMap<String, (PathBuf, String)>> =
+/// Pre-extracted icon PNG data: lowercase filename → PNG bytes
+static ICON_PNG_CACHE: std::sync::OnceLock<HashMap<String, Vec<u8>>> =
     std::sync::OnceLock::new();
 
 /// Get or load the icon name mapping from CSV
@@ -738,20 +738,22 @@ pub async fn get_icon_preview(app_handle: AppHandle, ability_id: u64) -> Result<
                 .join("icons")
         });
 
-    // Build case-insensitive index on first call
+    // Extract all PNGs from zip archives on first call
     let zip_paths = [icons_dir.join("icons.zip"), icons_dir.join("icons2.zip")];
-    let index = ZIP_NAME_INDEX.get_or_init(|| {
+    let cache = ICON_PNG_CACHE.get_or_init(|| {
         let mut map = HashMap::new();
         for zip_path in &zip_paths {
             if let Ok(file) = std::fs::File::open(zip_path) {
                 let reader = std::io::BufReader::new(file);
                 if let Ok(mut archive) = ZipArchive::new(reader) {
                     for i in 0..archive.len() {
-                        if let Ok(entry) = archive.by_index(i) {
+                        if let Ok(mut entry) = archive.by_index(i) {
                             let name = entry.name().to_string();
                             if name.ends_with(".png") {
-                                map.entry(name.to_lowercase())
-                                    .or_insert_with(|| (zip_path.clone(), name));
+                                let mut data = Vec::new();
+                                if entry.read_to_end(&mut data).is_ok() {
+                                    map.insert(name.to_lowercase(), data);
+                                }
                             }
                         }
                     }
@@ -762,20 +764,10 @@ pub async fn get_icon_preview(app_handle: AppHandle, ability_id: u64) -> Result<
     });
 
     let lookup_key = format!("{}.png", icon_name.to_lowercase());
-    if let Some((zip_path, actual_name)) = index.get(&lookup_key) {
-        if let Ok(file) = std::fs::File::open(zip_path) {
-            let reader = std::io::BufReader::new(file);
-            if let Ok(mut archive) = ZipArchive::new(reader)
-                && let Ok(mut zip_file) = archive.by_name(actual_name)
-            {
-                let mut png_data = Vec::new();
-                if zip_file.read_to_end(&mut png_data).is_ok() {
-                    use base64::Engine;
-                    let base64_data = base64::engine::general_purpose::STANDARD.encode(&png_data);
-                    return Ok(format!("data:image/png;base64,{}", base64_data));
-                }
-            }
-        }
+    if let Some(png_data) = cache.get(&lookup_key) {
+        use base64::Engine;
+        let base64_data = base64::engine::general_purpose::STANDARD.encode(png_data);
+        return Ok(format!("data:image/png;base64,{}", base64_data));
     }
 
     Err(format!("Icon '{}' not found in ZIP archives", icon_name))
