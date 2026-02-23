@@ -671,6 +671,15 @@
   color: var(--text-muted);
 }
 
+.overview-table tr.sub-header th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.overview-table tr.sub-header th.sortable:hover {
+  color: var(--text-primary);
+}
+
 .overview-table tbody tr:hover {
   background: var(--bg-hover);
 }

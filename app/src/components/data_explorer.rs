@@ -38,6 +38,47 @@ enum LoadState {
     Error(String),
 }
 
+/// Sortable columns for the overview table
+#[derive(Clone, Copy, PartialEq, Default)]
+enum OverviewSort {
+    #[default]
+    DPS,
+    DamageTotal,
+    ThreatTotal,
+    TPS,
+    DamageTakenTotal,
+    DTPS,
+    APS,
+    HealingTotal,
+    HPS,
+    HealingPct,
+    EHPS,
+    ShieldingTotal,
+    SPS,
+    APM,
+}
+
+impl OverviewSort {
+    fn extract(self, row: &RaidOverviewRow) -> f64 {
+        match self {
+            Self::DamageTotal => row.damage_total,
+            Self::DPS => row.dps,
+            Self::ThreatTotal => row.threat_total,
+            Self::TPS => row.tps,
+            Self::DamageTakenTotal => row.damage_taken_total,
+            Self::DTPS => row.dtps,
+            Self::APS => row.aps,
+            Self::HealingTotal => row.healing_total,
+            Self::HPS => row.hps,
+            Self::HealingPct => row.healing_pct,
+            Self::EHPS => row.ehps,
+            Self::ShieldingTotal => row.shielding_given_total,
+            Self::SPS => row.sps,
+            Self::APM => row.apm,
+        }
+    }
+}
+
 /// Overview table data with pre-calculated totals
 #[derive(Clone, PartialEq, Default)]
 struct OverviewTableData {
@@ -333,6 +374,10 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     let mut usage_sort_direction = use_signal(|| props.state.read().data_explorer.usage_sort_direction);
     let mut usage_selected_abilities = use_signal(Vec::<(i64, &'static str)>::new);
 
+    // Overview table sort (not persisted - default DPS descending)
+    let mut overview_sort_col = use_signal(OverviewSort::default);
+    let mut overview_sort_asc = use_signal(|| false);
+
     // Sidebar collapse states (not persisted - always start expanded)
     let mut sidebar_collapsed = use_signal(|| false);
     let mut entity_collapsed = use_signal(|| false);
@@ -449,11 +494,19 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     // Memoized overview table data (rows + totals) - prevents recomputation on every render
     let overview_table_data = use_memo(move || {
         let data = overview_data.read();
-        let rows: Vec<RaidOverviewRow> = data
+        let sort_col = *overview_sort_col.read();
+        let sort_asc = *overview_sort_asc.read();
+        let mut rows: Vec<RaidOverviewRow> = data
             .iter()
             .filter(|r| r.entity_type == "Player" || r.entity_type == "Companion")
             .cloned()
             .collect();
+
+        // Sort rows by selected column
+        rows.sort_by(|a, b| {
+            let cmp = sort_col.extract(a).partial_cmp(&sort_col.extract(b)).unwrap_or(std::cmp::Ordering::Equal);
+            if sort_asc { cmp } else { cmp.reverse() }
+        });
 
         // Calculate totals
         OverviewTableData {
@@ -1682,22 +1735,42 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                 th { class: "section-header", colspan: "2", "Shielding" }
                                                 th { class: "section-header", colspan: "1", "Activity" }
                                             }
-                                            tr { class: "sub-header",
-                                                th {}
-                                                th { class: "num", "Total" }
-                                                th { class: "num", "DPS" }
-                                                th { class: "num", "Total" }
-                                                th { class: "num", "TPS" }
-                                                th { class: "num", "Total" }
-                                                th { class: "num", "DTPS" }
-                                                th { class: "num", "APS" }
-                                                th { class: "num", "Total" }
-                                                th { class: "num", "HPS" }
-                                                th { class: "num", "%" }
-                                                th { class: "num", "EHPS" }
-                                                th { class: "num", "Total" }
-                                                th { class: "num", "SPS" }
-                                                th { class: "num", "APM" }
+                                            {
+                                                let cur = *overview_sort_col.read();
+                                                let asc = *overview_sort_asc.read();
+                                                let arrow = |col: OverviewSort| -> &'static str {
+                                                    if cur == col { if asc { " \u{25B2}" } else { " \u{25BC}" } } else { "" }
+                                                };
+                                                let sort_click = move |col: OverviewSort| {
+                                                    move |_: MouseEvent| {
+                                                        if *overview_sort_col.read() == col {
+                                                            let was_asc = *overview_sort_asc.peek();
+                                                            overview_sort_asc.set(!was_asc);
+                                                        } else {
+                                                            overview_sort_col.set(col);
+                                                            overview_sort_asc.set(false);
+                                                        }
+                                                    }
+                                                };
+                                                rsx! {
+                                                    tr { class: "sub-header",
+                                                        th {}
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::DamageTotal), "Total{arrow(OverviewSort::DamageTotal)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::DPS), "DPS{arrow(OverviewSort::DPS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::ThreatTotal), "Total{arrow(OverviewSort::ThreatTotal)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::TPS), "TPS{arrow(OverviewSort::TPS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::DamageTakenTotal), "Total{arrow(OverviewSort::DamageTakenTotal)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::DTPS), "DTPS{arrow(OverviewSort::DTPS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::APS), "APS{arrow(OverviewSort::APS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::HealingTotal), "Total{arrow(OverviewSort::HealingTotal)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::HPS), "HPS{arrow(OverviewSort::HPS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::HealingPct), "%{arrow(OverviewSort::HealingPct)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::EHPS), "EHPS{arrow(OverviewSort::EHPS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::ShieldingTotal), "Total{arrow(OverviewSort::ShieldingTotal)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::SPS), "SPS{arrow(OverviewSort::SPS)}" }
+                                                        th { class: "num sortable", onclick: sort_click(OverviewSort::APM), "APM{arrow(OverviewSort::APM)}" }
+                                                    }
+                                                }
                                             }
                                         }
                                         tbody {
