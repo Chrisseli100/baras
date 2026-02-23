@@ -437,8 +437,9 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     let mut overview_data = use_signal(Vec::<RaidOverviewRow>::new);
     let mut player_deaths = use_signal(Vec::<PlayerDeath>::new);
     let mut npc_health = use_signal(Vec::<NpcHealthRow>::new);
-    // Track last (encounter, time_range) we fetched overview data for (prevents re-fetch loops)
-    let mut last_overview_fetch = use_signal(|| None::<(Option<u32>, TimeRange)>);
+    // Track last (encounter, time_range, was_overview) we fetched overview data for (prevents re-fetch loops)
+    // The bool tracks whether deaths/NPC HP were also loaded (only on Overview tab)
+    let mut last_overview_fetch = use_signal(|| None::<(Option<u32>, TimeRange, bool)>);
 
     // Death target filter - set when clicking a death to filter combat log by target
     let mut death_target_filter = use_signal(|| None::<String>);
@@ -730,13 +731,13 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
 
         // Check if we've already fetched for this (encounter, time_range) combo
         let last = last_overview_fetch.read().clone();
-        if let Some((last_idx, last_tr)) = last {
-            if last_idx == idx && last_tr == tr {
-                return; // Already fetched for this exact state
-            }
-            // On non-overview tabs, any loaded data for this encounter is fine (class icons only)
-            // But always reload on Overview tab when time_range changes
+        if let Some((last_idx, last_tr, had_overview)) = last {
+            // Non-overview tabs only need class icons — any loaded data for this encounter is fine
             if !is_overview && last_idx == idx {
+                return;
+            }
+            // Overview tab: skip if same encounter+range AND deaths/NPC HP were already loaded
+            if is_overview && last_idx == idx && last_tr == tr && had_overview {
                 return;
             }
         }
@@ -767,14 +768,8 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
             // None typically means no data available (no encounters dir, etc.) - not an error
             if let Some(data) = api::query_raid_overview(idx, tr_opt.as_ref(), duration).await {
                 let _ = overview_data.try_write().map(|mut w| *w = data);
-                let _ = last_overview_fetch
-                    .try_write()
-                    .map(|mut w| *w = Some((idx, tr)));
             } else {
-                // No data available - just mark as loaded with empty data
-                let _ = last_overview_fetch
-                    .try_write()
-                    .map(|mut w| *w = Some((idx, tr)));
+                // Don't cache failed fetches — allow retry on next effect trigger
                 if is_overview {
                     let _ = content_state
                         .try_write()
@@ -795,6 +790,11 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                     .try_write()
                     .map(|mut w| *w = LoadState::Loaded);
             }
+
+            // Cache after all queries complete — bool tracks whether overview-specific data was loaded
+            let _ = last_overview_fetch
+                .try_write()
+                .map(|mut w| *w = Some((idx, tr, is_overview)));
         });
     });
 
