@@ -1103,11 +1103,9 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                                 key: "{row.row_idx}",
                                 class: "{row_class(&row, highlighted_row_idx)}",
                                 oncontextmenu: move |e: MouseEvent| {
-                                    if props.on_range_change.is_some() {
-                                        e.prevent_default();
-                                        context_menu_pos.set(Some((e.client_coordinates().x, e.client_coordinates().y)));
-                                        context_menu_time.set(row_time);
-                                    }
+                                    e.prevent_default();
+                                    context_menu_pos.set(Some((e.client_coordinates().x, e.client_coordinates().y)));
+                                    context_menu_time.set(row_time);
                                 },
                                 div { class: "log-cell log-time", style: "width: {col_time}px; min-width: {col_time}px;",
                                     if absolute_time {
@@ -1179,17 +1177,27 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                 }
             }
 
-            // Context menu for "Set as range start/end"
+            // Context menu
             if let Some((x, y)) = *context_menu_pos.read() {
-                if props.on_range_change.is_some() {
-                    // Transparent backdrop for click-outside dismissal
+                // Transparent backdrop for click-outside dismissal
+                div {
+                    style: "position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999;",
+                    onclick: move |_| context_menu_pos.set(None),
+                }
+                div {
+                    class: "log-context-menu",
+                    style: "position: fixed; left: {x}px; top: {y}px; z-index: 1000;",
                     div {
-                        style: "position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999;",
-                        onclick: move |_| context_menu_pos.set(None),
+                        class: "context-menu-item",
+                        onclick: move |_| {
+                            let _ = js_sys::eval(
+                                "{ const s = window.getSelection()?.toString(); if (s) navigator.clipboard.writeText(s); }"
+                            );
+                            context_menu_pos.set(None);
+                        },
+                        "Copy selection"
                     }
-                    div {
-                        class: "log-context-menu",
-                        style: "position: fixed; left: {x}px; top: {y}px; z-index: 1000;",
+                    if props.on_range_change.is_some() {
                         div {
                             class: "context-menu-item",
                             onclick: move |_| {
