@@ -4,6 +4,7 @@
 //! Allows selecting a phase or dragging an arbitrary time range.
 
 use dioxus::prelude::*;
+use wasm_bindgen::{JsCast, prelude::*};
 
 use crate::api::{EncounterTimeline, PhaseSegment, TimeRange};
 
@@ -65,6 +66,16 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
     let mut editing_start = use_signal(|| None::<String>);
     let mut editing_end = use_signal(|| None::<String>);
 
+    // Track current duration from props so persistent closures see latest value
+    let mut current_duration = use_signal(|| duration);
+    if *current_duration.peek() != duration {
+        current_duration.set(duration);
+    }
+
+    // JS function refs for cleanup on unmount
+    let mut move_fn: Signal<Option<js_sys::Function>> = use_signal(|| None);
+    let mut up_fn: Signal<Option<js_sys::Function>> = use_signal(|| None);
+
     // Calculate percentage position for a time value
     let time_to_pct = |t: f32| -> f32 {
         if duration > 0.0 {
@@ -114,14 +125,10 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
         }
     };
 
-    // Use effect to handle global mouse events during drag
+    // Persistent document listeners registered once on mount, removed on unmount.
+    // Closures check drag_start at runtime and early-return when not dragging,
+    // so only 2 closures exist total (not per-drag).
     use_effect(move || {
-        let is_dragging = drag_start.read().is_some();
-        if !is_dragging {
-            return;
-        }
-
-        // Add document-level listeners for mousemove and mouseup
         let window = match web_sys::window() {
             Some(w) => w,
             None => return,
@@ -131,21 +138,19 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
             None => return,
         };
 
-        use wasm_bindgen::JsCast;
-        use wasm_bindgen::prelude::*;
-
         // Mousemove handler
-        let drag_start_clone = drag_start.clone();
-        let mut committed_range_clone = committed_range.clone();
+        let drag_start_mv = drag_start;
+        let mut committed_range_mv = committed_range;
+        let dur_mv = current_duration;
         let on_mousemove =
             Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
-                // Use try_read to handle signal being dropped when component unmounts
-                let Ok(drag_guard) = drag_start_clone.try_read() else {
+                let Ok(drag_guard) = drag_start_mv.try_read() else {
                     return;
                 };
                 let Some(start_time) = *drag_guard else {
                     return;
                 };
+                let duration = *dur_mv.peek();
                 let Some(el) = web_sys::window()
                     .and_then(|w| w.document())
                     .and_then(|d| d.get_element_by_id("phase-timeline-track"))
@@ -164,34 +169,34 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                     } else {
                         (start_time, current_time)
                     };
-                    let _ = committed_range_clone
+                    let _ = committed_range_mv
                         .try_write()
                         .map(|mut w| *w = Some(TimeRange::new(start, end)));
                 }
             });
 
         // Mouseup handler
-        let mut drag_start_clone2 = drag_start.clone();
-        let mut committed_range_clone2 = committed_range.clone();
-        let mut was_dragged_clone = was_dragged.clone();
+        let mut drag_start_up = drag_start;
+        let mut committed_range_up = committed_range;
+        let mut was_dragged_up = was_dragged;
+        let dur_up = current_duration;
         let on_range_change = props.on_range_change.clone();
         let on_mouseup =
             Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
-                // Use try_read to handle signal being dropped when component unmounts
-                let Ok(drag_guard) = drag_start_clone2.try_read() else {
+                let Ok(drag_guard) = drag_start_up.try_read() else {
                     return;
                 };
                 let Some(start_time) = *drag_guard else {
-                    // Not dragging, just return
                     return;
                 };
                 drop(drag_guard); // Release read lock before writing
 
+                let duration = *dur_up.peek();
                 let Some(el) = web_sys::window()
                     .and_then(|w| w.document())
                     .and_then(|d| d.get_element_by_id("phase-timeline-track"))
                 else {
-                    let _ = drag_start_clone2.try_write().map(|mut w| {
+                    let _ = drag_start_up.try_write().map(|mut w| {
                         *w = None;
                     });
                     return;
@@ -220,28 +225,44 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
 
                     // Mark as dragged so phase onclick doesn't clobber
                     if real_drag {
-                        let _ = was_dragged_clone.try_write().map(|mut w| *w = true);
+                        let _ = was_dragged_up.try_write().map(|mut w| *w = true);
                     }
 
-                    let _ = committed_range_clone2
+                    let _ = committed_range_up
                         .try_write()
                         .map(|mut w| *w = Some(final_range));
                     on_range_change.call(final_range);
                 }
-                let _ = drag_start_clone2.try_write().map(|mut w| {
+                let _ = drag_start_up.try_write().map(|mut w| {
                     *w = None;
                 });
             });
 
-        // Add listeners
-        let _ = document
-            .add_event_listener_with_callback("mousemove", on_mousemove.as_ref().unchecked_ref());
-        let _ = document
-            .add_event_listener_with_callback("mouseup", on_mouseup.as_ref().unchecked_ref());
+        // Register listeners and store function refs for cleanup
+        let move_func = on_mousemove.as_ref().unchecked_ref::<js_sys::Function>().clone();
+        let up_func = on_mouseup.as_ref().unchecked_ref::<js_sys::Function>().clone();
+        let _ = document.add_event_listener_with_callback("mousemove", &move_func);
+        let _ = document.add_event_listener_with_callback("mouseup", &up_func);
+        move_fn.set(Some(move_func));
+        up_fn.set(Some(up_func));
 
-        // Store closures to prevent dropping
+        // Only 2 closures total, not per-drag
         on_mousemove.forget();
         on_mouseup.forget();
+    });
+
+    // Remove document listeners on unmount
+    use_drop(move || {
+        if let Some(window) = web_sys::window()
+            && let Some(document) = window.document()
+        {
+            if let Some(f) = move_fn.peek().as_ref() {
+                let _ = document.remove_event_listener_with_callback("mousemove", f);
+            }
+            if let Some(f) = up_fn.peek().as_ref() {
+                let _ = document.remove_event_listener_with_callback("mouseup", f);
+            }
+        }
     });
 
     // During drag use committed_range, otherwise use props range

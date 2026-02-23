@@ -758,13 +758,45 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                         .map(|mut w| *w = LoadState::Loaded);
                 }
                 None => {
-                    // None can mean: no encounters directory, file not found, or other backend issues
-                    // These are often normal states (no log loaded yet), so just reset to Idle
-                    // rather than showing an error
-                    if *load_generation.peek() != generation {
-                        return;
+                    // Retry up to 2 times with backoff — the session may still be loading
+                    let delays = [500, 1000];
+                    let mut succeeded = false;
+                    for delay_ms in delays {
+                        if *load_generation.peek() != generation {
+                            return; // Stale request
+                        }
+                        gloo_timers::future::TimeoutFuture::new(delay_ms).await;
+                        if *load_generation.peek() != generation {
+                            return; // Stale request
+                        }
+                        if let Some(tl) = api::query_encounter_timeline(idx).await {
+                            if *load_generation.peek() != generation {
+                                return;
+                            }
+                            let dur = tl.duration_secs;
+                            if restore_time_range && saved_time_range.end > 0.0 {
+                                // Keep the saved time_range
+                            } else {
+                                let _ = time_range
+                                    .try_write()
+                                    .map(|mut w| *w = TimeRange::full(dur));
+                            }
+                            let _ = timeline.try_write().map(|mut w| *w = Some(tl));
+                            let _ = timeline_state
+                                .try_write()
+                                .map(|mut w| *w = LoadState::Loaded);
+                            succeeded = true;
+                            break;
+                        }
                     }
-                    let _ = timeline_state.try_write().map(|mut w| *w = LoadState::Idle);
+                    if !succeeded {
+                        if *load_generation.peek() != generation {
+                            return;
+                        }
+                        let _ = timeline_state
+                            .try_write()
+                            .map(|mut w| *w = LoadState::Idle);
+                    }
                 }
             }
         });
