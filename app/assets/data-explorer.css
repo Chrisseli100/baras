@@ -815,98 +815,21 @@
    Charts Panel
    ───────────────────────────────────────────────────────────────────────────── */
 
-.charts-panel {
-  display: grid;
-  grid-template-columns: 150px 1fr;
-  gap: var(--space-sm);
-  height: 100%;
-  min-height: 400px;
-}
-
-.charts-panel.sidebar-collapsed {
-  grid-template-columns: auto 1fr;
-}
-
 /* Main content area - charts on top, effects below */
 .charts-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   overflow: hidden;
 }
 
-/* Charts sidebar (entity selection) */
-.charts-sidebar {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm);
-  overflow-y: auto;
-}
-
-.charts-sidebar.collapsed {
-  padding: var(--space-xs);
-}
-
-.charts-sidebar .entity-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: var(--space-xs);
-}
-
-.charts-sidebar.collapsed .entity-header {
-  margin-bottom: 0;
-}
-
-.charts-sidebar .sidebar-section {
-  margin-bottom: var(--space-md);
-}
-
-.charts-sidebar h4 {
-  margin: 0 0 var(--space-xs) 0;
-  font-size: 11px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 0.5px;
-}
-
-.charts-sidebar .entity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.charts-sidebar .entity-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  font-size: 12px;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.charts-sidebar .entity-item:hover {
-  background: var(--bg-hover);
-}
-
-.charts-sidebar .entity-item.selected {
-  background: rgba(255, 200, 50, 0.15);
-  color: var(--accent-gold);
-  font-weight: 600;
-  border: 2px solid var(--accent-gold);
-  box-shadow: 0 0 8px rgba(255, 200, 50, 0.3);
-}
-
-/* Chart toggles */
+/* Chart toggles (horizontal bar above charts) */
 .chart-toggles {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  gap: 12px;
 }
 
 .chart-toggles label {

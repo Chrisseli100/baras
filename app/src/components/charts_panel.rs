@@ -4,13 +4,11 @@
 //! Uses ECharts for visualization via wasm-bindgen JS interop.
 
 use dioxus::prelude::*;
-use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local as spawn;
 
 use crate::api::{self, EffectChartData, EffectWindow, HpPoint, TimeRange, TimeSeriesPoint};
 use crate::components::ability_icon::AbilityIcon;
-use crate::components::class_icons::get_class_icon;
 use crate::utils::js_set;
 use baras_types::formatting;
 
@@ -717,17 +715,8 @@ pub struct ChartsPanelProps {
     pub duration_secs: f32,
     /// Time range filter
     pub time_range: TimeRange,
-    /// Local player name for default selection
-    #[props(default)]
-    pub local_player: Option<String>,
     /// Shared selected player signal (synced with Detailed tabs)
     pub selected_source: Signal<Option<String>>,
-    /// Whether entity sidebar is collapsed
-    #[props(default)]
-    pub entity_collapsed: bool,
-    /// Callback to toggle entity sidebar collapse
-    #[props(default)]
-    pub on_toggle_entity: EventHandler<()>,
     /// European number format (swaps `.` and `,`)
     #[props(default)]
     pub european: bool,
@@ -753,9 +742,7 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
     }
 
     // Entity selection — shared with Detailed tabs via parent signal
-    let mut selected_entity = props.selected_source;
-    let mut entities = use_signal(Vec::<String>::new);
-    let mut class_icons = use_signal(HashMap::<String, String>::new);
+    let selected_entity = props.selected_source;
 
     // Chart visibility toggles
     let mut show_dps = use_signal(|| true);
@@ -815,60 +802,6 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
         "rgba(200, 150, 255, 0.35)", // Purple
         "rgba(255, 180, 100, 0.35)", // Orange
     ];
-
-    // Local player name for default selection
-    let local_player = props.local_player.clone();
-
-    // Load entities on mount and auto-select player (with retry for race conditions)
-    // Validates held selection exists in this encounter, falls back to local player
-    use_effect(move || {
-        let idx = encounter_idx_signal();
-        let local_name = local_player.clone();
-        spawn(async move {
-            // Retry up to 3 seconds if data not ready
-            for attempt in 0..10 {
-                if let Some(data) = api::query_raid_overview(idx, None, None).await {
-                    let players: Vec<_> = data
-                        .into_iter()
-                        .filter(|r| r.entity_type == "Player" || r.entity_type == "Companion")
-                        .collect();
-                    if !players.is_empty() {
-                        // Check if held selection exists in this encounter
-                        let current = selected_entity.read().clone();
-                        let needs_auto_select = match &current {
-                            Some(name) => !players.iter().any(|p| &p.name == name),
-                            None => true,
-                        };
-                        if needs_auto_select {
-                            // Fall back to local player, then first player
-                            let pick = local_name.as_deref()
-                                .and_then(|name| players.iter().find(|p| p.name == name))
-                                .or(players.first());
-                            if let Some(p) = pick {
-                                selected_entity.set(Some(p.name.clone()));
-                            }
-                        }
-                        // Store class icons lookup
-                        let icons: HashMap<String, String> = players
-                            .iter()
-                            .filter_map(|r| {
-                                r.class_icon
-                                    .as_ref()
-                                    .map(|icon| (r.name.clone(), icon.clone()))
-                            })
-                            .collect();
-                        class_icons.set(icons);
-                        // Store entity names
-                        entities.set(players.into_iter().map(|r| r.name).collect());
-                        return;
-                    }
-                }
-                if attempt < 9 {
-                    gloo_timers::future::TimeoutFuture::new(300).await;
-                }
-            }
-        });
-    });
 
     // Load time series data when entity or time range changes
     use_effect(move || {
@@ -1120,7 +1053,6 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
         dispose_chart("chart-hp");
     });
 
-    let entity_list = entities.read().clone();
     let active = active_effects.read().clone();
     let passive = passive_effects.read().clone();
     let current_effects = selected_effects.read().clone();
@@ -1131,107 +1063,42 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
     let hp_empty = hp_data.read().is_empty();
 
     rsx! {
-        div { class: if props.entity_collapsed { "charts-panel sidebar-collapsed" } else { "charts-panel" },
-            // Entity sidebar
-            aside { class: if props.entity_collapsed { "charts-sidebar collapsed" } else { "charts-sidebar" },
-                div { class: "entity-header",
-                    button {
-                        class: "sidebar-collapse-btn",
-                        title: if props.entity_collapsed { "Expand sidebar" } else { "Collapse sidebar" },
-                        onclick: move |_| props.on_toggle_entity.call(()),
-                        i { class: if props.entity_collapsed { "fa-solid fa-angles-right" } else { "fa-solid fa-angles-left" } }
-                    }
+        // Chart visibility toggles (horizontal bar)
+        div { class: "chart-toggles",
+            label {
+                input {
+                    r#type: "checkbox",
+                    checked: *show_dps.read(),
+                    onchange: move |e| show_dps.set(e.checked())
                 }
-                if !props.entity_collapsed {
-                    div { class: "sidebar-section",
-                        h4 { "Player" }
-                        div { class: "entity-list",
-                            for name in entity_list.iter() {
-                                {
-                                    let n = name.clone();
-                                    let is_selected = selected_entity.read().as_ref() == Some(&n);
-                                    let icon = class_icons.read().get(&n).cloned();
-                                    rsx! {
-                                        div {
-                                            class: if is_selected { "entity-item selected" } else { "entity-item" },
-                                            onclick: {
-                                                let n = n.clone();
-                                                move |_| {
-                                                    let current = selected_entity.read().clone();
-                                                    if current.as_ref() == Some(&n) {
-                                                        selected_entity.set(None);
-                                                    } else {
-                                                        selected_entity.set(Some(n.clone()));
-                                                    }
-                                                }
-                                            },
-                                            if let Some(icon_name) = &icon {
-                                                if let Some(icon_asset) = get_class_icon(icon_name) {
-                                                    img {
-                                                        class: "entity-class-icon",
-                                                        src: *icon_asset,
-                                                        alt: ""
-                                                    }
-                                                }
-                                            }
-                                            "{name}"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    div { class: "sidebar-section",
-                        h4 { "Charts" }
-                        div { class: "chart-toggles",
-                            label {
-                                input {
-                                    r#type: "checkbox",
-                                    checked: *show_dps.read(),
-                                    onchange: move |e| show_dps.set(e.checked())
-                                }
-                                span { class: "toggle-dps", "DPS" }
-                            }
-                            label {
-                                input {
-                                    r#type: "checkbox",
-                                    checked: *show_hps.read(),
-                                    onchange: move |e| show_hps.set(e.checked())
-                                }
-                                span { class: "toggle-hps", "HPS" }
-                            }
-                            label {
-                                input {
-                                    r#type: "checkbox",
-                                    checked: *show_dtps.read(),
-                                    onchange: move |e| show_dtps.set(e.checked())
-                                }
-                                span { class: "toggle-dtps", "DTPS" }
-                            }
-                            label {
-                                input {
-                                    r#type: "checkbox",
-                                    checked: *show_hp.read(),
-                                    onchange: move |e| show_hp.set(e.checked())
-                                }
-                                span { class: "toggle-hp", "HP%" }
-                            }
-                        }
-                    }
-                }
+                span { class: "toggle-dps", "DPS" }
             }
-
-            // Main content area (charts + effects below)
-            div { class: "charts-main",
-                if props.entity_collapsed {
-                    if let Some(name) = selected_entity.read().as_ref() {
-                        div { class: "selected-entity-indicator",
-                            i { class: "fa-solid fa-user" }
-                            span { "{name}" }
-                        }
-                    }
+            label {
+                input {
+                    r#type: "checkbox",
+                    checked: *show_hps.read(),
+                    onchange: move |e| show_hps.set(e.checked())
                 }
-                // Charts area
+                span { class: "toggle-hps", "HPS" }
+            }
+            label {
+                input {
+                    r#type: "checkbox",
+                    checked: *show_dtps.read(),
+                    onchange: move |e| show_dtps.set(e.checked())
+                }
+                span { class: "toggle-dtps", "DTPS" }
+            }
+            label {
+                input {
+                    r#type: "checkbox",
+                    checked: *show_hp.read(),
+                    onchange: move |e| show_hp.set(e.checked())
+                }
+                span { class: "toggle-hp", "HP%" }
+            }
+        }
+        // Charts area
                 div { class: "charts-area",
                     if *loading.read() {
                         div { class: "charts-loading",
@@ -1379,7 +1246,5 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                         }
                     }
                 }
-            }
-        }
     }
 }

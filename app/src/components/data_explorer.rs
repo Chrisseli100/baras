@@ -423,6 +423,8 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     // Query result state (not persisted)
     let mut abilities = use_signal(Vec::<AbilityBreakdown>::new);
     let mut entities = use_signal(Vec::<EntityBreakdown>::new);
+    // Per-entity damage totals for Rotation/Usage/Charts color coding (name → damage total)
+    let mut entity_dmg_totals = use_signal(HashMap::<String, f64>::new);
 
     // Loading states (not persisted)
     let mut timeline_state = use_signal(LoadState::default);
@@ -805,13 +807,13 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
         let tr = time_range();
         let tl_state = timeline_state();
 
-        // Extract tab if in detailed mode, or use Damage tab for Rotation/Usage mode
+        // Extract tab if in detailed mode, or use Damage tab for Rotation/Usage/Charts mode
         let tab = match mode {
             ViewMode::Detailed(tab) => tab,
-            ViewMode::Rotation | ViewMode::Usage => DataTab::Damage,
+            ViewMode::Rotation | ViewMode::Usage | ViewMode::Charts => DataTab::Damage,
             _ => {
-                // Clear detailed data when not in detailed/rotation/usage mode
-                // Note: selected_source is preserved so it syncs with Charts tab
+                // Clear detailed data when not in detailed/rotation/usage/charts mode
+                // Note: selected_source is preserved so it syncs across tabs
                 let _ = entities.try_write().map(|mut w| *w = Vec::new());
                 let _ = abilities.try_write().map(|mut w| *w = Vec::new());
                 return;
@@ -835,10 +837,15 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
             };
 
             // Load entity breakdown - single attempt
-            // For Rotation mode, merge Damage + Healing entities so healers with 0 dmg appear
-            let entity_data = if matches!(mode, ViewMode::Rotation | ViewMode::Usage) {
+            // For Rotation/Usage/Charts, merge Damage + Healing entities so healers with 0 dmg appear
+            let entity_data = if matches!(mode, ViewMode::Rotation | ViewMode::Usage | ViewMode::Charts) {
                 let dmg = api::query_entity_breakdown(DataTab::Damage, idx, tr_opt.as_ref()).await.unwrap_or_default();
                 let heal = api::query_entity_breakdown(DataTab::Healing, idx, tr_opt.as_ref()).await.unwrap_or_default();
+                // Track per-entity damage totals for color coding
+                let dmg_map: HashMap<String, f64> = dmg.iter()
+                    .map(|e| (e.source_name.clone(), e.total_value))
+                    .collect();
+                entity_dmg_totals.set(dmg_map);
                 let mut merged: HashMap<String, EntityBreakdown> = HashMap::new();
                 for e in dmg.into_iter().chain(heal) {
                     merged.entry(e.source_name.clone())
@@ -1110,12 +1117,11 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     // Memoized entity list for detailed view - filtered by player/all toggle
     let entity_list = use_memo(move || {
         let players_only = *show_players_only.read();
-        let is_players_only_view = matches!(*view_mode.read(), ViewMode::Rotation | ViewMode::Usage);
         entities
             .read()
             .iter()
             .filter(|e| {
-                if is_players_only_view || players_only {
+                if players_only {
                     e.entity_type == "Player" || e.entity_type == "Companion"
                 } else {
                     e.entity_type == "Npc"
@@ -1132,6 +1138,19 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
             .iter()
             .filter_map(|row| {
                 row.class_icon
+                    .as_ref()
+                    .map(|icon| (row.name.clone(), icon.clone()))
+            })
+            .collect::<HashMap<String, String>>()
+    });
+
+    // Memoized role icon lookup from overview data (player name -> role_icon)
+    let role_icon_lookup = use_memo(move || {
+        overview_data
+            .read()
+            .iter()
+            .filter_map(|row| {
+                row.role_icon
                     .as_ref()
                     .map(|icon| (row.name.clone(), icon.clone()))
             })
@@ -1603,34 +1622,6 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                 european: eu,
                             }
                         }
-                    } else if matches!(view_mode(), ViewMode::Charts) {
-                        // Charts Panel
-                        if let Some(tl) = timeline.read().as_ref() {
-                            {
-                                let tr = time_range();
-                                let duration = if tr.start != 0.0 || tr.end != 0.0 {
-                                    tr.end - tr.start
-                                } else {
-                                    tl.duration_secs
-                                };
-                                rsx! {
-                                    ChartsPanel {
-                                        key: "{selected_encounter():?}",
-                                        encounter_idx: *selected_encounter.read(),
-                                        duration_secs: duration,
-                                        time_range: tr,
-                                        local_player: local_player_name.read().clone(),
-                                        selected_source: selected_source,
-                                        entity_collapsed: *entity_collapsed.read(),
-                                        on_toggle_entity: move |_| { let v = *entity_collapsed.read(); entity_collapsed.set(!v); },
-                                        european: eu,
-                                        on_time_range_change: move |new_range: TimeRange| {
-                                            time_range.set(new_range);
-                                        },
-                                    }
-                                }
-                            }
-                        }
                     } else if matches!(view_mode(), ViewMode::Overview) {
                         // Raid Overview - Donut Charts + Table
                         // Uses memoized overview_table_data - charts initialized via use_effect above
@@ -1848,8 +1839,8 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                 }
                             }
                         }
-                    } else if matches!(view_mode(), ViewMode::Detailed(_) | ViewMode::Rotation | ViewMode::Usage) {
-                        // Two-column layout (Detailed breakdown, Rotation, or Usage)
+                    } else if matches!(view_mode(), ViewMode::Detailed(_) | ViewMode::Rotation | ViewMode::Usage | ViewMode::Charts) {
+                        // Two-column layout (Detailed breakdown, Rotation, Usage, or Charts)
                         {
                         let current_tab = if let ViewMode::Detailed(tab) = view_mode() { Some(tab) } else { None };
                         rsx! {
@@ -1870,18 +1861,16 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                     }
                                 }
                                 if !*entity_collapsed.read() {
-                                    if !matches!(view_mode(), ViewMode::Rotation | ViewMode::Usage) {
-                                        div { class: "entity-filter-tabs",
-                                            button {
-                                                class: if *show_players_only.read() { "filter-tab active" } else { "filter-tab" },
-                                                onclick: move |_| show_players_only.set(true),
-                                                "Player"
-                                            }
-                                            button {
-                                                class: if !*show_players_only.read() { "filter-tab active" } else { "filter-tab" },
-                                                onclick: move |_| show_players_only.set(false),
-                                                "NPC"
-                                            }
+                                    div { class: "entity-filter-tabs",
+                                        button {
+                                            class: if *show_players_only.read() { "filter-tab active" } else { "filter-tab" },
+                                            onclick: move |_| show_players_only.set(true),
+                                            "Player"
+                                        }
+                                        button {
+                                            class: if !*show_players_only.read() { "filter-tab active" } else { "filter-tab" },
+                                            onclick: move |_| show_players_only.set(false),
+                                            "NPC"
                                         }
                                     }
                                     div { class: "entity-list",
@@ -1894,6 +1883,8 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                             timeline.read().as_ref().map(|t| t.duration_secs).unwrap_or(1.0)
                                         } as f64;
                                         let duration = if duration > 0.0 { duration } else { 1.0 };
+                                        let mode = view_mode();
+                                        let show_values = !matches!(mode, ViewMode::Charts);
                                         rsx! {
                                         for entity in entity_list().iter() {
                                             {
@@ -1901,7 +1892,26 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                 let is_selected = selected_source.read().as_ref() == Some(&name);
                                                 let is_npc = entity.entity_type == "Npc";
                                                 let class_icon = class_icon_lookup().get(&name).cloned();
+                                                let role_icon = role_icon_lookup().get(&name).cloned();
                                                 let per_sec = entity.total_value / duration;
+                                                // Color class for entity value based on tab
+                                                let value_class = match mode {
+                                                    ViewMode::Detailed(DataTab::Damage) => "entity-value value-damage",
+                                                    ViewMode::Detailed(DataTab::Healing | DataTab::HealingTaken) => "entity-value value-healing",
+                                                    ViewMode::Detailed(DataTab::DamageTaken) => "entity-value value-dtps",
+                                                    ViewMode::Rotation | ViewMode::Usage => {
+                                                        let dmg = entity_dmg_totals.read().get(&name).copied().unwrap_or(0.0);
+                                                        if dmg >= entity.total_value - dmg { "entity-value value-damage" } else { "entity-value value-healing" }
+                                                    }
+                                                    _ => "entity-value",
+                                                };
+                                                // CSS class for role-based icon tinting
+                                                let icon_class = match role_icon.as_deref() {
+                                                    Some("icon_tank.png") => "entity-class-icon role-tank",
+                                                    Some("icon_heal.png") => "entity-class-icon role-healer",
+                                                    Some("icon_dps.png") => "entity-class-icon role-dps",
+                                                    _ => "entity-class-icon",
+                                                };
                                                 rsx! {
                                                     div {
                                                         class: if is_selected { "entity-row selected" } else if is_npc { "entity-row npc" } else { "entity-row" },
@@ -1913,7 +1923,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                             if let Some(icon_name) = &class_icon {
                                                                 if let Some(icon_asset) = get_class_icon(icon_name) {
                                                                     img {
-                                                                        class: "entity-class-icon",
+                                                                        class: "{icon_class}",
                                                                         src: *icon_asset,
                                                                         alt: ""
                                                                     }
@@ -1921,8 +1931,10 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                             }
                                                             "{entity.source_name}"
                                                         }
-                                                        span { class: "entity-value", "{format_number(per_sec)}/s" }
-                                                        span { class: "entity-abilities", "{entity.abilities_used} abilities" }
+                                                        if show_values {
+                                                            span { class: "{value_class}", "{format_number(per_sec)}/s" }
+                                                            span { class: "entity-abilities", "{entity.abilities_used} abilities" }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1933,7 +1945,42 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                 }
                             }
 
-                            if matches!(view_mode(), ViewMode::Rotation) {
+                            if matches!(view_mode(), ViewMode::Charts) {
+                                // Charts view in right column
+                                div { class: "charts-main",
+                                    if *entity_collapsed.read() {
+                                        if let Some(name) = selected_source.read().as_ref() {
+                                            div { class: "selected-entity-indicator",
+                                                i { class: "fa-solid fa-user" }
+                                                span { "{name}" }
+                                            }
+                                        }
+                                    }
+                                    if let Some(tl) = timeline.read().as_ref() {
+                                        {
+                                            let tr = time_range();
+                                            let duration = if tr.start != 0.0 || tr.end != 0.0 {
+                                                tr.end - tr.start
+                                            } else {
+                                                tl.duration_secs
+                                            };
+                                            rsx! {
+                                                ChartsPanel {
+                                                    key: "{selected_encounter():?}",
+                                                    encounter_idx: *selected_encounter.read(),
+                                                    duration_secs: duration,
+                                                    time_range: tr,
+                                                    selected_source: selected_source,
+                                                    european: eu,
+                                                    on_time_range_change: move |new_range: TimeRange| {
+                                                        time_range.set(new_range);
+                                                    },
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if matches!(view_mode(), ViewMode::Rotation) {
                                 // Rotation view in right column
                                 div { class: "ability-section",
                                     if *entity_collapsed.read() {

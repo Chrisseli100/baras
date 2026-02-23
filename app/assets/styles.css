@@ -6783,15 +6783,39 @@ details[open] .collapsible-summary::before {
 }
 
 .entity-class-icon {
-  width: 18px;
-  height: 18px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
+}
+
+.entity-class-icon.role-dps {
+  filter: brightness(0.5) sepia(1) hue-rotate(320deg) saturate(6) brightness(0.9);
+}
+
+.entity-class-icon.role-healer {
+  filter: brightness(0.7) sepia(1) hue-rotate(70deg) saturate(5) brightness(1.1);
+}
+
+.entity-class-icon.role-tank {
+  filter: brightness(0.5) sepia(1) hue-rotate(170deg) saturate(6) brightness(0.9);
 }
 
 .entity-row .entity-value {
   font-size: 0.8em;
   color: var(--swtor-blue);
   margin-right: 0.5em;
+}
+
+.entity-row .entity-value.value-damage {
+  color: #e74c3c;
+}
+
+.entity-row .entity-value.value-healing {
+  color: #2ecc71;
+}
+
+.entity-row .entity-value.value-dtps {
+  color: #e67e22;
 }
 
 .entity-row .entity-abilities {
