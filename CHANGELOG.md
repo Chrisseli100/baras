@@ -1,3 +1,21 @@
+# v2026.2.2300
+
+## Data Explorer
+
+- Implemented fix for data explorer elements not properly loading some of the time
+- Data explorer overview table columns all now sortable
+- NPCs can now be selected on all data explorer tabs
+
+## Overlays
+
+- Overlays will now snap to the nearest 10 pixel increment when moving or resizing
+
+## Effects
+
+- Added ability to specify AoE refresh for effects
+
+## Data Explorer
+
 # v2026.2.2200
 
 ## General
