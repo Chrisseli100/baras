@@ -254,6 +254,8 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
     // Context menu state for right-click "Set as range start/end"
     let mut context_menu_pos = use_signal(|| None::<(f64, f64)>);
     let mut context_menu_time = use_signal(|| 0.0f32);
+    // Capture selection text at right-click time (before menu click clears it)
+    let mut context_menu_selection = use_signal(String::new);
 
     // Data state
     let mut rows = use_signal(Vec::<CombatLogRow>::new);
@@ -1171,6 +1173,12 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                                 class: "{row_class(&row, highlighted_row_idx)}",
                                 oncontextmenu: move |e: MouseEvent| {
                                     e.prevent_default();
+                                    // Capture selection now before menu interaction clears it
+                                    let sel = js_sys::eval("window.getSelection()?.toString() || ''")
+                                        .ok()
+                                        .and_then(|v| v.as_string())
+                                        .unwrap_or_default();
+                                    context_menu_selection.set(sel);
                                     context_menu_pos.set(Some((e.client_coordinates().x, e.client_coordinates().y)));
                                     context_menu_time.set(row_time);
                                 },
@@ -1257,9 +1265,12 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                     div {
                         class: "context-menu-item",
                         onclick: move |_| {
-                            let _ = js_sys::eval(
-                                "{ const s = window.getSelection()?.toString(); if (s) navigator.clipboard.writeText(s); }"
-                            );
+                            let sel = context_menu_selection.read().clone();
+                            if !sel.is_empty() {
+                                // Escape for JS string literal: backslash, backtick, ${
+                                let escaped = sel.replace('\\', "\\\\").replace('`', "\\`").replace("${", "\\${");
+                                let _ = js_sys::eval(&format!("navigator.clipboard.writeText(`{escaped}`)"));
+                            }
                             context_menu_pos.set(None);
                         },
                         "Copy selection"
