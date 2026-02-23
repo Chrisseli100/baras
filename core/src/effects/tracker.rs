@@ -21,23 +21,11 @@ use crate::timers::FiredAlert;
 
 use super::{ActiveEffect, AlertTrigger, DisplayTarget, EffectDefinition, EffectKey, RefreshTrigger};
 
-/// Hardcoded ability IDs for AoE DOTs that need special handling.
 /// Grace period (ms) after the app's duration timer expires before hard-removing
 /// an effect from the tracker. During this window, `refresh_abilities` can still
 /// revive the effect — the timer is a heuristic and the in-game buff may outlast it.
 /// An authoritative `EffectRemoved` signal always removes immediately, bypassing this.
 const TIMER_EXPIRY_GRACE_MS: i64 = 8000;
-
-/// These abilities spread/refresh DOTs on multiple targets and don't follow
-/// the normal single-target cast pattern. Used for:
-/// 1. Damage-based AoE refresh detection (no ApplyEffect on refresh)
-/// 2. Skipping recent-cast validation (targets aren't individually tracked)
-const AOE_REFRESH_ABILITY_IDS: &[u64] = &[
-    807698664783872,  // Shrap Bomb (Gunslinger)
-    807698664784339, // Shrap Bomb (Ruffian)
-    1703989619982930, // Corrosive Grenade (Operative)
-    1703989619982932, // Corrosive Grenade (Sniper)
-];
 
 /// Get the entity roster from the current encounter, or empty slice if none.
 fn get_entities(encounter: Option<&CombatEncounter>) -> &[EntityDefinition] {
@@ -86,6 +74,9 @@ pub struct DefinitionSet {
     refresh_ability_id_index: HashMap<u64, Vec<String>>,
     /// Refresh ability name -> definition IDs (for refresh_abilities matching)
     refresh_ability_name_index: HashMap<String, Vec<String>>,
+    /// Ability IDs that use AoE damage correlation for refresh detection.
+    /// Derived from definitions where `is_aoe_refresh = true`.
+    aoe_refresh_ability_ids: HashSet<u64>,
 }
 
 impl DefinitionSet {
@@ -161,6 +152,9 @@ impl DefinitionSet {
             match refresh.ability() {
                 AbilitySelector::Id(id) => {
                     self.refresh_ability_id_index.entry(*id).or_default().push(def.id.clone());
+                    if def.is_aoe_refresh {
+                        self.aoe_refresh_ability_ids.insert(*id);
+                    }
                 }
                 AbilitySelector::Name(name) => {
                     self.refresh_ability_name_index
@@ -190,6 +184,17 @@ impl DefinitionSet {
         }
         for entries in self.refresh_ability_name_index.values_mut() {
             entries.retain(|id| id != def_id);
+        }
+        // Rebuild AoE set from remaining definitions
+        self.aoe_refresh_ability_ids.clear();
+        for def in self.effects.values() {
+            if def.is_aoe_refresh {
+                for refresh in &def.refresh_abilities {
+                    if let baras_types::AbilitySelector::Id(id) = refresh.ability() {
+                        self.aoe_refresh_ability_ids.insert(*id);
+                    }
+                }
+            }
         }
     }
 
@@ -318,6 +323,11 @@ impl DefinitionSet {
                 self.effects.get(id).map(|def| def.enabled).unwrap_or(false)
             }))
             .unwrap_or(false)
+    }
+
+    /// Check if an ability ID uses AoE damage correlation for refresh detection
+    pub fn is_aoe_refresh(&self, ability_id: u64) -> bool {
+        self.aoe_refresh_ability_ids.contains(&ability_id)
     }
 
     /// Get all enabled effect definitions
@@ -519,7 +529,7 @@ impl EffectTracker {
 
     /// Check if any of the definition's refresh abilities were recently cast.
     ///
-    /// For AoE abilities (in `AOE_REFRESH_ABILITY_IDS`), checks if the ability was cast
+    /// For AoE definitions (`is_aoe_refresh`), checks if the ability was cast
     /// at ANY target recently (since we only track the primary target).
     /// For single-target abilities, checks the specific target.
     fn has_recent_refresh_cast(
@@ -532,8 +542,7 @@ impl EffectTracker {
 
         def.refresh_abilities.iter().any(|refresh| {
             if let baras_types::AbilitySelector::Id(ability_id) = refresh.ability() {
-                let is_aoe = AOE_REFRESH_ABILITY_IDS.contains(ability_id);
-                if is_aoe {
+                if def.is_aoe_refresh {
                     // AoE: check if ability was cast at ANY target recently
                     self.recent_casts.iter().any(|(&(aid, _), &ts)| {
                         aid == *ability_id && {
@@ -1164,15 +1173,15 @@ impl EffectTracker {
     }
 
     /// Set up pending AoE refresh state when AbilityActivate has [=] target.
-    /// Only sets up state for specific AoE DOT abilities that don't generate
-    /// ApplyEffect events on refresh.
+    /// Only sets up state for AoE refresh abilities (definitions with `is_aoe_refresh = true`)
+    /// that use damage correlation instead of individual ApplyEffect signals.
     fn setup_pending_aoe_refresh(
         &mut self,
         ability_id: i64,
         timestamp: NaiveDateTime,
         primary_target: i64,
     ) {
-        if AOE_REFRESH_ABILITY_IDS.contains(&(ability_id as u64)) {
+        if self.definitions.is_aoe_refresh(ability_id as u64) {
             self.pending_aoe_refresh = Some(PendingAoeRefresh {
                 ability_id,
                 timestamp,

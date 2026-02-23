@@ -376,6 +376,7 @@ fn convert_to_effect(xml: &XmlConfigTimer) -> EffectDefinition {
         trigger,
         ignore_effect_removed: false,
         refresh_abilities: Vec::new(),
+        is_aoe_refresh: false,
         is_refreshed_on_modify: false,
         default_charges: None,
         duration_secs: xml.interval.filter(|&v| v > 0.0),

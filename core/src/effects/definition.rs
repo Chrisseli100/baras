@@ -85,6 +85,12 @@ pub struct EffectDefinition {
     #[serde(default)]
     pub refresh_abilities: Vec<RefreshAbility>,
 
+    /// Whether refresh abilities on this effect use AoE damage correlation.
+    /// When true, the tracker uses damage events to detect multi-target refreshes
+    /// instead of requiring individual ApplyEffect signals per target.
+    #[serde(default)]
+    pub is_aoe_refresh: bool,
+
     /// Whether or not the effect will refresh on ModifyCharges events
     #[serde(default)]
     pub is_refreshed_on_modify: bool,

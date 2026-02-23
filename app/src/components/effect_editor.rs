@@ -205,6 +205,7 @@ fn default_effect(name: String) -> EffectListItem {
         ignore_effect_removed: false,
         refresh_abilities: vec![],
         duration_secs: Some(15.0),
+        is_aoe_refresh: false,
         is_refreshed_on_modify: false,
         color: Some([80, 200, 80, 255]),
         show_at_secs: 0.0,
@@ -1408,6 +1409,27 @@ fn EffectEditForm(
 
                                     label {
                                         class: "flex items-center gap-xs text-sm mt-xs",
+                                        input {
+                                            r#type: "checkbox",
+                                            checked: draft().is_aoe_refresh,
+                                            onchange: move |e| {
+                                                let mut d = draft();
+                                                d.is_aoe_refresh = e.checked();
+                                                draft.set(d);
+                                            }
+                                        }
+                                        span { class: "flex items-center",
+                                            "AoE Refresh"
+                                            span {
+                                                class: "help-icon",
+                                                title: "Use damage correlation to detect multi-target refreshes (for abilities like Corrosive Grenade)",
+                                                "?"
+                                            }
+                                        }
+                                    }
+
+                                    label {
+                                        class: "flex items-center gap-xs text-sm",
                                         input {
                                             r#type: "checkbox",
                                             checked: draft().is_refreshed_on_modify,

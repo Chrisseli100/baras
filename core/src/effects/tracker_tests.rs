@@ -31,6 +31,7 @@ fn make_effect(
         trigger,
         ignore_effect_removed: false,
         refresh_abilities: vec![],
+        is_aoe_refresh: false,
         is_refreshed_on_modify: false,
         default_charges: None,
         duration_secs,

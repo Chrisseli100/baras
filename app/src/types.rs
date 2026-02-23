@@ -609,6 +609,10 @@ pub struct EffectListItem {
     // Matching - abilities that refresh the effect duration
     pub refresh_abilities: Vec<RefreshAbility>,
 
+    // AoE refresh - use damage correlation for multi-target refresh detection
+    #[serde(default)]
+    pub is_aoe_refresh: bool,
+
     // Duration
     pub duration_secs: Option<f32>,
     #[serde(default)]
