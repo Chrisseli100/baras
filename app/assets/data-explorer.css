@@ -1174,7 +1174,7 @@
 }
 .log-source {
   flex-shrink: 0;
-  flex-grow: 1;
+  flex-grow: 0.3;
   text-align: left;
 }
 .log-type {
@@ -1183,17 +1183,19 @@
 }
 .log-target {
   flex-shrink: 0;
-  flex-grow: 1;
+  flex-grow: 0.3;
   text-align: left;
 }
 .log-ability {
   flex-shrink: 0;
+  flex-grow: 0.7;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 .log-effect {
   flex-shrink: 0;
+  flex-grow: 0.7;
   display: flex;
   align-items: center;
   gap: 4px;
