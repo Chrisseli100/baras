@@ -3,7 +3,10 @@ use crate::context::resolve;
 use crate::encounter::combat::ActiveBoss;
 use crate::encounter::entity_info::PlayerInfo;
 use crate::encounter::EncounterState;
-use crate::game_data::{correct_apply_charges, effect_id, effect_type_id};
+use crate::game_data::{
+    correct_apply_charges, effect_id, effect_type_id, BATTLE_REZ_ABILITY_IDS,
+    SCRIPTED_REVIVE_EFFECT_IDS,
+};
 use crate::signal_processor::signal::GameSignal;
 use crate::state::cache::SessionCache;
 
@@ -73,6 +76,9 @@ impl EventProcessor {
 
         // 1g. NPC Target Tracking
         signals.extend(self.handle_target_changed(&event, cache));
+
+        // 1h. Battle rez tracking (must run after target tracking and entity lifecycle)
+        self.handle_battle_rez_tracking(&event, cache);
 
         // ═══════════════════════════════════════════════════════════════════════
         // PHASE 2: Signal Emission (pure transformation)
@@ -281,6 +287,32 @@ impl EventProcessor {
                 });
             }
         } else if event.effect.effect_id == effect_id::REVIVED {
+            // Check if this is a battle rez (pending) or OOC revive for the local player
+            let is_local_player = event.source_entity.log_id == cache.player.id;
+            if is_local_player {
+                let battle_rez_pending = cache
+                    .current_encounter()
+                    .map_or(false, |enc| enc.battle_rez_pending);
+
+                if let Some(enc) = cache.current_encounter_mut() {
+                    if battle_rez_pending {
+                        // Battle rez landed — clear pending flag, combat continues
+                        enc.battle_rez_pending = false;
+                        tracing::debug!(
+                            "[BATTLE_REZ] Battle rez landed on local player at {}",
+                            event.timestamp
+                        );
+                    } else if enc.state == EncounterState::InCombat {
+                        // No battle rez pending — this is an OOC revive (medcenter/probe)
+                        enc.local_player_ooc_revive_time = Some(event.timestamp);
+                        tracing::info!(
+                            "[BATTLE_REZ] OOC revive detected for local player at {}, will end combat",
+                            event.timestamp
+                        );
+                    }
+                }
+            }
+
             if let Some(enc) = cache.current_encounter_mut() {
                 // Don't process revives after a definitive wipe (all players dead)
                 // This prevents post-wipe UI revives from resetting is_dead flags
@@ -321,6 +353,9 @@ impl EventProcessor {
                     // Track timestamp for local player (soft-timeout wipe detection)
                     if is_local_player {
                         enc.local_player_revive_immunity_time = Some(event.timestamp);
+                        // Player chose medcenter over a pending battle rez — clear the flag
+                        // so the revive immunity fallback handles it correctly
+                        enc.battle_rez_pending = false;
                     }
                 }
             }
@@ -789,6 +824,67 @@ impl EventProcessor {
             _ => {}
         }
         signals
+    }
+
+    /// Track battle rez casts targeting the local player.
+    ///
+    /// Sets `battle_rez_pending` when a battle rez is activated targeting the local player,
+    /// and clears it on interrupt/cancel. The REVIVED handler in `handle_entity_lifecycle`
+    /// checks this flag to distinguish battle rez (combat continues) from OOC revive
+    /// (combat should end).
+    fn handle_battle_rez_tracking(&self, event: &CombatEvent, cache: &mut SessionCache) {
+        let eid = event.effect.effect_id;
+
+        // A) Battle rez activated — check if caster is targeting local player
+        if eid == effect_id::ABILITYACTIVATE
+            && BATTLE_REZ_ABILITY_IDS.contains(&event.action.action_id)
+        {
+            if let Some(enc) = cache.current_encounter() {
+                let targets_local = enc
+                    .get_current_target(event.source_entity.log_id)
+                    .is_some_and(|tid| tid == cache.player.id);
+                if targets_local {
+                    if let Some(enc) = cache.current_encounter_mut() {
+                        enc.battle_rez_pending = true;
+                        tracing::debug!(
+                            "[BATTLE_REZ] Pending battle rez on local player at {}",
+                            event.timestamp
+                        );
+                    }
+                }
+            }
+            return;
+        }
+
+        // B) Battle rez interrupted or cancelled — clear pending flag
+        if (eid == effect_id::ABILITYINTERRUPT || eid == effect_id::ABILITYCANCEL)
+            && BATTLE_REZ_ABILITY_IDS.contains(&event.action.action_id)
+        {
+            if let Some(enc) = cache.current_encounter_mut() {
+                if enc.battle_rez_pending {
+                    enc.battle_rez_pending = false;
+                    tracing::debug!(
+                        "[BATTLE_REZ] Battle rez cancelled/interrupted at {}",
+                        event.timestamp
+                    );
+                }
+            }
+            return;
+        }
+
+        // C) Scripted revive effect applied to local player (e.g., Boon of the Spirit on Revan)
+        if event.effect.type_id == effect_type_id::APPLYEFFECT
+            && SCRIPTED_REVIVE_EFFECT_IDS.contains(&eid)
+            && event.source_entity.log_id == cache.player.id
+        {
+            if let Some(enc) = cache.current_encounter_mut() {
+                enc.battle_rez_pending = true;
+                tracing::debug!(
+                    "[BATTLE_REZ] Scripted revive effect on local player at {}",
+                    event.timestamp
+                );
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

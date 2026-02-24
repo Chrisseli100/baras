@@ -104,7 +104,7 @@ pub struct CombatEncounter {
     /// When combat ended
     pub exit_combat_time: Option<NaiveDateTime>,
     /// Last combat activity timestamp
-    pub last_combat_activity_time: Option<NaiveDateTime>,
+    pub last_damage_time: Option<NaiveDateTime>,
 
     // ─── Entity Tracking ────────────────────────────────────────────────────
     /// Players in this encounter
@@ -123,6 +123,10 @@ pub struct CombatEncounter {
     /// Timestamp when local player received RECENTLY_REVIVED effect (medcenter/probe revive)
     /// Used to trigger soft-timeout wipe detection for boss encounters
     pub local_player_revive_immunity_time: Option<NaiveDateTime>,
+    /// Battle rez is being cast targeting the local player (activated, not yet interrupted/completed)
+    pub battle_rez_pending: bool,
+    /// Local player revived out of combat (no battle rez) — triggers immediate combat end
+    pub local_player_ooc_revive_time: Option<NaiveDateTime>,
 
     // ─── Effect Instances (for shield attribution) ──────────────────────────
     /// Active effects by target ID
@@ -171,7 +175,7 @@ impl CombatEncounter {
             state: EncounterState::NotStarted,
             enter_combat_time: None,
             exit_combat_time: None,
-            last_combat_activity_time: None,
+            last_damage_time: None,
 
             // Entity tracking
             players: HashMap::new(),
@@ -181,6 +185,8 @@ impl CombatEncounter {
             victory_triggered: false,
             victory_triggered_at: None,
             local_player_revive_immunity_time: None,
+            battle_rez_pending: false,
+            local_player_ooc_revive_time: None,
 
             // Effects
             effects: HashMap::new(),

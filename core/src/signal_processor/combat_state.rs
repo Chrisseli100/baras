@@ -151,7 +151,7 @@ fn handle_in_combat(
 
     if !has_victory_trigger
         && let Some(enc) = cache.current_encounter()
-        && let Some(last_activity) = enc.last_combat_activity_time
+        && let Some(last_activity) = enc.last_damage_time
     {
         let elapsed = timestamp.signed_duration_since(last_activity).num_seconds();
         if elapsed >= COMBAT_TIMEOUT_SECONDS {
@@ -238,6 +238,12 @@ fn handle_in_combat(
             }
         }
     }
+
+    // OOC revive detected (local player revived without a battle rez)
+    let local_player_ooc_revived = cache
+        .current_encounter()
+        .and_then(|enc| enc.local_player_ooc_revive_time)
+        .is_some();
 
     let all_players_dead = cache
         .current_encounter()
@@ -441,6 +447,7 @@ fn handle_in_combat(
         || effect_id == effect_id::EXITCOMBAT
         || all_kill_targets_dead
         || should_end_on_local_revive
+        || local_player_ooc_revived
     {
         // Check if we're within a grace window from a previous exit
         // If so, this is the "real" exit after a fake enter (holocron case)
@@ -494,8 +501,8 @@ fn handle_in_combat(
             enc.accumulate_data(event);
             enc.track_event_line(event.line_number);
             was_accumulated = true;
-            if effect_id == effect_id::DAMAGE || effect_id == effect_id::HEAL {
-                enc.last_combat_activity_time = Some(timestamp);
+            if effect_id == effect_id::DAMAGE {
+                enc.last_damage_time = Some(timestamp);
             }
         }
     }
@@ -600,6 +607,33 @@ pub fn tick_combat_state(cache: &mut SessionCache) -> Vec<GameSignal> {
         .map(|e| e.state.clone())
         .unwrap_or_default();
 
+    // Check for OOC revive (wall-clock fallback for when no new events arrive after the revive)
+    // Start a grace window so trailing death events can still arrive and inform wipe classification
+    if let Some(enc) = cache.current_encounter()
+        && enc.state == EncounterState::InCombat
+        && let Some(revive_time) = enc.local_player_ooc_revive_time
+        && cache.last_combat_exit_time.is_none()
+    {
+        tracing::info!(
+            "[ENCOUNTER] OOC revive in tick at {}, starting grace window for encounter {}",
+            revive_time,
+            enc.id
+        );
+
+        if let Some(enc) = cache.current_encounter_mut() {
+            enc.exit_combat_time = Some(revive_time);
+            enc.state = EncounterState::PostCombat {
+                exit_time: revive_time,
+            };
+            let duration = enc.duration_seconds().unwrap_or(0) as f32;
+            enc.challenge_tracker.finalize(revive_time, duration);
+        }
+
+        cache.last_combat_exit_time = Some(revive_time);
+        // Don't emit CombatEnded yet — grace window will finalize
+        // (handled by the existing grace window expiration logic below)
+    }
+
     // Check for revive immunity soft-timeout
     // If local player received RECENTLY_REVIVED and timeout has elapsed, end the encounter.
     // For boss encounters: only end if kill targets aren't dead (is_likely_wipe)
@@ -703,7 +737,7 @@ pub fn tick_combat_state(cache: &mut SessionCache) -> Vec<GameSignal> {
 
     if !has_victory_trigger
         && let Some(enc) = cache.current_encounter()
-        && let Some(last_activity) = enc.last_combat_activity_time
+        && let Some(last_activity) = enc.last_damage_time
     {
         let elapsed = now.signed_duration_since(last_activity).num_seconds();
         if elapsed >= COMBAT_TIMEOUT_SECONDS {

@@ -47,6 +47,23 @@ pub fn correct_apply_charges(effect_id: i64, charges: u8) -> u8 {
     }
 }
 
+/// In-combat resurrection ability IDs (one per advanced class).
+/// Used to distinguish battle rez (combat continues) from OOC revive (combat should end).
+pub const BATTLE_REZ_ABILITY_IDS: [i64; 6] = [
+    808287075303424,  // Reanimation (Sorcerer)
+    812826855735296,  // Revival (Sage)
+    2940854301884416, // Onboard AED (Operative)
+    2940764107571200, // Emergency Medical Probe (Mercenary)
+    814875555135488,  // Resuscitation Probe (Scoundrel)
+    807217628446720,  // Heartrigger Patch (Commando)
+];
+
+/// Effect IDs that indicate a scripted in-combat revive (not a medcenter/probe).
+/// When applied to the local player, the next REVIVED is expected and should not end combat.
+pub const SCRIPTED_REVIVE_EFFECT_IDS: [i64; 1] = [
+    3502674678906880, // Boon of the Spirit (Revan floor transitions)
+];
+
 pub mod defense_type {
     pub const REFLECTED: i64 = 836045448953649;
     pub const ABSORBED: i64 = 836045448945511;
