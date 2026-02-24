@@ -1,54 +1,10 @@
-# v2026.2.2300
+# v2026.2.9000
 
-## Data Explorer
+## Fight Classification
 
-- Implemented fix for data explorer elements not properly loading some of the time
-- Data explorer overview table columns all now sortable
-- NPCs can now be selected on all data explorer tabs
-- Combat log can now be filtered by ability/effect ID
-- Rebalanced width of combat log columns to give more space to effects and abilities
-- Combat log columns can now be sorted by clicking on header
-- Modify Charge events now properly display in combat log
+- Non-battle revives of the local player will now automatically end the combat encounter.
+- Encounters ended by exiting the Area are now classified as wipes unless there is a known special condition (e.g. TFB excluded)
 
-## Overlays
+## Performance
 
-- Overlays will now snap to the nearest 10 pixel increment when moving or resizing
-
-## Effects
-
-- Added ability to specify AoE refresh for effects
-
-## TImers
-
-- Added ability ID to Apex flare cast timer
-
-## Data Explorer
-
-# v2026.2.2200
-
-## General
-
-- Added link to the support discord in title bar
-- Auto-hide logic has been updated to be more robust and remain in sync
-- Switching profiles will no longer affect auto-hide
-- The application will now display a warning message if an invalid log file is detected from a crash
-- Added a polling fallback to detect log file rotations
-
-## Data Explorer
-
-- Data explorer player selection and combat log filters will now persist when swapping between encounters
-- Clicking on the charts tab will no longer reset the selected entity to the local player
-- Time range filtering can now be set by dragging the mouse over charts on the Charts tab
-- Added an ability usage summary panel to the data explorer
-
-## Overlays
-
-- Added a standalone overlay for displaying combat time
-- Alert text is now centered in the overlay window
-- Dynamic background setting added to the raid notes overlay
-- Show an alert message if changes to overlay configurations aren't saved to a profile
-
-## Effects
-
-- Individual effects can now be exported
-- Fixed incorrect effect ID for Plasma Brand
+- Cache data-explorer icons to reduce memory pressure from frequent lookups
