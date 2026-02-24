@@ -1421,7 +1421,8 @@ enabled = true
 display_target = "timers_a"
 
 [boss.timer.trigger]
-type = "combat_start"
+type = "timer_expires"
+timer_id = "apex_vanguard_target_and_venom"
 
 [boss.timer.audio]
 enabled = false
