@@ -407,9 +407,9 @@ fn handle_in_combat(
             encounter_id
         );
         if let Some(enc) = cache.current_encounter_mut() {
-            // For victory-trigger encounters, exiting area without victory trigger = wipe
-            // (player medcentered, left group, or got disconnected)
-            if enc.has_active_victory_trigger() && !enc.victory_triggered {
+            // Area exit during combat = wipe unless victory trigger already fired
+            // (medcentered, left instance, disconnected, etc.)
+            if !enc.victory_triggered {
                 enc.all_players_dead = true;
             }
 
