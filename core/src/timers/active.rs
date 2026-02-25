@@ -65,6 +65,9 @@ pub struct ActiveTimer {
     /// RGBA color for display
     pub color: [u8; 4],
 
+    /// Optional ability ID for icon display on the timer bar
+    pub icon_ability_id: Option<u64>,
+
     /// Timer ID to trigger when this expires (if any)
     pub triggers_timer: Option<String>,
 
@@ -111,6 +114,7 @@ impl ActiveTimer {
         duration: Duration,
         max_repeats: u8,
         color: [u8; 4],
+        icon_ability_id: Option<u64>,
         triggers_timer: Option<String>,
         show_on_raid_frames: bool,
         show_at_secs: f32,
@@ -148,6 +152,7 @@ impl ActiveTimer {
             alert_on_expire,
             alert_text,
             color,
+            icon_ability_id,
             triggers_timer,
             show_on_raid_frames,
             show_at_secs,

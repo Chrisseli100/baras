@@ -374,6 +374,8 @@ pub struct BossTimerDefinition {
     #[serde(default = "default_timer_color")]
     pub color: [u8; 4],
     #[serde(default)]
+    pub icon_ability_id: Option<u64>,
+    #[serde(default)]
     pub conditions: Vec<Condition>,
     #[serde(default)]
     pub phases: Vec<String>,

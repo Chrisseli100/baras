@@ -73,6 +73,10 @@ pub struct TimerDefinition {
     #[serde(default = "crate::serde_defaults::default_timer_color")]
     pub color: [u8; 4],
 
+    /// Optional ability ID for icon display on the timer bar
+    #[serde(default)]
+    pub icon_ability_id: Option<u64>,
+
     /// Only show timer when remaining time is at or below this threshold (0 = always show)
     /// Useful for long timers where you only care about the final countdown
     #[serde(default)]

@@ -1986,7 +1986,7 @@ impl CombatService {
                 if shared.is_live_tailing.load(Ordering::SeqCst) {
                     // Process timer audio and get timer data (returns (TimersA data, TimersB data, countdowns, alerts))
                     if let Some((timers_a, timers_b, countdowns, alerts)) =
-                        build_timer_data_with_audio(&shared).await
+                        build_timer_data_with_audio(&shared, icon_cache.as_ref()).await
                     {
                         // Send timer overlay data (only when in combat)
                         if in_combat && timer_active {
@@ -2491,6 +2491,7 @@ async fn build_boss_health_data(shared: &Arc<SharedState>) -> Option<BossHealthD
 /// Countdowns are (timer_name, seconds, voice_pack)
 async fn build_timer_data_with_audio(
     shared: &Arc<SharedState>,
+    icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
 ) -> Option<(TimerData, TimerData, Vec<(String, u8, String)>, Vec<FiredAlert>)> {
     use baras_core::timers::TimerDisplayTarget;
 
@@ -2538,11 +2539,23 @@ async fn build_timer_data_with_audio(
         if remaining <= 0.0 {
             continue;
         }
+
+        // Load icon from cache if ability ID is set
+        let icon = timer.icon_ability_id.and_then(|ability_id| {
+            icon_cache.and_then(|cache| {
+                cache
+                    .get_icon(ability_id)
+                    .map(|data| std::sync::Arc::new((data.width, data.height, data.rgba)))
+            })
+        });
+
         let entry = TimerEntry {
             name: timer.name.clone(),
             remaining_secs: remaining,
             total_secs: timer.duration.as_secs_f32(),
             color: timer.color,
+            icon_ability_id: timer.icon_ability_id,
+            icon,
         };
         match timer.display_target {
             TimerDisplayTarget::TimersA => entries_a.push(entry),

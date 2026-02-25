@@ -846,6 +846,8 @@ mod examples {
                     remaining_secs: remaining,
                     total_secs: *cycle,
                     color: *color,
+                    icon_ability_id: None,
+                    icon: None,
                 }
             })
             .collect()

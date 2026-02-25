@@ -337,6 +337,7 @@ fn convert_to_boss_timer(xml: &XmlConfigTimer) -> BossTimerDefinition {
         alert_on: if is_alert { AlertTrigger::OnApply } else { Default::default() },
         alert_text: if is_alert { Some(name.to_string()) } else { None },
         color,
+        icon_ability_id: None,
         conditions: Vec::new(),
         phases: Vec::new(),
         counter_condition: None,

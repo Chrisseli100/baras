@@ -2,6 +2,9 @@
 //!
 //! Displays countdown timers for boss mechanics, ability cooldowns, etc.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use baras_core::context::TimerOverlayConfig;
 
 use super::{Overlay, OverlayConfigUpdate, OverlayData};
@@ -9,6 +12,9 @@ use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::color_from_rgba;
 use crate::widgets::{colors, ProgressBar};
+
+/// Cache for pre-scaled icons to avoid re-scaling every frame
+type ScaledIconCache = HashMap<(u64, u32), Vec<u8>>;
 
 /// A single timer entry for display
 #[derive(Debug, Clone)]
@@ -21,6 +27,10 @@ pub struct TimerEntry {
     pub total_secs: f32,
     /// Bar color (RGBA)
     pub color: [u8; 4],
+    /// Optional ability ID for icon display
+    pub icon_ability_id: Option<u64>,
+    /// Pre-loaded icon RGBA data (width, height, rgba_bytes) - Arc for cheap cloning
+    pub icon: Option<Arc<(u32, u32, Vec<u8>)>>,
 }
 
 impl TimerEntry {
@@ -61,6 +71,8 @@ pub struct TimerOverlay {
     config: TimerOverlayConfig,
     data: TimerData,
     european_number_format: bool,
+    /// Cache for pre-scaled icons keyed by (ability_id, display_size)
+    icon_cache: ScaledIconCache,
 }
 
 impl TimerOverlay {
@@ -80,6 +92,7 @@ impl TimerOverlay {
             config,
             data: TimerData::default(),
             european_number_format: false,
+            icon_cache: ScaledIconCache::new(),
         })
     }
 
@@ -144,29 +157,101 @@ impl TimerOverlay {
         let content_width = width - padding * 2.0;
         let bar_radius = 3.0 * self.frame.scale_factor();
 
+        // Icon rendering setup (scale with bar, not text)
+        let icon_size = bar_height - 4.0 * self.frame.scale_factor(); // Slightly smaller than bar
+        let icon_padding = 2.0 * self.frame.scale_factor();
+        let icon_size_u32 = icon_size.round() as u32;
+
         let mut y = padding;
 
         for entry in self.data.entries.iter().take(max_display) {
             let bar_color = color_from_rgba(entry.color);
             let time_text = entry.format_time(self.european_number_format);
 
+            // Check if we have an icon to show
+            let has_icon = entry.icon_ability_id.is_some() && entry.icon.is_some();
+
             // Draw timer bar with name on left, time on right
-            ProgressBar::new(&entry.name, entry.progress())
+            let mut bar = ProgressBar::new(&entry.name, entry.progress())
                 .with_fill_color(bar_color)
                 .with_bg_color(colors::dps_bar_bg())
                 .with_text_color(font_color)
                 .with_right_text(time_text)
                 .with_bold_text()
-                .with_text_glow()
-                .render(
-                    &mut self.frame,
-                    padding,
-                    y,
-                    content_width,
-                    bar_height,
-                    font_size,
-                    bar_radius,
-                );
+                .with_text_glow();
+
+            // Add label offset to make room for icon
+            if has_icon {
+                bar = bar.with_label_offset(icon_size + icon_padding);
+            }
+
+            bar.render(
+                &mut self.frame,
+                padding,
+                y,
+                content_width,
+                bar_height,
+                font_size,
+                bar_radius,
+            );
+
+            // Draw icon on top of bar if available
+            if has_icon {
+                if let Some(ability_id) = entry.icon_ability_id {
+                    let icon_x = padding + icon_padding;
+                    let icon_y = y + icon_padding;
+                    let cache_key = (ability_id, icon_size_u32);
+                    let icon_drawn = if let Some(scaled_icon) = self.icon_cache.get(&cache_key) {
+                        self.frame.draw_image(
+                            scaled_icon,
+                            icon_size_u32,
+                            icon_size_u32,
+                            icon_x,
+                            icon_y,
+                            icon_size,
+                            icon_size,
+                        );
+                        true
+                    } else if let Some(ref icon_arc) = entry.icon {
+                        let (img_w, img_h, ref rgba) = **icon_arc;
+                        self.frame
+                            .draw_image(rgba, img_w, img_h, icon_x, icon_y, icon_size, icon_size);
+                        true
+                    } else {
+                        false
+                    };
+
+                    // Draw glowing white border around the icon
+                    if icon_drawn {
+                        let icon_radius = 2.0 * self.frame.scale_factor();
+                        let glow_expand = 1.0 * self.frame.scale_factor();
+
+                        // Outer glow: wider, softer white
+                        let outer_glow = tiny_skia::Color::from_rgba(1.0, 1.0, 1.0, 0.25).unwrap();
+                        self.frame.stroke_rounded_rect(
+                            icon_x - glow_expand,
+                            icon_y - glow_expand,
+                            icon_size + glow_expand * 2.0,
+                            icon_size + glow_expand * 2.0,
+                            icon_radius + glow_expand,
+                            1.5 * self.frame.scale_factor(),
+                            outer_glow,
+                        );
+
+                        // Inner border: tight, brighter white
+                        let inner_border = tiny_skia::Color::from_rgba(1.0, 1.0, 1.0, 0.6).unwrap();
+                        self.frame.stroke_rounded_rect(
+                            icon_x,
+                            icon_y,
+                            icon_size,
+                            icon_size,
+                            icon_radius,
+                            1.0 * self.frame.scale_factor(),
+                            inner_border,
+                        );
+                    }
+                }
+            }
 
             y += bar_height + entry_spacing;
         }

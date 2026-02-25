@@ -290,6 +290,13 @@ pub struct BossTimerDefinition {
     )]
     pub color: [u8; 4],
 
+    /// Optional ability ID for icon display on the timer bar.
+    /// When set, the corresponding ability icon is shown at the left of the bar.
+    /// Not auto-filled from trigger because the trigger ability often differs
+    /// from the ability the timer represents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_ability_id: Option<u64>,
+
     /// State conditions that must be satisfied for this timer to be active.
     /// Implicitly AND'd — all conditions must be true.
     /// Replaces the old `phases` and `counter_condition` fields (which are still
@@ -411,6 +418,7 @@ impl BossTimerDefinition {
             counter_condition: self.counter_condition.clone(),
             // Boss timers default to single-instance (per_target = false)
             per_target: self.per_target,
+            icon_ability_id: self.icon_ability_id,
         }
     }
 }

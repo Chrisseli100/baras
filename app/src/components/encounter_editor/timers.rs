@@ -33,6 +33,7 @@ fn default_timer(name: String) -> BossTimerDefinition {
         alert_on: AlertTrigger::default(),
         alert_text: None,
         color: [255, 128, 0, 255], // Orange
+        icon_ability_id: None,
         conditions: vec![],
         phases: vec![],
         counter_condition: None,
@@ -316,6 +317,23 @@ fn TimerEditForm(
         draft().color[2]
     );
 
+    // Icon preview for timer bar icon
+    let mut icon_preview_url = use_signal(|| None::<String>);
+    use_effect(move || {
+        let current_draft = draft();
+        if let Some(ability_id) = current_draft.icon_ability_id {
+            spawn(async move {
+                if let Some(url) = api::get_icon_preview(ability_id).await {
+                    icon_preview_url.set(Some(url));
+                } else {
+                    icon_preview_url.set(None);
+                }
+            });
+        } else {
+            icon_preview_url.set(None);
+        }
+    });
+
     // Save handler
     let handle_save = {
         let timers = all_timers.clone();
@@ -504,6 +522,46 @@ fn TimerEditForm(
                                             draft.set(d);
                                         }
                                     }
+                                }
+                            }
+
+                            // Icon ID (optional, for display on timer bar)
+                            div { class: "form-row-hz",
+                                label { class: "flex items-center",
+                                    "Icon ID"
+                                    span {
+                                        class: "help-icon",
+                                        title: "Ability ID to use for the icon on the timer bar. Leave blank for no icon.",
+                                        "?"
+                                    }
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "input-inline",
+                                    style: "width: 140px;",
+                                    placeholder: "(none)",
+                                    value: "{draft().icon_ability_id.map(|id| id.to_string()).unwrap_or_default()}",
+                                    oninput: move |e| {
+                                        let mut d = draft();
+                                        d.icon_ability_id = if e.value().is_empty() {
+                                            None
+                                        } else {
+                                            e.value().parse::<u64>().ok()
+                                        };
+                                        draft.set(d);
+                                    }
+                                }
+                                // Icon preview
+                                if let Some(ref url) = icon_preview_url() {
+                                    img {
+                                        src: "{url}",
+                                        class: "icon-preview",
+                                        width: "24",
+                                        height: "24",
+                                        alt: "Icon preview"
+                                    }
+                                } else if draft().icon_ability_id.is_some() {
+                                    span { class: "text-muted text-xs", "(not found)" }
                                 }
                             }
 

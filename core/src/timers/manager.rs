@@ -570,6 +570,7 @@ impl TimerManager {
             Duration::from_secs_f32(def.duration_secs),
             def.repeats,
             color,
+            def.icon_ability_id,
             def.triggers_timer.clone(),
             def.show_on_raid_frames,
             def.show_at_secs,
