@@ -42,43 +42,127 @@ start_trigger = { type = "boss_hp_below", hp_percent = 30.0, selector = [
 ] }
 
 [[boss.timer]]
+id = "tyh_inversion"
+name = "Inversion"
+duration_secs = 37.0
+alert_on = "none"
+color = [255, 174, 0, 255]
+enabled = true
+display_target = "timers_a"
+difficulties = ["veteran", "master"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4071117895499776]
+source = "any"
+target = "any"
+
+[[boss.timer]]
 id = "tyth_inversion_1st"
 name = "Inversion 1st"
 display_text = "Inversion"
-trigger = { type = "combat_start" }
 duration_secs = 21.0
+alert_on = "none"
+color = [255, 149, 0, 255]
+enabled = true
+display_target = "timers_a"
+difficulties = ["master"]
 
-[[boss.timer]]
-id = "tyh_inversion"
-name = "Inversion"
-trigger = { type = "ability_cast", abilities = [4071117895499776] }
-duration_secs = 37.0
+[boss.timer.trigger]
+type = "combat_start"
 
 [[boss.timer]]
 id = "tyth_energy_wave"
 name = "Energy Wave"
-trigger = { type = "ability_cast", abilities = [4081339917664256] }
 duration_secs = 12.0
+alert_on = "none"
+color = [0, 213, 255, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4081339917664256]
+source = "any"
+target = "any"
 
 [[boss.timer]]
 id = "tyth_sweep"
 name = "Sweep"
-trigger = { type = "ability_cast", abilities = [4080279060742144] }
 duration_secs = 6.0
+alert_on = "none"
+color = [255, 125, 0, 255]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4080279060742144]
+source = "any"
+target = "any"
 
 [[boss.timer]]
 id = "tyth_adds"
 name = "Adds"
-trigger = { type = "ability_cast", abilities = [4076168777039872] }
 duration_secs = 15.0
+alert_on = "none"
+color = [0, 255, 100, 255]
+enabled = true
 chains_to = "tyth_adds_setup"
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4076168777039872]
+source = "any"
+target = "any"
 
 [[boss.timer]]
 id = "tyth_adds_setup"
 name = "Adds Setup"
-trigger = { type = "manual" }
 duration_secs = 17.0
+alert_on = "none"
+color = [0, 200, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
 
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "tyth_adds"
+
+[[boss.challenges]]
+id = "tyth_burn"
+name = "Burn"
+display_text = "Burn DPS"
+metric = "damage"
+enabled = true
+color = [255, 0, 0, 255]
+columns = "per_second_percent"
+
+[[boss.challenges.conditions]]
+type = "phase"
+phase_ids = ["tyth_burn"]
+
+[[boss.challenges]]
+id = "tyth_lance_damage"
+name = "Lance Damage"
+display_text = "Lance Damage"
+metric = "damage"
+enabled = true
+color = [217, 74, 103, 255]
+columns = "total_percent"
+
+[[boss.challenges.conditions]]
+type = "source"
+
+[boss.challenges.conditions.match]
+selector = ["Energy Lance"]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
 
 #
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -108,39 +192,418 @@ ids = [4101564918661120]
 is_boss = true
 is_kill_target = true
 
+
 [[boss.phases]]
 id = "ae_nexus"
 name = "Codicies"
-start_trigger = { type = "combat_start" }
+
+[boss.phases.start_trigger]
+type = "combat_start"
+
+[boss.phases.end_trigger]
+type = "npc_appears"
+selector = [4088525397950464, 4088538282852352]
 
 [[boss.phases]]
 id = "ae_main_1st"
-name = "Aivela & Esne"
-start_trigger = { type = "npc_appears", selector = ["Aivela", "Esne"] }
+name = "Aivela & Esne 1"
+
+[boss.phases.start_trigger]
+type = "any_of"
+
+[[boss.phases.start_trigger.conditions]]
+type = "npc_appears"
+selector = ["Aivela", "Esne"]
+
+[[boss.phases.start_trigger.conditions]]
+type = "npc_appears"
+selector = [4088525397950464, 4088538282852352]
+
+[boss.phases.end_trigger]
+type = "ability_cast"
+abilities = [4112143423111168]
+source = "any"
+target = "any"
 
 [[boss.phases]]
 id = "ae_synergy_protocol"
 name = "Synergy Protocol"
-start_trigger = { type = "effect_applied", effects = [4111769760956750] }
+
+[boss.phases.start_trigger]
+type = "any_of"
+
+[[boss.phases.start_trigger.conditions]]
+type = "effect_applied"
+effects = [4111769760956750]
+source = "any"
+target = "any"
+
+[[boss.phases.start_trigger.conditions]]
+type = "ability_cast"
+abilities = [4112143423111168]
+source = "any"
+target = "any"
+
+[boss.phases.end_trigger]
+type = "ability_cast"
+abilities = [4112147718078464]
+source = "any"
+target = "any"
 
 [[boss.phases]]
 id = "ae_main_2nd"
-name = "A & E Final"
-start_trigger = { type = "effect_removed", effects = [4112250797293824] }
+name = "Aivela & Esne 2"
+
+[boss.phases.start_trigger]
+type = "any_of"
+
+[[boss.phases.start_trigger.conditions]]
+type = "effect_removed"
+effects = [4112250797293824]
+source = "any"
+target = "any"
+
+[[boss.phases.start_trigger.conditions]]
+type = "ability_cast"
+abilities = [4112147718078464]
+source = "any"
+target = "any"
+
+[boss.phases.end_trigger]
+type = "any_of"
+
+[[boss.phases.end_trigger.conditions]]
+type = "phase_entered"
+phase_id = "aivela_esne_burn"
+
+[[boss.phases.end_trigger.conditions]]
+type = "effect_applied"
+effects = [4112590099709952]
+source = "any"
+target = "any"
+
+[[boss.phases]]
+id = "aivela_esne_burn"
+name = "Burn"
+
+[boss.phases.start_trigger]
+type = "effect_applied"
+effects = [4112590099709952]
+source = "any"
+target = "any"
+
+[boss.phases.end_trigger]
+type = "combat_end"
+
+[[boss.timer]]
+id = "aivela_esne_positive"
+name = "Positive"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+color = [0, 0, 255, 255]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = []
+source = "any"
+target = "local_player"
+
+[[boss.timer]]
+id = "aivela_esne_negative"
+name = "Negative"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+color = [255, 0, 0, 255]
+phases = ["ae_synergy_protocol", "ae_main_2nd"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4109587917570315]
+source = "any"
+target = "local_player"
+
+[[boss.timer]]
+id = "ae_synergy_protocol"
+name = "Synergy Protocol"
+display_text = "Synergy Protocol"
+duration_secs = 32.0
+alert_on = "on_expire"
+alert_text = "Synergy Protocol"
+color = [255, 0, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4111769760956416]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "phase_ended"
+phase_id = "ae_synergy_protocol"
 
 [[boss.timer]]
 id = "ae_synergy_protocol_1st"
 name = "Synergy Protocol 1st"
 display_text = "Synergy Protocol"
-trigger = { type = "phase_entered", phase_id = "ae_synergy_protocol" }
+duration_secs = 18.0
+alert_on = "none"
+color = [0, 200, 0, 255]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "phase_entered"
+phase_id = "ae_synergy_protocol"
 
 [[boss.timer]]
-id = "ae_synergy_protocol"
-name = "Synergy Protocol"
-trigger = { type = "ability_cast", abilities = [4111769760956416] }
-duration_secs = 32.0
-cancel_trigger = { type = "phase_ended", phase_id = "ae_synergy_protocol" }
+id = "aivela_esne_phase_2_hp_e"
+name = "Phase 2 HP (E)"
+display_text = "Phase 2 HP (E)"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Phase 2 HP (E)"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
 
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 77.01
+selector = ["Esne"]
+
+[[boss.timer]]
+id = "aivela_esne_phase_2_hp_a"
+name = "Phase 2 HP (A)"
+display_text = "Phase 2 HP (A)"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 72.01
+selector = ["Aivela"]
+
+[[boss.timer]]
+id = "aivela_esne_phase_3_hp_a"
+name = "Phase 3 HP (A)"
+display_text = "Phase 3 HP (A)"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Phase 3 HP (A)"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 42.71
+selector = ["Aivela"]
+
+[[boss.timer]]
+id = "aivela_esne_phase_3_hp_e"
+name = "Phase 3 HP (E)"
+display_text = "Phase 3 HP (E)"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Phase 3 HP (E)"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 42.71
+selector = ["Esne"]
+
+[[boss.timer]]
+id = "aivela_esne_empowered_shield"
+name = "Empowered Shield"
+display_text = "Empowered Shield"
+duration_secs = 16.0
+alert_on = "on_expire"
+alert_text = "Empowered Shield"
+color = [0, 0, 220, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_removed"
+effects = [4112590099709952]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "aivela_esne_phase_4_hp_e"
+name = "Phase 4 HP (E)"
+display_text = "Phase 4 HP (E)"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Phase 4 HP (E)"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 7.5
+selector = ["Esne"]
+
+
+[[boss.timer]]
+id = "aivela_esne_phase_4_hp_a"
+name = "Phase 4 HP (A)"
+display_text = "Phase 4 HP (A)"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Phase 4 HP (A)"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 7.5
+selector = ["Aivela"]
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.challenges]]
+id = "aivela_esne_burn"
+name = "Burn"
+metric = "damage"
+enabled = true
+color = [255, 0, 0, 255]
+columns = "total_per_second"
+
+[[boss.challenges.conditions]]
+type = "effect"
+effect_ids = [4112590099709952]
+
+[[boss.challenges.conditions]]
+type = "phase"
+phase_ids = ["aivela_esne_burn"]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "boss"
+
+[[boss.challenges]]
+id = "aivela_esne_pos"
+name = "Pos"
+display_text = "Pos"
+description = "Pos"
+metric = "effect_count"
+enabled = true
+color = [255, 102, 0, 255]
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "effect"
+effect_ids = [4109583622603019]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
+
+[[boss.challenges]]
+id = "aivela_esne_neg"
+name = "Neg"
+metric = "effect_count"
+enabled = true
+color = [0, 5, 143, 255]
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "effect"
+effect_ids = [4109587917570315]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
+
+[[boss.challenges]]
+id = "aivela_esne_beam_damage"
+name = "Beam Damage"
+display_text = "Beam Damage"
+metric = "damage"
+enabled = true
+color = [89, 0, 255, 255]
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "source"
+
+[boss.challenges.conditions.match]
+selector = ["Purification"]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
+
+[[boss.challenges]]
+id = "aivela_esne_radiance_damage"
+name = "Radiance Damage"
+display_text = "Radiance Damage"
+description = "Radiance Damage"
+metric = "damage"
+enabled = true
+color = [255, 0, 247, 255]
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "ability"
+ability_ids = [4109587917570048]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
+
+[[boss.challenges]]
+id = "aivela_esne_cm_stacks"
+name = "CM Stacks"
+display_text = "CM Stacks"
+metric = "effect_count"
+enabled = true
+color = [0, 255, 213, 255]
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "effect"
+effect_ids = [4114162057740580]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Boss 3: NAHUT
@@ -163,51 +626,347 @@ ids = [
 is_boss = true
 is_kill_target = true
 
-[[boss.timer]]
-id = "nahut_discharge_1st"
-name = "Discharge 1st"
-display_text = "Discharge"
-duration_secs = 12.0
-trigger = { type = "ability_cast", abilities = [4133906022400000] }
-difficulties = ["master"]
+[[boss.phases]]
+id = "nahut_nahut"
+name = "Nahut"
+display_text = "Nahut"
 
-[[boss.timer]]
-id = "nahut_discharge"
-name = "Discharge"
-duration_secs = 12.0
-trigger = { type = "damage_taken", abilities = [
-  4133906022400000,
-], target = "local_player" }
+[boss.phases.start_trigger]
+type = "combat_start"
+
+[boss.phases.end_trigger]
+type = "any_of"
+
+[[boss.phases.end_trigger.conditions]]
+type = "effect_applied"
+effects = [4131990466985984]
+source = "boss"
+target = "any_player"
+
+[[boss.phases.end_trigger.conditions]]
+type = "npc_appears"
+selector = [4131857322999808]
+
+[[boss.phases]]
+id = "nahut_couplings"
+name = "Couplings"
+display_text = "Couplings"
+
+[boss.phases.start_trigger]
+type = "any_of"
+
+[[boss.phases.start_trigger.conditions]]
+type = "phase_ended"
+phase_id = "nahut_nahut"
+
+[[boss.phases.start_trigger.conditions]]
+type = "npc_appears"
+selector = [4131857322999808]
+
+[boss.phases.end_trigger]
+type = "effect_removed"
+effects = [4181850742325248]
+source = "any"
+target = "any"
+
+[[boss.phases]]
+id = "nahut_turrets"
+name = "Turrets"
+display_text = "Turrets"
+
+[boss.phases.start_trigger]
+type = "phase_ended"
+phase_id = "nahut_couplings"
+
+[boss.phases.end_trigger]
+type = "ability_cast"
+abilities = [4131861617967104]
+source = "any"
+target = "any"
+
+[[boss.phases]]
+id = "nahut_burn"
+name = "Burn"
+display_text = "Burn"
+
+[boss.phases.start_trigger]
+type = "any_of"
+
+[[boss.phases.start_trigger.conditions]]
+type = "phase_ended"
+phase_id = "nahut_turrets"
+
+[[boss.phases.start_trigger.conditions]]
+type = "ability_cast"
+abilities = [4131861617967104]
+source = "any"
+target = "any"
+
+[boss.phases.end_trigger]
+type = "combat_end"
 
 [[boss.timer]]
 id = "nahut_slice"
 name = "Slice"
 duration_secs = 12.0
-trigger = { type = "ability_cast", abilities = [4137075708264448] }
+alert_on = "on_expire"
+alert_text = "Slice"
+color = [0, 64, 255, 255]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4137075708264448]
+source = "any"
+target = "any"
 
 [[boss.timer]]
-id = "nahut_shockwave"
-name = "Shockwave"
-duration_secs = 25.0
-trigger = { type = "damage_taken", abilities = [
-  4133016964169728,
-], target = "local_player" }
+id = "nahut_candle"
+name = "Candle"
+display_text = "Candle"
+duration_secs = 30.0
+is_alert = true
+alert_on = "on_expire"
+alert_text = "Candle"
+color = [255, 128, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4132016236789760]
+source = "any"
+target = "local_player"
+
+[[boss.timer]]
+id = "nahut_discharge_1st"
+name = "Discharge 1st"
+display_text = "Discharge"
+duration_secs = 12.0
+alert_on = "none"
+color = [0, 191, 255, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4133906022400000]
+source = "any"
+target = "any"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "nahut_discharge"
+name = "Discharge"
+display_text = "Discharge"
+duration_secs = 12.0
+alert_on = "none"
+color = [0, 0, 255, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "damage_taken"
+abilities = [4133906022400000]
+source = "boss"
+target = "local_player"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "nahut_power_cell"
+name = "Power Cell"
+display_text = "Power Cell"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+color = [0, 255, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4180987453899014]
+source = "local_player"
+target = "local_player"
 
 [[boss.timer]]
 id = "nahut_suppression"
 name = "Suppression"
+display_text = "Suppression"
 duration_secs = 16.0
-trigger = { type = "ability_cast", abilities = [4181850742325248] }
+alert_on = "none"
+color = [255, 0, 0, 255]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4181850742325248]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "nahut_mass_distortion_p1"
+name = "Mass Distortion P1"
+display_text = "Mass Distortion P1"
+duration_secs = 11.0
+alert_on = "on_expire"
+alert_text = "Mass Distortion"
+color = [140, 0, 143, 255]
+phases = ["nahut_nahut"]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4126462844076032]
+source = "boss"
+target = "any"
+
+
+[[boss.timer]]
+id = "nahut_reveal"
+name = "Reveal"
+display_text = "Reveal"
+duration_secs = 30.0
+is_alert = true
+alert_on = "on_expire"
+alert_text = "Reveal"
+color = [255, 128, 0, 255]
+phases = ["nahut_nahut", "nahut_turrets", "nahut_burn"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_removed"
+effects = [4181850742325248]
+source = "boss"
+target = "boss"
+
+[[boss.timer]]
+id = "nahut_shockwave"
+name = "Shockwave"
+display_text = "Shockwave"
+duration_secs = 25.0
+alert_on = "none"
+alert_text = "Shockwave"
+color = [0, 200, 0, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "damage_taken"
+abilities = [4133016964169728]
+source = "any"
+target = "local_player"
+
+
+[[boss.timer]]
+id = "nahut_turret_spawn"
+name = "Turret Spawn"
+display_text = "Turret Spawn"
+duration_secs = 40.0
+alert_on = "on_expire"
+alert_text = "Turret Spawn"
+color = [102, 71, 9, 255]
+phases = ["nahut_turrets"]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4134120770764800]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "nahut_turrets_1st"
+name = "Turrets 1st"
+display_text = "Turrets 1st"
+duration_secs = 10.0
+alert_on = "none"
+alert_text = "Turrets 1st"
+color = [102, 71, 9, 255]
+phases = ["nahut_turrets"]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_removed"
+effects = [4134133655667051]
+source = "any"
+target = "local_player"
 
 [[boss.timer]]
 id = "nahut_suppression_cd"
 name = "Suppression Cooldown"
 display_text = "Suppression CD"
 duration_secs = 60.5
-trigger = { type = "ability_cast", abilities = [
-  4181850742325248,
-], source = "local_player" }
+alert_on = "none"
+color = [200, 200, 0, 255]
+enabled = true
+display_target = "timers_a"
 
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4181850742325248]
+source = "local_player"
+target = "any"
+
+[[boss.timer]]
+id = "nahut_mass_distortion"
+name = "Mass Distortion"
+display_text = "Mass Distortion"
+duration_secs = 12.5
+alert_on = "on_expire"
+alert_text = "Mass Distortion"
+color = [183, 0, 219, 255]
+difficulties = ["master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4124212281212928]
+source = "boss"
+target = "any"
+
+[[boss.timer]]
+id = "nahut_mass_distortion_p3"
+name = "Mass Distortion P3"
+display_text = "Mass Distortion P3"
+duration_secs = 12.0
+alert_on = "on_expire"
+alert_text = "Mass Distortion P3"
+color = [140, 0, 255, 255]
+phases = ["nahut_turrets"]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_removed"
+effects = [4134133655667051]
+source = "any"
+target = "local_player"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Boss 4: SCYVA
@@ -223,6 +982,389 @@ name = "SCYVA"
 ids = [4081335622696960, 4108140513591296]
 is_boss = true
 is_kill_target = true
+
+[[boss.entities]]
+name = "Omega Protocol Droid"
+ids = [4126527268585472]
+is_boss = true
+triggers_encounter = true
+is_kill_target = false
+show_on_hp_overlay = true
+
+[[boss.phases]]
+id = "scyva_omega"
+name = "Omega"
+
+[boss.phases.start_trigger]
+type = "target_set"
+selector = [4126527268585472]
+target = "any"
+
+[boss.phases.end_trigger]
+type = "entity_death"
+selector = [4126527268585472]
+
+[[boss.phases]]
+id = "scyva_catalyst"
+name = "Catalyst"
+
+[boss.phases.start_trigger]
+type = "npc_appears"
+selector = [4126553038389248]
+
+[boss.phases.end_trigger]
+type = "effect_applied"
+effects = [4131775718621461]
+source = "any"
+target = "any"
+
+[[boss.phases]]
+id = "scyva_scyva"
+name = "SCYVA 1"
+resets_counters = []
+
+[boss.phases.start_trigger]
+type = "phase_ended"
+phase_id = "scyva_catalyst"
+
+[boss.phases.end_trigger]
+type = "phase_entered"
+phase_id = "scyva_burn"
+
+[[boss.phases]]
+id = "scyva_ignite_core"
+name = "Ignite Core"
+display_text = "Ignite Core"
+resets_counters = []
+
+[boss.phases.start_trigger]
+type = "any_of"
+
+[[boss.phases.start_trigger.conditions]]
+type = "ability_cast"
+abilities = [4131981877051392]
+source = "boss"
+target = "any"
+
+[[boss.phases.start_trigger.conditions]]
+type = "effect_applied"
+effects = []
+source = "any"
+target = "boss"
+
+[boss.phases.end_trigger]
+type = "effect_removed"
+effects = [4127300362698752]
+source = "boss"
+target = "any"
+
+[[boss.phases]]
+id = "scyva_burn"
+name = "Burn"
+display_text = "Burn"
+
+[boss.phases.start_trigger]
+type = "boss_hp_below"
+hp_percent = 30.0
+selector = ["SCYVA"]
+
+[boss.phases.end_trigger]
+type = "combat_end"
+
+[[boss.phases]]
+id = "scyva_scyva_2"
+name = "SCYVA 2"
+
+[boss.phases.start_trigger]
+type = "phase_entered"
+phase_id = "scyva_ignite_core"
+
+[boss.phases.end_trigger]
+type = "boss_hp_below"
+hp_percent = 30.0
+selector = ["SCYVA"]
+
+[[boss.timer]]
+id = "scyva_p1_beams_1st"
+name = "P1 Beams 1st"
+duration_secs = 4.0
+alert_on = "none"
+color = [0, 255, 0, 255]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "combat_start"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_p1_beams_1st"
+
+[[boss.timer]]
+id = "scyva_beams"
+name = "Beams"
+display_text = "Beams"
+duration_secs = 15.0
+alert_on = "none"
+color = [255, 128, 0, 255]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_p1_beams_1st"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_beams"
+
+[[boss.timer]]
+id = "scyva_p1_beams"
+name = "P1 Beams"
+duration_secs = 15.0
+alert_on = "none"
+color = [0, 255, 0, 255]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_beams"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_beams"
+
+
+[[boss.timer]]
+id = "scyva_red_catalyst_1st"
+name = "Red Catalyst 1st"
+display_text = "Red Catalyst 1st"
+duration_secs = 12.0
+alert_on = "none"
+color = [255, 0, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_1st_beam"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_1st_beam"
+
+[[boss.timer]]
+id = "scyva_1st_beam"
+name = "1st beam"
+duration_secs = 16.0
+alert_on = "none"
+color = [255, 0, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "npc_appears"
+selector = [4126553038389248]
+
+[[boss.timer]]
+id = "scyva_double_catalyst_1st"
+name = "Double Catalyst 1st"
+duration_secs = 12.0
+alert_on = "on_expire"
+alert_text = "Double Catalyst"
+color = [255, 0, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_red_catalyst_1st"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_double_catalyst_1st"
+
+[[boss.timer]]
+id = "scyva_red_catalyst_2nd"
+name = "Red Catalyst 2nd"
+duration_secs = 12.0
+alert_on = "none"
+color = [255, 0, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_double_catalyst_1st"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_red_catalyst_2nd"
+
+[[boss.timer]]
+id = "scyva_double_catalyst_2nd"
+name = "Double Catalyst 2nd"
+duration_secs = 12.0
+alert_on = "none"
+alert_text = "Double Catalyst"
+color = [255, 0, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_5th_beam"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_double_catalyst_2nd"
+
+[[boss.timer]]
+id = "scyva_5th_beam"
+name = "5th Beam"
+duration_secs = 12.0
+alert_on = "on_expire"
+alert_text = "5th Beam"
+color = [255, 128, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_red_catalyst_2nd"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_5th_beam"
+
+[[boss.timer]]
+id = "scyva_7th_beam"
+name = "7th Beam"
+duration_secs = 12.0
+alert_on = "on_expire"
+alert_text = "7th Beam"
+color = [255, 128, 0, 255]
+phases = ["scyva_catalyst"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_double_catalyst_2nd"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_7th_beam"
+
+[[boss.timer]]
+id = "scyva_scyva"
+name = "SCYVA"
+duration_secs = 68.0
+alert_on = "none"
+alert_text = "SCYVA"
+color = [0, 255, 85, 255]
+phases = ["scyva_catalyst", "scyva_scyva"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "scyva_7th_beam"
+
+[boss.timer.cancel_trigger]
+type = "timer_expires"
+timer_id = "scyva_scyva"
+
+[[boss.timer]]
+id = "scyva_iginte_core"
+name = "Iginte Core"
+duration_secs = 50.0
+alert_on = "none"
+color = [255, 128, 0, 255]
+phases = ["scyva_scyva", "scyva_ignite_core"]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4131775718621461]
+source = "any"
+target = "boss"
+
+[boss.timer.cancel_trigger]
+type = "phase_entered"
+phase_id = "scyva_ignite_core"
+
+[[boss.timer]]
+id = "scyva_expansion"
+name = "Expansion"
+display_text = "Expansion"
+duration_secs = 13.0
+alert_on = "on_expire"
+alert_text = "Expansion"
+color = [255, 128, 0, 255]
+phases = ["scyva_scyva"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4132067776397621]
+source = "boss"
+target = "boss"
+
+[[boss.timer]]
+id = "scyva_contraction"
+name = "Contraction"
+display_text = "Contraction"
+duration_secs = 15.0
+alert_on = "on_expire"
+alert_text = "Contraction"
+color = [17, 0, 255, 255]
+phases = ["scyva_scyva"]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = ["Mass Synthesis"]
+source = "boss"
+target = "boss"
+
+[[boss.challenges]]
+id = "scyva_ignite_core"
+name = "Ignite Core"
+display_text = "Ignite Core"
+metric = "damage"
+enabled = true
+color = [255, 0, 0, 255]
+columns = "total_percent"
+
+[[boss.challenges.conditions]]
+type = "phase"
+phase_ids = ["scyva_ignite_core"]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Boss 5: IZAX
