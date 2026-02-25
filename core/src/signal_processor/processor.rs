@@ -746,9 +746,6 @@ impl EventProcessor {
         if !boss_def.has_victory_trigger {
             return;
         }
-        if enc.victory_triggered {
-            return;
-        }
 
         // Check if victory trigger applies to current difficulty
         if !boss_def.victory_trigger_difficulties.is_empty() {
