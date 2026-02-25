@@ -20,50 +20,261 @@ is_kill_target = true
 [[boss.timer]]
 id = "propagator_lethal_strike"
 name = "Lethal Strike"
-trigger = { type = "ability_cast", abilities = [4826160261234688] }
-cancel_trigger = { type = "ability_cast", abilities = [4832241934925824] }
-duration_secs = 32.0
+duration_secs = 31.5
+alert_on = "none"
 color = [237, 33, 33, 255]
+difficulties = ["veteran", "master", "story"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4826160261234688]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive_1st"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "propagator_core_xr53_clean_target"
+name = "Clean Target"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Clean Duty"
+color = [255, 128, 0, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4857616601710868]
+source = "any"
+target = "local_player"
+
+[[boss.timer]]
+id = "propagator_core_xr53_collection_droid_selfdestruct"
+name = "Cleaning Ends"
+duration_secs = 30.0
+is_alert = true
+alert_on = "none"
+alert_text = "Cleaning Ends"
+color = [255, 128, 0, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "effect_removed"
+effects = [4861069755416832]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "propagator_core_xr53_prime_directive_1st"
+name = "Prime Directive 1st"
+duration_secs = 120.0
+alert_on = "none"
+color = [255, 128, 0, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "combat_start"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "propagator_core_xr53_prime_directive"
+name = "Prime Directive"
+duration_secs = 90.0
+alert_on = "none"
+color = [255, 128, 0, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "propagator_cleanse_flood_add"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "propagator_cleanse_flood_add"
+name = "Cleanse Flood Add"
+duration_secs = 28.0
+alert_on = "none"
+color = [51, 200, 237, 255]
+difficulties = ["veteran", "master"]
+enabled = true
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "propagator_lethal_strike_rc"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
 
 [[boss.timer]]
 id = "propagator_lethal_strike_rc"
 name = "Lethal Strike After Recovery"
 display_text = "Lethal Strike"
-trigger = { type = "effect_removed", effects = [4832241934926105] }
-duration_secs = 23.0
+duration_secs = 32.0
+alert_on = "none"
 color = [237, 33, 33, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = true
+display_target = "timers_a"
 
-[[boss.timer]]
-id = "propagator_acidic_rocketry"
-name = "Acidic Rocketry"
-trigger = { type = "ability_cast", abilities = [4827160988614656] }
-duration_secs = 20.0
-color = [23, 152, 0, 255]
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4832241934925824]
+source = "any"
+target = "any"
 
-[[boss.timer]]
-id = "propagator_cleanse_flood_add"
-name = "Cleanse Flood Add"
-trigger = { type = "ability_cast", abilities = [4832241934925824] }
-duration_secs = 90.0
-color = [51, 200, 237, 255]
-
-[[boss.timer]]
-id = "propagator_extraneous_expulsion"
-name = "Extraneous Expulsion"
-trigger = { type = "ability_cast", abilities = [4825717879603200] }
-duration_secs = 25.0
-color = [182, 237, 40, 255]
-
-[[boss.timer]]
-id = "propagator_hunting_grounds"
-name = "Hunting Grounds"
-trigger = { type = "ability_cast", abilities = [4828045751877632] }
-duration_secs = 30.0
-color = [237, 165, 0, 255]
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
 
 [[boss.timer]]
 id = "propagator_hungering_bite"
 name = "Hungering Bite"
-trigger = { type = "ability_cast", abilities = [4825876793393152] }
 duration_secs = 22.5
+alert_on = "none"
 color = [237, 23, 93, 255]
+difficulties = ["story", "veteran", "master"]
+enabled = false
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4825975577640960]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive_1st"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "propagator_acidic_rocketry"
+name = "Acidic Rocketry"
+duration_secs = 21.0
+alert_on = "none"
+color = [23, 152, 0, 255]
+enabled = false
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4827160988614656]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive_1st"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive"
+
+[boss.timer.audio]
+enabled = false
+offset = 0
+countdown_start = 0
+
+[[boss.timer]]
+id = "propagator_extraneous_expulsion"
+name = "Extraneous Expulsion"
+duration_secs = 26.5
+alert_on = "none"
+color = [182, 237, 40, 255]
+enabled = true
+display_target = "timers_a"
+difficulties = ["story", "veteran", "master"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4825717879603200]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive_1st"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive"
+
+[[boss.timer]]
+id = "propagator_hunting_grounds"
+name = "Hunting Grounds"
+duration_secs = 30.0
+alert_on = "none"
+color = [237, 165, 0, 255]
+enabled = false
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4828045751877632]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive_1st"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "timer_expires"
+timer_id = "propagator_core_xr53_prime_directive"
