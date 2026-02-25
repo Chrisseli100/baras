@@ -203,7 +203,9 @@ trigger = { type = "effect_applied", effects = [
 ], source = { selector = [
   "Czerka Pursuit Droid",
 ] } }
-counter_condition = { counter_id = "holding_pens_stun_darts", operator = "eq", value = 0 }
+conditions = [
+  { type = "counter_compare", counter_id = "holding_pens_stun_darts", operator = "eq", value = 0 },
+]
 difficulties = ["master"]
 
 [[boss.timer]]
@@ -215,7 +217,9 @@ trigger = { type = "effect_applied", effects = [
 ], source = { selector = [
   "Czerka Pursuit Droid",
 ] } }
-counter_condition = { counter_id = "holding_pens_stun_darts", operator = "gte", value = 1 }
+conditions = [
+  { type = "counter_compare", counter_id = "holding_pens_stun_darts", operator = "gte", value = 1 },
+]
 difficulties = ["master"]
 
 [[boss.timer]]
@@ -472,7 +476,9 @@ trigger = { type = "ability_cast", abilities = [4265293366951936] }
 duration_secs = 30.0
 color = [48, 219, 37, 255]
 difficulties = ["veteran", "master"]
-counter_condition = { counter_id = "trandos_damagecountera", operator = "eq", value = 1 }
+conditions = [
+  { type = "counter_compare", counter_id = "trandos_damagecountera", operator = "eq", value = 1 },
+]
 
 [[boss.timer]]
 id = "trandos_caustic_reset"
@@ -524,6 +530,24 @@ difficulties = ["master"]
 id = "huntmaster"
 name = "Huntmaster"
 difficulties = ["story", "veteran", "master"]
+has_victory_trigger = true
+victory_trigger = { type = "any_of", conditions = [
+  { type = "effect_removed", effects = [
+    4385986242937128,
+  ], source = { selector = [
+    0,
+  ] } },
+  { type = "entity_death", selector = [
+    "Shelleigh",
+  ] },
+] }
+
+[[boss.counter]]
+id = "huntmaster_below_35"
+name = "Huntmaster 35 percent"
+increment_on = { type = "boss_hp_below", hp_percent = 35.1, selector = [
+  "Huntmaster",
+] }
 
 [[boss.entities]]
 name = "Huntmaster"
@@ -535,7 +559,7 @@ is_kill_target = false
 name = "Shelleigh"
 ids = [4281661487316992, 4330237567434752]
 is_boss = true
-is_kill_target = true
+is_kill_target = false
 
 [[boss.counter]]
 id = "shelleigh_appeared"
@@ -549,7 +573,9 @@ start_trigger = { type = "any_of", conditions = [
   { type = "combat_start" },
   { type = "phase_ended", phase_id = "huntmaster_holdout" },
 ] }
-counter_condition = { counter_id = "shelleigh_appeared", operator = "eq", value = 0 }
+conditions = [
+  { type = "counter_compare", counter_id = "shelleigh_appeared", operator = "eq", value = 0 },
+]
 
 [[boss.phases]]
 id = "huntmaster_fortress"
@@ -559,14 +585,18 @@ start_trigger = { type = "ability_cast", abilities = [
   4387871733579776,
 ] }
 end_trigger = { type = "ability_cast", abilities = [4277521138843648] }
-counter_condition = { counter_id = "shelleigh_appeared", operator = "eq", value = 0 }
+conditions = [
+  { type = "counter_compare", counter_id = "shelleigh_appeared", operator = "eq", value = 0 },
+]
 
 [[boss.phases]]
 id = "huntmaster_holdout"
 name = "Holdout"
 start_trigger = { type = "phase_ended", phase_id = "huntmaster_fortress" }
 end_trigger = { type = "effect_removed", effects = [4277787426816333] }
-counter_condition = { counter_id = "shelleigh_appeared", operator = "eq", value = 0 }
+conditions = [
+  { type = "counter_compare", counter_id = "shelleigh_appeared", operator = "eq", value = 0 },
+]
 
 [[boss.phases]]
 id = "shelleigh"

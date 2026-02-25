@@ -376,7 +376,8 @@ effects = [3301008784490496]
 source = "boss"
 target = "boss"
 
-[boss.phases.counter_condition]
+[[boss.phases.conditions]]
+type = "counter_compare"
 counter_id = "raptus_spinning"
 operator = "lte"
 value = 2
@@ -432,7 +433,8 @@ effects = [3356173344440320]
 source = "boss"
 target = "any"
 
-[boss.timer.counter_condition]
+[[boss.timer.conditions]]
+type = "counter_compare"
 counter_id = "raptus_spinning"
 operator = "gt"
 value = 2
@@ -601,7 +603,7 @@ id = "dread_council_deathmarks"
 name = "Deathmark"
 duration_secs = 63.0
 color = [143, 0, 0, 255]
-phases = ["dread_council_p1"]
+conditions = [{ type = "phase_active", phase_ids = ["dread_council_p1"] }]
 difficulties = ["veteran", "story", "master"]
 enabled = true
 can_be_refreshed = true

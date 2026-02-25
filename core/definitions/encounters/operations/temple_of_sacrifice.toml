@@ -177,7 +177,7 @@ set_value = 1
 id = "ss_rain_of_missiles"
 name = "Rain of Missiles"
 trigger = { type = "ability_cast", abilities = [3448064169738240] }
-counter_condition = { counter_id = "rain_lock", operator = "eq", value = 0 }
+conditions = [{ type = "counter_compare", counter_id = "rain_lock", operator = "eq", value = 0 }]
 duration_secs = 19.0
 color = [219, 32, 28, 255]
 difficulties = ["veteran"]
@@ -534,7 +534,7 @@ trigger = { type = "ability_cast", abilities = [3455881010216960] }
 duration_secs = 9.5
 color = [214, 33, 32, 255]
 difficulties = ["veteran"]
-phases = ["revan_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["revan_p3"] }]
 chains_to = "rev_pull_p3"
 
 # Pull (started via chain) → chains to Push loop
@@ -545,7 +545,7 @@ trigger = { type = "manual" }
 duration_secs = 15
 color = [32, 214, 214, 255]
 difficulties = ["veteran"]
-phases = ["revan_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["revan_p3"] }]
 chains_to = "rev_push_p3_loop"
 
 # Push loop (started via chain) → chains back to Pull
@@ -556,7 +556,7 @@ trigger = { type = "manual" }
 duration_secs = 15
 color = [214, 33, 32, 255]
 difficulties = ["veteran"]
-phases = ["revan_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["revan_p3"] }]
 chains_to = "rev_pull_p3"
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -592,7 +592,7 @@ trigger = { type = "manual" }
 duration_secs = 15
 color = [28, 219, 214, 255]
 difficulties = ["veteran"]
-phases = ["revan_p4", "revan_core"]
+conditions = [{ type = "phase_active", phase_ids = ["revan_p4", "revan_core"] }]
 chains_to = "rev_push_p4_loop"
 
 # Push loop (started via chain) → chains back to Pull
@@ -603,7 +603,7 @@ trigger = { type = "manual" }
 duration_secs = 15
 color = [219, 36, 32, 255]
 difficulties = ["veteran"]
-phases = ["revan_p4", "revan_core"]
+conditions = [{ type = "phase_active", phase_ids = ["revan_p4", "revan_core"] }]
 chains_to = "rev_pull_p4"
 
 # -- Heave in Phase 4 --

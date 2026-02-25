@@ -115,7 +115,7 @@ trigger = { type = "ability_cast", abilities = [3308460552749056] }
 duration_secs = 10.0
 color = [33, 29, 224, 255]
 difficulties = ["master"]
-counter_condition = { counter_id = "nefra_rng_add_gate", operator = "eq", value = 1 }
+conditions = [{ type = "counter_compare", counter_id = "nefra_rng_add_gate", operator = "eq", value = 1 }]
 
 [[boss.timer]]
 id = "nefra_dps_add"
@@ -125,7 +125,7 @@ trigger = { type = "ability_cast", abilities = [3308164200005632] }
 duration_secs = 10.0
 color = [32, 219, 213, 255]
 difficulties = ["master"]
-counter_condition = { counter_id = "nefra_rng_add_gate", operator = "eq", value = 1 }
+conditions = [{ type = "counter_compare", counter_id = "nefra_rng_add_gate", operator = "eq", value = 1 }]
 
 [[boss.timer]]
 id = "nefra_rng_add"
@@ -134,7 +134,7 @@ trigger = { type = "ability_cast", abilities = [3342034312101888] }
 duration_secs = 30.0
 color = [33, 149, 224, 255]
 difficulties = ["master"]
-counter_condition = { counter_id = "nefra_twin_attack_count", operator = "eq", value = 12 }
+conditions = [{ type = "counter_compare", counter_id = "nefra_twin_attack_count", operator = "eq", value = 12 }]
 
 [[boss.timer]]
 id = "nefra_raid_cleave"
@@ -144,7 +144,7 @@ is_alert = true
 alert_text = "Raid Cleave"
 color = [219, 37, 41, 255]
 difficulties = ["master"]
-counter_condition = { counter_id = "nefra_twin_attack_count", operator = "eq", value = 15 }
+conditions = [{ type = "counter_compare", counter_id = "nefra_twin_attack_count", operator = "eq", value = 15 }]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -777,7 +777,7 @@ is_alert = true
 alert_text = "Brontes Below 52% - No More Clones"
 color = [32, 168, 18, 255]
 difficulties = ["veteran", "master"]
-phases = ["kebus"]
+conditions = [{ type = "phase_active", phase_ids = ["kebus"] }]
 
 [[boss.timer]]
 id = "brontes_reaches_active"
@@ -808,7 +808,7 @@ duration_secs = 40.0
 color = [32, 220, 220, 255]
 can_refresh = false
 difficulties = ["veteran", "master"]
-phases = ["hands"]
+conditions = [{ type = "phase_active", phase_ids = ["hands"] }]
 
 [[boss.timer]]
 id = "brontes_sphere_aggro"

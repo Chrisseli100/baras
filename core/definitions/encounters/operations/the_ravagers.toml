@@ -579,7 +579,7 @@ trigger = { type = "ability_cast", abilities = [3393552444817408] }
 duration_secs = 9.0
 color = [219, 28, 28, 255]
 difficulties = ["veteran"]
-phases = ["master_blaster_main"]
+conditions = [{ type = "phase_active", phase_ids = ["master_blaster_main"] }]
 
 [[boss.timer]]
 id = "master_blaster_scatterblast_p2"
@@ -589,7 +589,7 @@ trigger = { type = "ability_cast", abilities = [3393552444817408] }
 duration_secs = 18.0
 color = [220, 42, 39, 255]
 difficulties = ["veteran"]
-phases = ["master_blaster_master"]
+conditions = [{ type = "phase_active", phase_ids = ["master_blaster_master"] }]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

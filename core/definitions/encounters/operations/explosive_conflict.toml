@@ -242,7 +242,7 @@ initial_value = 0
 [[boss.phases]]
 id = "fs_tanks"
 name = "Tanks"
-counter_condition = { counter_id = "fs_defensive_systems_ct", operator = "lte", value = 3 }
+conditions = [{ type = "counter_compare", counter_id = "fs_defensive_systems_ct", operator = "lte", value = 3 }]
 trigger = { type = "any_of", conditions = [
   { type = "combat_start" },
   { type = "phase_ended", phase_id = "fs_shield" },
@@ -267,7 +267,7 @@ end_trigger = { type = "effect_removed", effects = [
 [[boss.phases]]
 id = "fs_burn"
 name = "Burn"
-counter_condition = { counter_id = "fs_defensive_systems_ct", operator = "eq", value = 4 }
+conditions = [{ type = "counter_compare", counter_id = "fs_defensive_systems_ct", operator = "eq", value = 4 }]
 trigger = { type = "phase_ended", phase_id = "fs_shield" }
 
 [[boss.phases]]
@@ -611,21 +611,21 @@ end_trigger = { type = "any_of", conditions = [
 [[boss.phases]]
 id = "wk_trandos"
 name = "Trandoshans"
-counter_condition = { counter_id = "walker_burns", operator = "eq", value = 1 }
+conditions = [{ type = "counter_compare", counter_id = "walker_burns", operator = "eq", value = 1 }]
 trigger = { type = "phase_ended", phase_id = "walker_burn" }
 end_trigger = { type = "entity_death", name = "Baradium Bomber" }
 
 [[boss.phases]]
 id = "wk_pulsar"
 name = "Pulsar Droids"
-counter_condition = { counter_id = "walker_burns", operator = "eq", value = 2 }
+conditions = [{ type = "counter_compare", counter_id = "walker_burns", operator = "eq", value = 2 }]
 trigger = { type = "phase_ended", phase_id = "walker_burn" }
 end_trigger = { type = "entity_death", name = "Baradium Bomber" }
 
 [[boss.phases]]
 id = "wk_kephess"
 name = "Kephess"
-counter_condition = { counter_id = "walker_burns", operator = "gte", value = 3 }
+conditions = [{ type = "counter_compare", counter_id = "walker_burns", operator = "gte", value = 3 }]
 trigger = { type = "phase_ended", phase_id = "walker_burn" }
 end_trigger = { type = "effect_removed", effects = [2815376832331776] }
 

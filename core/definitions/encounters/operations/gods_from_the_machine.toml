@@ -319,7 +319,7 @@ duration_secs = 30.0
 is_alert = true
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["ae_synergy_protocol", "ae_main_2nd"]
+conditions = [{ type = "phase_active", phase_ids = ["ae_synergy_protocol", "ae_main_2nd"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -826,7 +826,7 @@ duration_secs = 11.0
 alert_on = "on_expire"
 alert_text = "Mass Distortion"
 color = [140, 0, 143, 255]
-phases = ["nahut_nahut"]
+conditions = [{ type = "phase_active", phase_ids = ["nahut_nahut"] }]
 difficulties = ["master"]
 enabled = true
 display_target = "timers_a"
@@ -847,7 +847,7 @@ is_alert = true
 alert_on = "on_expire"
 alert_text = "Reveal"
 color = [255, 128, 0, 255]
-phases = ["nahut_nahut", "nahut_turrets", "nahut_burn"]
+conditions = [{ type = "phase_active", phase_ids = ["nahut_nahut", "nahut_turrets", "nahut_burn"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -885,7 +885,7 @@ duration_secs = 40.0
 alert_on = "on_expire"
 alert_text = "Turret Spawn"
 color = [102, 71, 9, 255]
-phases = ["nahut_turrets"]
+conditions = [{ type = "phase_active", phase_ids = ["nahut_turrets"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -904,7 +904,7 @@ duration_secs = 10.0
 alert_on = "none"
 alert_text = "Turrets 1st"
 color = [102, 71, 9, 255]
-phases = ["nahut_turrets"]
+conditions = [{ type = "phase_active", phase_ids = ["nahut_turrets"] }]
 difficulties = ["master"]
 enabled = true
 display_target = "timers_a"
@@ -957,7 +957,7 @@ duration_secs = 12.0
 alert_on = "on_expire"
 alert_text = "Mass Distortion P3"
 color = [140, 0, 255, 255]
-phases = ["nahut_turrets"]
+conditions = [{ type = "phase_active", phase_ids = ["nahut_turrets"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1146,7 +1146,7 @@ display_text = "Red Catalyst 1st"
 duration_secs = 12.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1165,7 +1165,7 @@ name = "1st beam"
 duration_secs = 16.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1181,7 +1181,7 @@ duration_secs = 12.0
 alert_on = "on_expire"
 alert_text = "Double Catalyst"
 color = [255, 0, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1200,7 +1200,7 @@ name = "Red Catalyst 2nd"
 duration_secs = 12.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1220,7 +1220,7 @@ duration_secs = 12.0
 alert_on = "none"
 alert_text = "Double Catalyst"
 color = [255, 0, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1240,7 +1240,7 @@ duration_secs = 12.0
 alert_on = "on_expire"
 alert_text = "5th Beam"
 color = [255, 128, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1260,7 +1260,7 @@ duration_secs = 12.0
 alert_on = "on_expire"
 alert_text = "7th Beam"
 color = [255, 128, 0, 255]
-phases = ["scyva_catalyst"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1280,7 +1280,7 @@ duration_secs = 68.0
 alert_on = "none"
 alert_text = "SCYVA"
 color = [0, 255, 85, 255]
-phases = ["scyva_catalyst", "scyva_scyva"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_catalyst", "scyva_scyva"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1299,7 +1299,7 @@ name = "Iginte Core"
 duration_secs = 50.0
 alert_on = "none"
 color = [255, 128, 0, 255]
-phases = ["scyva_scyva", "scyva_ignite_core"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_scyva", "scyva_ignite_core"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1322,7 +1322,7 @@ duration_secs = 13.0
 alert_on = "on_expire"
 alert_text = "Expansion"
 color = [255, 128, 0, 255]
-phases = ["scyva_scyva"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_scyva"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1341,7 +1341,7 @@ duration_secs = 15.0
 alert_on = "on_expire"
 alert_text = "Contraction"
 color = [17, 0, 255, 255]
-phases = ["scyva_scyva"]
+conditions = [{ type = "phase_active", phase_ids = ["scyva_scyva"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1557,7 +1557,7 @@ duration_secs = 34.0
 alert_on = "none"
 alert_text = "Cascade"
 color = [38, 210, 213, 255]
-phases = ["izax_p1", "izax_p2", "izax_p3", "izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p1", "izax_p2", "izax_p3", "izax_p4"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 show_at_secs = 4.0
@@ -1610,7 +1610,7 @@ is_alert = true
 alert_on = "none"
 alert_text = "Move OUT"
 color = [38, 210, 213, 255]
-phases = ["izax_p1", "izax_p2", "izax_p3", "izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p1", "izax_p2", "izax_p3", "izax_p4"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1633,7 +1633,7 @@ display_text = "P1 Slam"
 duration_secs = 26.0
 alert_on = "none"
 color = [255, 128, 0, 255]
-phases = ["izax_p1"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p1"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 show_at_secs = 5.0
@@ -1658,7 +1658,7 @@ display_text = "P2 Explosion 1"
 duration_secs = 12.0
 alert_on = "none"
 color = [255, 128, 0, 255]
-phases = ["izax_p2"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p2"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1685,7 +1685,7 @@ display_text = "P2 Explosion 2"
 duration_secs = 7.0
 alert_on = "none"
 color = [212, 255, 0, 255]
-phases = ["izax_p2"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p2"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1710,7 +1710,7 @@ display_text = "P2 Hull Cutters"
 duration_secs = 36.0
 alert_on = "none"
 color = [157, 160, 19, 255]
-phases = ["izax_p2"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p2"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1737,7 +1737,7 @@ display_text = "P2 Knockback"
 duration_secs = 15.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p2"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p2"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1766,7 +1766,7 @@ is_alert = true
 alert_on = "none"
 alert_text = "Interrupt"
 color = [0, 0, 255, 255]
-phases = ["izax_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p3"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1790,7 +1790,7 @@ display_text = "P3 Reposition"
 duration_secs = 14.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p3"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1819,7 +1819,7 @@ is_alert = true
 alert_on = "none"
 alert_text = "Shield"
 color = [0, 255, 0, 255]
-phases = ["izax_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p3"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1842,7 +1842,7 @@ display_text = "P3 Shield Down"
 duration_secs = 12.0
 alert_on = "none"
 color = [0, 255, 0, 255]
-phases = ["izax_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p3"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1869,7 +1869,7 @@ display_text = "P3 Tether Droids"
 duration_secs = 5.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p3"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p3"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -1894,7 +1894,7 @@ display_text = "P4 Reposition 1st_M"
 duration_secs = 80.0
 alert_on = "none"
 color = [225, 0, 255, 255]
-phases = ["izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p4"] }]
 difficulties = ["master"]
 enabled = true
 display_target = "timers_a"
@@ -1921,7 +1921,7 @@ display_text = "P4 Reposition_M"
 duration_secs = 80.0
 alert_on = "none"
 color = [186, 0, 189, 255]
-phases = ["izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p4"] }]
 difficulties = ["master"]
 enabled = true
 display_target = "timers_a"
@@ -1948,7 +1948,7 @@ display_text = "P6 Tether Drone"
 duration_secs = 31.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p6"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p6"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -1973,7 +1973,7 @@ display_text = "P6 Radiation"
 duration_secs = 28.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p6"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p6"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -2080,7 +2080,7 @@ duration_secs = 30.0
 is_alert = true
 alert_on = "none"
 color = [0, 228, 5, 255]
-phases = ["izax_p7"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p7"] }]
 difficulties = ["story", "veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -2101,7 +2101,7 @@ duration_secs = 30.0
 is_alert = true
 alert_on = "none"
 color = [0, 228, 5, 255]
-phases = ["izax_p6"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p6"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -2122,7 +2122,7 @@ display_text = "Missile Volley 1"
 duration_secs = 13.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p4"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -2149,7 +2149,7 @@ display_text = "Missile Volley 2"
 duration_secs = 11.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p4"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -2174,7 +2174,7 @@ display_text = "Missile Volley 3"
 duration_secs = 11.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p4"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -2199,7 +2199,7 @@ display_text = "Missile Volley 4"
 duration_secs = 11.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_p4"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p4"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -2224,7 +2224,7 @@ display_text = "P6 Explosion"
 duration_secs = 139.0
 alert_on = "none"
 color = [255, 174, 0, 255]
-phases = ["izax_p6"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p6"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"
@@ -2249,7 +2249,7 @@ display_text = "P6 SCYVA"
 duration_secs = 11.0
 alert_on = "none"
 color = [0, 255, 17, 255]
-phases = ["izax_p6"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_p6"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_b"
@@ -2274,7 +2274,7 @@ display_text = "P7 Wipe"
 duration_secs = 22.0
 alert_on = "none"
 color = [255, 0, 0, 255]
-phases = ["izax_burn"]
+conditions = [{ type = "phase_active", phase_ids = ["izax_burn"] }]
 difficulties = ["veteran", "master"]
 enabled = true
 display_target = "timers_a"

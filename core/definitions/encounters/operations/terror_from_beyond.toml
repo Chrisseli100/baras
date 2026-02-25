@@ -603,7 +603,7 @@ id = "kephess_laser_blast"
 name = "Laser Blast"
 trigger = { type = "ability_cast", abilities = [3012687629910016] }
 source = { selector = ["Kephess"] }
-counter_condition = { counter_id = "overcharge_count", operator = "eq", value = 0 }
+conditions = [{ type = "counter_compare", counter_id = "overcharge_count", operator = "eq", value = 0 }]
 duration_secs = 4.5
 color = [46, 34, 228, 255]
 difficulties = ["veteran", "master"]
@@ -617,7 +617,7 @@ trigger = { type = "ability_cast", abilities = [
 ], source = { selector = [
   "Kephess",
 ] } }
-counter_condition = { counter_id = "nanites_count", operator = "eq", value = 0 }
+conditions = [{ type = "counter_compare", counter_id = "nanites_count", operator = "eq", value = 0 }]
 duration_secs = 15.0
 color = [49, 190, 28, 255]
 difficulties = ["veteran", "master"]
@@ -631,7 +631,7 @@ trigger = { type = "ability_cast", abilities = [
 ], source = { selector = [
   "Kephess",
 ] } }
-counter_condition = { counter_id = "nanites_count", operator = "eq", value = 1 }
+conditions = [{ type = "counter_compare", counter_id = "nanites_count", operator = "eq", value = 1 }]
 duration_secs = 15.0
 color = [39, 197, 29, 255]
 difficulties = ["master"]
@@ -645,7 +645,7 @@ trigger = { type = "ability_cast", abilities = [
 ], source = { selector = [
   "Kephess",
 ] } }
-counter_condition = { counter_id = "nanites_count", operator = "eq", value = 1 }
+conditions = [{ type = "counter_compare", counter_id = "nanites_count", operator = "eq", value = 1 }]
 duration_secs = 15.0
 color = [220, 45, 32, 255]
 difficulties = ["veteran"]
@@ -659,7 +659,7 @@ trigger = { type = "ability_cast", abilities = [
 ], source = { selector = [
   "Kephess",
 ] } }
-counter_condition = { counter_id = "nanites_count", operator = "eq", value = 2 }
+conditions = [{ type = "counter_compare", counter_id = "nanites_count", operator = "eq", value = 2 }]
 duration_secs = 15.0
 color = [220, 36, 26, 255]
 difficulties = ["veteran", "master"]
@@ -673,7 +673,7 @@ trigger = { type = "ability_cast", abilities = [
 ], source = { selector = [
   "Kephess",
 ] } }
-counter_condition = { counter_id = "nanites_count", operator = "eq", value = 0 }
+conditions = [{ type = "counter_compare", counter_id = "nanites_count", operator = "eq", value = 0 }]
 is_alert = true
 alert_text = "Jump!"
 color = [220, 34, 26, 255]
@@ -688,7 +688,7 @@ trigger = { type = "ability_cast", abilities = [
 ], source = { selector = [
   "Kephess",
 ] } }
-counter_condition = { counter_id = "nanites_count", operator = "eq", value = 2 }
+conditions = [{ type = "counter_compare", counter_id = "nanites_count", operator = "eq", value = 2 }]
 is_alert = true
 alert_text = "Jump!"
 color = [220, 34, 26, 255]
@@ -852,7 +852,7 @@ difficulties = ["veteran", "master"]
 id = "tfb_tentacle_respawn_1"
 name = "Tentacle Respawn"
 trigger = { type = "entity_death", selector = ["Grasping Tentacle"] }
-counter_condition = { counter_id = "grasping_death_count", operator = "eq", value = 0 }
+conditions = [{ type = "counter_compare", counter_id = "grasping_death_count", operator = "eq", value = 0 }]
 duration_secs = 35.0
 color = [213, 40, 38, 255]
 difficulties = ["veteran", "master"]
@@ -861,7 +861,7 @@ difficulties = ["veteran", "master"]
 id = "tfb_tentacle_respawn_3"
 name = "Tentacle Respawn"
 trigger = { type = "entity_death", selector = ["Grasping Tentacle"] }
-counter_condition = { counter_id = "grasping_death_count", operator = "eq", value = 2 }
+conditions = [{ type = "counter_compare", counter_id = "grasping_death_count", operator = "eq", value = 2 }]
 duration_secs = 35.0
 color = [213, 40, 38, 255]
 difficulties = ["veteran", "master"]
@@ -870,7 +870,7 @@ difficulties = ["veteran", "master"]
 id = "tfb_tentacle_respawn_5"
 name = "Tentacle Respawn"
 trigger = { type = "entity_death", selector = ["Grasping Tentacle"] }
-counter_condition = { counter_id = "grasping_death_count", operator = "eq", value = 4 }
+conditions = [{ type = "counter_compare", counter_id = "grasping_death_count", operator = "eq", value = 4 }]
 duration_secs = 35.0
 color = [213, 40, 38, 255]
 difficulties = ["veteran", "master"]
