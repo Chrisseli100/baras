@@ -65,7 +65,10 @@ pub struct EffectDefinition {
     pub display_text: Option<String>,
 
     /// Whether this definition is currently enabled
-    #[serde(default = "crate::serde_defaults::default_true")]
+    #[serde(
+        default = "crate::serde_defaults::default_true",
+        skip_serializing_if = "crate::serde_defaults::is_true"
+    )]
     pub enabled: bool,
 
     // ─── Trigger ────────────────────────────────────────────────────────────
@@ -77,53 +80,62 @@ pub struct EffectDefinition {
     /// If true, ignore game EffectRemoved signals - only expire via duration_secs.
     /// Useful for tracking cooldowns that shouldn't end when the buff is consumed.
     /// Note: Cooldowns (DisplayTarget::Cooldowns) always ignore effect removed events.
-    #[serde(default, alias = "fixed_duration")]
+    #[serde(
+        default,
+        alias = "fixed_duration",
+        skip_serializing_if = "crate::serde_defaults::is_false"
+    )]
     pub ignore_effect_removed: bool,
 
     /// Abilities (ID or name) that can refresh this effect's duration.
     /// Supports both simple selectors and conditional refresh with min_stacks/trigger.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refresh_abilities: Vec<RefreshAbility>,
 
     /// Whether refresh abilities on this effect use AoE damage correlation.
     /// When true, the tracker uses damage events to detect multi-target refreshes
     /// instead of requiring individual ApplyEffect signals per target.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub is_aoe_refresh: bool,
 
     /// Whether or not the effect will refresh on ModifyCharges events
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub is_refreshed_on_modify: bool,
 
     /// Default charges when creating via late registration (ability activation)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_charges: Option<u8>,
 
     // ─── Duration ───────────────────────────────────────────────────────────
     /// Expected duration in seconds (None = indefinite/unknown)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_secs: Option<f32>,
 
     /// Whether this duration/cooldown is affected by player's alacrity stat.
     /// If true, duration = base_duration / (1 + alacrity_percent/100).
     /// If false (default), duration is static.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub is_affected_by_alacrity: bool,
 
     /// Seconds to show "ready" state after cooldown expires (0 = disabled).
     /// When cooldown ends, shows in light-blue "ready" state for this duration.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_zero_f32")]
     pub cooldown_ready_secs: f32,
 
     // ─── Display ────────────────────────────────────────────────────────────
     /// Effect color as RGBA
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<[u8; 4]>,
 
     /// Only show when remaining time is at or below this threshold (0 = always show)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_zero_f32")]
     pub show_at_secs: f32,
 
     /// Which overlay should display this effect
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::serde_defaults::is_default_effect_display_target"
+    )]
     pub display_target: DisplayTarget,
 
     /// Icon ability ID for display (falls back to effect_id or trigger ability if not set)
@@ -131,12 +143,15 @@ pub struct EffectDefinition {
     pub icon_ability_id: Option<u64>,
 
     /// Whether to show the icon (true) or fall back to colored square (false)
-    #[serde(default = "crate::serde_defaults::default_true")]
+    #[serde(
+        default = "crate::serde_defaults::default_true",
+        skip_serializing_if = "crate::serde_defaults::is_true"
+    )]
     pub show_icon: bool,
 
     /// Whether to display the source entity name on personal overlays
     /// (Cooldowns, PersonalBuffs, PersonalDebuffs)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub display_source: bool,
 
     // ─── Discipline Scoping ────────────────────────────────────────────────
@@ -148,18 +163,23 @@ pub struct EffectDefinition {
 
     // ─── Behavior ───────────────────────────────────────────────────────────
     /// Should this effect persist after target dies?
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub persist_past_death: bool,
 
     /// Track this effect outside of combat?
-    #[serde(default = "crate::serde_defaults::default_true")]
+    #[serde(
+        default = "crate::serde_defaults::default_true",
+        skip_serializing_if = "crate::serde_defaults::is_true"
+    )]
     pub track_outside_combat: bool,
 
     // ─── Timer Integration ──────────────────────────────────────────────────
     /// Timer ID to start when this effect is applied
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_apply_trigger_timer: Option<String>,
 
     /// Timer ID to start when this effect expires/is removed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_expire_trigger_timer: Option<String>,
 
     // ─── Alerts ────────────────────────────────────────────────────────────────
@@ -173,12 +193,15 @@ pub struct EffectDefinition {
     pub alert_text: Option<String>,
 
     /// When to trigger the alert
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::serde_defaults::is_alert_trigger_none"
+    )]
     pub alert_on: AlertTrigger,
 
     // ─── Audio ─────────────────────────────────────────────────────────────────
     /// Audio configuration (alerts, custom sounds)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "AudioConfig::is_default")]
     pub audio: AudioConfig,
 }
 

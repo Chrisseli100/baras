@@ -3,34 +3,40 @@
 use serde::{Deserialize, Serialize};
 
 /// Audio configuration shared by timers, effects, and alerts
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AudioConfig {
     /// Master toggle for audio on this item
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub enabled: bool,
 
     /// Audio file to play (relative to sounds directory)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
 
     /// Seconds before expiration to play audio (0 = on expiration)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_zero_u8")]
     pub offset: u8,
 
     /// Start countdown audio at N seconds remaining (0 = disabled)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_zero_u8")]
     pub countdown_start: u8,
 
     /// Voice pack for countdown (None = default)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub countdown_voice: Option<String>,
 
     /// Alert text to display on alert overlay when effect triggers.
     /// If non-empty, sends this text to the alert overlay.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alert_text: Option<String>,
 }
 
 impl AudioConfig {
+    /// Returns true if all fields are at their default values
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
     /// Check if any audio is configured
     pub fn has_audio(&self) -> bool {
         self.enabled && (self.file.is_some() || self.countdown_start > 0)

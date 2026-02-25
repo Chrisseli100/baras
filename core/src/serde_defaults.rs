@@ -42,6 +42,31 @@ pub fn default_countdown_start() -> u8 {
     3
 }
 
+/// Skip serializing if bool is true (for fields that default to true)
+pub fn is_true(b: &bool) -> bool {
+    *b
+}
+
+/// Skip serializing if color matches the default timer color
+pub fn is_default_timer_color(c: &[u8; 4]) -> bool {
+    *c == [200, 200, 200, 255]
+}
+
+/// Skip serializing if AlertTrigger is None (the default)
+pub fn is_alert_trigger_none(t: &baras_types::AlertTrigger) -> bool {
+    *t == baras_types::AlertTrigger::None
+}
+
+/// Skip serializing if TimerDisplayTarget is TimersA (the default)
+pub fn is_default_display_target(t: &crate::timers::TimerDisplayTarget) -> bool {
+    *t == crate::timers::TimerDisplayTarget::TimersA
+}
+
+/// Skip serializing if effect DisplayTarget is None (the default)
+pub fn is_default_effect_display_target(t: &crate::effects::DisplayTarget) -> bool {
+    *t == crate::effects::DisplayTarget::None
+}
+
 /// Default entity filter for boss timer source/target (matches any entity)
 /// Boss timers need permissive defaults since abilities come from NPCs, not players.
 pub fn default_entity_filter_any() -> crate::effects::EntityFilter {

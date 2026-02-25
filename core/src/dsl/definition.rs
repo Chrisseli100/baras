@@ -267,7 +267,10 @@ pub struct BossTimerDefinition {
     pub is_alert: bool,
 
     /// When to fire an alert: on timer start, on timer expire, or never
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::serde_defaults::is_alert_trigger_none"
+    )]
     pub alert_on: AlertTrigger,
 
     /// Custom alert text (None = use timer name)
@@ -275,7 +278,10 @@ pub struct BossTimerDefinition {
     pub alert_text: Option<String>,
 
     /// Display color [R, G, B, A]
-    #[serde(default = "crate::serde_defaults::default_timer_color")]
+    #[serde(
+        default = "crate::serde_defaults::default_timer_color",
+        skip_serializing_if = "crate::serde_defaults::is_default_timer_color"
+    )]
     pub color: [u8; 4],
 
     /// Only active during these phases (empty = all phases)
@@ -291,7 +297,10 @@ pub struct BossTimerDefinition {
     pub difficulties: Vec<String>,
 
     /// Whether timer is enabled
-    #[serde(default = "crate::serde_defaults::default_true")]
+    #[serde(
+        default = "crate::serde_defaults::default_true",
+        skip_serializing_if = "crate::serde_defaults::is_true"
+    )]
     pub enabled: bool,
 
     /// Reset duration when triggered again
@@ -323,12 +332,15 @@ pub struct BossTimerDefinition {
     pub show_at_secs: f32,
 
     /// Which overlay should display this timer (defaults to TimersA)
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::serde_defaults::is_default_display_target"
+    )]
     pub display_target: crate::timers::TimerDisplayTarget,
 
     // ─── Audio ───────────────────────────────────────────────────────────────
     /// Audio configuration (alerts, countdown, custom sounds)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "AudioConfig::is_default")]
     pub audio: AudioConfig,
 
     // ─── Advanced ────────────────────────────────────────────────────────────

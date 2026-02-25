@@ -4,8 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::CounterCondition;
 use super::triggers::Trigger;
+use super::CounterCondition;
 
 // Re-export Trigger as PhaseTrigger for backward compatibility during migration
 pub use super::triggers::Trigger as PhaseTrigger;
@@ -28,20 +28,20 @@ pub struct PhaseDefinition {
     pub start_trigger: Trigger,
 
     /// What triggers this phase to end (optional - otherwise ends when another phase starts)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_trigger: Option<Trigger>,
 
     /// Phase that must immediately precede this one (guard condition)
     /// e.g., walker_2 has preceded_by = "kephess_1" so it only fires after kephess_1
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preceded_by: Option<String>,
 
     /// Only activate when counter meets condition (guard)
     /// e.g., trandos phase only fires when siege_droid_deaths >= 3
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub counter_condition: Option<CounterCondition>,
 
     /// Counters to reset when entering this phase
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resets_counters: Vec<String>,
 }
