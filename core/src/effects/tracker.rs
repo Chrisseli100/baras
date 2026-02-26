@@ -1129,6 +1129,12 @@ impl EffectTracker {
                     });
                 }
             } else if def.display_target == DisplayTarget::RaidFrames {
+                // Don't late-register if min_stacks is required — no existing effect
+                // means 0 stacks, which can't satisfy the minimum. Only unconditional
+                // refresh abilities (Simple variant, no min_stacks) should late-register.
+                if def.min_stacks.is_some() {
+                    continue;
+                }
                 // Raid frame effect doesn't exist - create it (late registration)
                 let mut effect = ActiveEffect::new(
                     def.id.clone(),
