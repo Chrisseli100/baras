@@ -534,6 +534,7 @@ pub fn App() -> Element {
         main { class: "container",
             // Header
             header { class: "app-header",
+                div { class: "header-top-row",
                 div { class: "header-content",
                     h1 { "BARAS" }
                     img { class: "header-logo", src: LOGO, alt: "BARAS mascot" }
@@ -745,15 +746,15 @@ pub fn App() -> Element {
                         i { class: "fa-solid fa-gear" }
                     }
                 }
-            }
+                } // end header-top-row
 
-            // ─────────────────────────────────────────────────────────────
-            // Collapsible Session Dashboard Bar (visible on all tabs)
-            // ─────────────────────────────────────────────────────────────
+                // ─────────────────────────────────────────────────────────────
+                // Collapsible Session Dashboard Bar (visible on all tabs)
+                // ─────────────────────────────────────────────────────────────
 
-            // Empty states: show status when no player data yet
-            if show_empty_state && !session.as_ref().is_some_and(|s| s.missing_area) {
-                div { class: "session-dashboard-bar",
+                // Empty states: show status when no player data yet
+                if show_empty_state && !session.as_ref().is_some_and(|s| s.missing_area) {
+                    div { class: "session-dashboard-bar",
                     div { class: "dashboard-toggle-row dashboard-empty-state",
                         if !live_tailing {
                             i { class: "fa-solid fa-spinner fa-spin dashboard-status-icon" }
@@ -774,21 +775,21 @@ pub fn App() -> Element {
                             span { class: "dashboard-empty-text", "No active session" }
                         }
                     }
-                }
-            }
-
-            // Incomplete log file warning
-            if session.as_ref().is_some_and(|s| s.missing_area) {
-                div { class: "session-dashboard-bar",
-                    div { class: "dashboard-toggle-row dashboard-empty-state",
-                        i { class: "fa-solid fa-triangle-exclamation dashboard-status-icon warning" }
-                        span { class: "dashboard-empty-text", "Incomplete log file — boss encounters and timers unavailable" }
                     }
                 }
-            }
 
-            if let Some(ref info) = session {
-                if has_player && !info.missing_area {
+                // Incomplete log file warning
+                if session.as_ref().is_some_and(|s| s.missing_area) {
+                    div { class: "session-dashboard-bar",
+                        div { class: "dashboard-toggle-row dashboard-empty-state",
+                            i { class: "fa-solid fa-triangle-exclamation dashboard-status-icon warning" }
+                            span { class: "dashboard-empty-text", "Incomplete log file — boss encounters and timers unavailable" }
+                        }
+                    }
+                }
+
+                if let Some(ref info) = session {
+                    if has_player && !info.missing_area {
                     {
                     let is_historical = session_ended() || info.stale_session || !live_tailing;
                     rsx! {
@@ -1160,9 +1161,10 @@ pub fn App() -> Element {
                         }
                     }
                     }
+                    }
+                    }
                 }
-                }
-            }
+            } // end app-header
 
             // Tabs
             nav { class: "main-tabs",
