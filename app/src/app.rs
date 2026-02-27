@@ -916,77 +916,8 @@ pub fn App() -> Element {
                                         }
                                     }
                                 }
-                            }
 
-                            // Right side: profile selector + Parsely upload (always visible)
-                            div { class: "dashboard-right",
-                                // Profile selector (inline in session bar)
-                                if !profile_names().is_empty() {
-                                    div { class: "dashboard-profile-group",
-                                        onclick: move |e| e.stop_propagation(),
-                                        select {
-                                            class: "header-profile-dropdown",
-                                            title: "Switch profile",
-                                            value: active_profile().unwrap_or_default(),
-                                            onchange: move |e| {
-                                                let selected = e.value();
-                                                if selected.is_empty() { return; }
-                                                let previous = active_profile();
-                                                active_profile.set(Some(selected.clone()));
-                                                let mut toast = use_toast();
-                                                spawn(async move {
-                                                    if let Err(err) = api::load_profile(&selected).await {
-                                                        active_profile.set(previous);
-                                                        toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
-                                                    } else {
-                                                        if let Some(cfg) = api::get_config().await {
-                                                            overlay_settings.set(cfg.overlay_settings);
-                                                        }
-                                                        profile_dirty.set(false);
-                                                        api::refresh_overlay_settings().await;
-                                                        if let Some(status) = api::get_overlay_status().await {
-                                                            apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
-                                                                &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
-                                                                &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
-                                                                &mut effects_a_enabled, &mut effects_b_enabled,
-                                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
-                                                                &mut combat_time_enabled, &mut operation_timer_enabled,
-                                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
-                                                        }
-                                                    }
-                                                });
-                                            },
-                                            for name in profile_names().iter() {
-                                                option {
-                                                    value: "{name}",
-                                                    selected: active_profile().as_deref() == Some(name.as_str()),
-                                                    "{name}"
-                                                }
-                                            }
-                                        }
-                                        if active_profile().is_some() {
-                                            button {
-                                                class: "dashboard-profile-save-btn",
-                                                title: "Save to profile",
-                                                onclick: move |e| {
-                                                    e.stop_propagation();
-                                                    if let Some(ref name) = active_profile() {
-                                                        let n = name.clone();
-                                                        let mut toast = use_toast();
-                                                        spawn(async move {
-                                                            if let Err(err) = api::save_profile(&n).await {
-                                                                toast.show(format!("Failed to save profile: {}", err), ToastSeverity::Normal);
-                                                            } else {
-                                                                profile_dirty.set(false);
-                                                            }
-                                                        });
-                                                    }
-                                                },
-                                                i { class: "fa-solid fa-floppy-disk" }
-                                            }
-                                        }
-                                    }
-                                }
+                                // Parsely upload (inline in summary)
                                 if !current_file.is_empty() {
                                     {
                                         let path = current_file.clone();
@@ -1038,13 +969,86 @@ pub fn App() -> Element {
                             }
                         }
 
-                        // ── Expanded content (settings row) ──
+                        // ── Expanded content (controls row) ──
                         if !dashboard_collapsed() {
                             div { class: "session-settings-row",
-                                // Player stats (alacrity / latency)
-                                PlayerStatsBar {}
+                                // Controls label
+                                span { class: "session-controls-label",
+                                    i { class: "fa-solid fa-sliders" }
+                                    " Controls"
+                                }
 
-                                // Divider
+                                span { class: "session-settings-divider" }
+
+                                // Profile selector
+                                div { class: "dashboard-profile-group",
+                                    span { class: "dashboard-profile-label", "Profile" }
+                                    if !profile_names().is_empty() {
+                                        select {
+                                            class: "header-profile-dropdown",
+                                            title: "Switch overlay profile",
+                                            value: active_profile().unwrap_or_default(),
+                                            onchange: move |e| {
+                                                let selected = e.value();
+                                                if selected.is_empty() { return; }
+                                                let previous = active_profile();
+                                                active_profile.set(Some(selected.clone()));
+                                                let mut toast = use_toast();
+                                                spawn(async move {
+                                                    if let Err(err) = api::load_profile(&selected).await {
+                                                        active_profile.set(previous);
+                                                        toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
+                                                    } else {
+                                                        if let Some(cfg) = api::get_config().await {
+                                                            overlay_settings.set(cfg.overlay_settings);
+                                                        }
+                                                        profile_dirty.set(false);
+                                                        api::refresh_overlay_settings().await;
+                                                        if let Some(status) = api::get_overlay_status().await {
+                                                            apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
+                                                                &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
+                                                                &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
+                                                                &mut effects_a_enabled, &mut effects_b_enabled,
+                                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
+                                                                &mut combat_time_enabled, &mut operation_timer_enabled,
+                                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
+                                                        }
+                                                    }
+                                                });
+                                            },
+                                            for name in profile_names().iter() {
+                                                option {
+                                                    value: "{name}",
+                                                    selected: active_profile().as_deref() == Some(name.as_str()),
+                                                    "{name}"
+                                                }
+                                            }
+                                        }
+                                        if active_profile().is_some() {
+                                            button {
+                                                class: "dashboard-profile-save-btn",
+                                                title: "Save to profile",
+                                                onclick: move |_| {
+                                                    if let Some(ref name) = active_profile() {
+                                                        let n = name.clone();
+                                                        let mut toast = use_toast();
+                                                        spawn(async move {
+                                                            if let Err(err) = api::save_profile(&n).await {
+                                                                toast.show(format!("Failed to save profile: {}", err), ToastSeverity::Normal);
+                                                            } else {
+                                                                profile_dirty.set(false);
+                                                            }
+                                                        });
+                                                    }
+                                                },
+                                                i { class: "fa-solid fa-floppy-disk" }
+                                            }
+                                        }
+                                    } else {
+                                        span { class: "dashboard-profile-default", "Default" }
+                                    }
+                                }
+
                                 span { class: "session-settings-divider" }
 
                                 // Operation timer
@@ -1098,7 +1102,11 @@ pub fn App() -> Element {
                                     }
                                 }
 
-                                // Divider
+                                span { class: "session-settings-divider" }
+
+                                // Player stats (alacrity / latency)
+                                PlayerStatsBar {}
+
                                 span { class: "session-settings-divider" }
 
                                 // Boss notes selector

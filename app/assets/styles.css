@@ -1272,18 +1272,41 @@ button:active {
   text-overflow: ellipsis;
 }
 
-.dashboard-right {
+/* Controls label in expanded settings row */
+.session-controls-label {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
   display: flex;
   align-items: center;
-  gap: 0.5em;
+  gap: 0.3em;
   flex-shrink: 0;
+}
+
+.session-controls-label i {
+  font-size: 0.9em;
 }
 
 /* Profile selector inside session dashboard bar */
 .dashboard-profile-group {
   display: flex;
   align-items: center;
-  gap: 0.3em;
+  gap: 0.4em;
+}
+
+.dashboard-profile-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dashboard-profile-default {
+  font-size: 0.8em;
+  color: var(--text-disabled);
+  font-style: italic;
 }
 
 .dashboard-profile-save-btn {
@@ -1310,7 +1333,7 @@ button:active {
 
 /* Settings row inside dashboard bar */
 .session-dashboard-bar .session-settings-row {
-  padding: 0.4em 0 0.2em 1.6em;
+  padding: 0.4em 0 0.2em 0;
   margin-top: 0.3em;
   border-top: 1px solid var(--border-dim);
 }
@@ -1724,6 +1747,8 @@ button:active {
   display: flex;
   align-items: center;
   gap: 0.5em;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .btn-session-upload-result {
