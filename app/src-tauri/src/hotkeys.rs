@@ -94,6 +94,14 @@ async fn try_portal_shortcuts(
                 .preferred_trigger(converted_keys.last().unwrap().as_str())
         );
     }
+    if let Some(ref key) = hotkeys.toggle_operation_timer {
+        let converted = convert_key_format(key);
+        converted_keys.push(converted);
+        shortcuts.push(
+            NewShortcut::new("toggle-operation-timer", "Toggle operation timer")
+                .preferred_trigger(converted_keys.last().unwrap().as_str())
+        );
+    }
     
     if shortcuts.is_empty() {
         info!("No hotkeys configured, skipping portal registration");
@@ -141,6 +149,11 @@ async fn try_portal_shortcuts(
                         "toggle-rearrange" => {
                             tauri::async_runtime::spawn(async move {
                                 toggle_rearrange_mode_hotkey(state, handle).await;
+                            });
+                        }
+                        "toggle-operation-timer" => {
+                            tauri::async_runtime::spawn(async move {
+                                toggle_operation_timer_hotkey(handle).await;
                             });
                         }
                         _ => {
@@ -282,6 +295,30 @@ pub fn spawn_register_hotkeys(
                 warn!(hotkey = %key_str, "Invalid rearrange mode hotkey format");
             }
         }
+
+        // Register toggle operation timer hotkey
+        if let Some(ref key_str) = hotkeys.toggle_operation_timer {
+            if let Ok(shortcut) = key_str.parse::<Shortcut>() {
+                let handle = service_handle.clone();
+
+                if let Err(e) =
+                    global_shortcut.on_shortcut(shortcut, move |_app, _shortcut, event| {
+                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            let handle = handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                toggle_operation_timer_hotkey(handle).await;
+                            });
+                        }
+                    })
+                {
+                    error!(error = %e, hotkey = %key_str, "Failed to register operation timer hotkey");
+                } else {
+                    info!(hotkey = %key_str, "Registered operation timer hotkey");
+                }
+            } else {
+                warn!(hotkey = %key_str, "Invalid operation timer hotkey format");
+            }
+        }
     });
 }
 
@@ -348,6 +385,21 @@ async fn toggle_move_mode_hotkey(overlay_state: SharedOverlayState, service: Ser
 
     // Notify frontend to update UI buttons
     service.emit_overlay_status_changed();
+}
+
+/// Hotkey handler: Toggle operation timer start/stop
+async fn toggle_operation_timer_hotkey(service: ServiceHandle) {
+    let is_running = service.is_operation_timer_running();
+
+    if is_running {
+        if let Err(e) = service.stop_operation_timer().await {
+            error!(error = %e, "Failed to stop operation timer via hotkey");
+        }
+    } else {
+        if let Err(e) = service.start_operation_timer().await {
+            error!(error = %e, "Failed to start operation timer via hotkey");
+        }
+    }
 }
 
 /// Hotkey handler: Toggle rearrange mode (raid frames)

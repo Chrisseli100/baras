@@ -100,6 +100,7 @@ pub fn App() -> Element {
     let mut hotkey_visibility = use_signal(String::new);
     let mut hotkey_move_mode = use_signal(String::new);
     let mut hotkey_rearrange = use_signal(String::new);
+    let mut hotkey_op_timer = use_signal(String::new);
     let mut hotkey_save_status = use_signal(String::new);
 
     // Log management state
@@ -157,6 +158,9 @@ pub fn App() -> Element {
             }
             if let Some(v) = config.hotkeys.toggle_rearrange_mode {
                 hotkey_rearrange.set(v);
+            }
+            if let Some(v) = config.hotkeys.toggle_operation_timer {
+                hotkey_op_timer.set(v);
             }
             profile_names.set(config.profiles.iter().map(|p| p.name.clone()).collect());
             active_profile.set(config.active_profile_name);
@@ -1853,18 +1857,26 @@ pub fn App() -> Element {
                                             on_change: move |v| hotkey_rearrange.set(v),
                                         }
                                     }
+                                    div { class: "setting-row",
+                                        label { "Op Timer" }
+                                        HotkeyInput {
+                                            value: hotkey_op_timer(),
+                                            on_change: move |v| hotkey_op_timer.set(v),
+                                        }
+                                    }
                                 }
                                 div { class: "settings-footer",
                                     button {
                                         class: "btn btn-save",
                                         onclick: move |_| {
-                                            let v = hotkey_visibility(); let m = hotkey_move_mode(); let r = hotkey_rearrange();
+                                            let v = hotkey_visibility(); let m = hotkey_move_mode(); let r = hotkey_rearrange(); let ot = hotkey_op_timer();
                                             let mut toast = use_toast();
                                             spawn(async move {
                                                 if let Some(mut cfg) = api::get_config().await {
                                                     cfg.hotkeys.toggle_visibility = if v.is_empty() { None } else { Some(v) };
                                                     cfg.hotkeys.toggle_move_mode = if m.is_empty() { None } else { Some(m) };
                                                     cfg.hotkeys.toggle_rearrange_mode = if r.is_empty() { None } else { Some(r) };
+                                                    cfg.hotkeys.toggle_operation_timer = if ot.is_empty() { None } else { Some(ot) };
                                                     if let Err(err) = api::update_config(&cfg).await {
                                                         toast.show(format!("Failed to save hotkeys: {}", err), ToastSeverity::Normal);
                                                     } else {

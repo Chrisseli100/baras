@@ -1973,6 +1973,8 @@ pub struct HotkeySettings {
     pub toggle_move_mode: Option<String>,
     #[serde(default)]
     pub toggle_rearrange_mode: Option<String>,
+    #[serde(default)]
+    pub toggle_operation_timer: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
