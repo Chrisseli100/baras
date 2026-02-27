@@ -350,8 +350,8 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     let mut sort_direction = use_signal(|| props.state.read().data_explorer.sort_direction);
     let mut collapsed_sections = use_signal(|| props.state.read().data_explorer.collapsed_sections.clone());
     let selected_rotation_anchor = use_signal(|| props.state.read().data_explorer.selected_rotation_anchor);
-    let mut usage_sort_column = use_signal(|| props.state.read().data_explorer.usage_sort_column);
-    let mut usage_sort_direction = use_signal(|| props.state.read().data_explorer.usage_sort_direction);
+    let usage_sort_column = use_signal(|| props.state.read().data_explorer.usage_sort_column);
+    let usage_sort_direction = use_signal(|| props.state.read().data_explorer.usage_sort_direction);
     let mut usage_selected_abilities = use_signal(Vec::<(i64, &'static str)>::new);
 
     // Overview table sort (not persisted - default DPS descending)
@@ -362,6 +362,9 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     let mut sidebar_collapsed = use_signal(|| false);
     let mut entity_collapsed = use_signal(|| false);
     let mut overview_fullscreen = use_signal(|| false);
+
+    // Toast notifications
+    let mut toast = use_toast();
 
     // Parsely upload state for per-encounter uploads
     let mut parsely_upload = use_parsely_upload();
@@ -706,29 +709,27 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
         load_generation.set(generation);
 
         // Clear ALL previous data when encounter changes (but preserve some state on initial mount)
-        let _ = abilities.try_write().map(|mut w| *w = Vec::new());
-        let _ = entities.try_write().map(|mut w| *w = Vec::new());
-        let _ = overview_data.try_write().map(|mut w| *w = Vec::new());
-        let _ = player_deaths.try_write().map(|mut w| *w = Vec::new());
-        let _ = npc_health.try_write().map(|mut w| *w = Vec::new());
-        let _ = last_overview_fetch.try_write().map(|mut w| *w = None);
-        let _ = timeline.try_write().map(|mut w| *w = None);
+        // Use .set() instead of try_write() for critical signals to guarantee
+        // writes are never silently dropped — a dropped write here means the
+        // timeline and downstream data never load.
+        abilities.set(Vec::new());
+        entities.set(Vec::new());
+        overview_data.set(Vec::new());
+        player_deaths.set(Vec::new());
+        npc_health.set(Vec::new());
+        last_overview_fetch.set(None);
+        timeline.set(None);
         // Only reset time_range if encounter actually changed (not on initial mount restore)
         // Note: selected_source is intentionally preserved across encounter changes
         // so users can track the same player across pulls. If the player isn't in the
         // new encounter, auto-selection logic will fall back to the local player.
         if is_encounter_change {
-            let _ = time_range
-                .try_write()
-                .map(|mut w| *w = TimeRange::default());
+            time_range.set(TimeRange::default());
         }
-        let _ = timeline_state.try_write().map(|mut w| *w = LoadState::Idle);
-        let _ = content_state.try_write().map(|mut w| *w = LoadState::Idle);
+        content_state.set(LoadState::Idle);
 
         // Load timeline for selected encounter (None = live encounter)
-        let _ = timeline_state
-            .try_write()
-            .map(|mut w| *w = LoadState::Loading);
+        timeline_state.set(LoadState::Loading);
 
         // Capture whether we should restore time_range after timeline loads
         let restore_time_range = !is_encounter_change;
@@ -747,18 +748,11 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                         return;
                     }
                     let dur = tl.duration_secs;
-                    // Only set to full range if not restoring saved state
-                    if restore_time_range && saved_time_range.end > 0.0 {
-                        // Keep the saved time_range (already set from init)
-                    } else {
-                        let _ = time_range
-                            .try_write()
-                            .map(|mut w| *w = TimeRange::full(dur));
+                    if !restore_time_range || saved_time_range.end <= 0.0 {
+                        time_range.set(TimeRange::full(dur));
                     }
-                    let _ = timeline.try_write().map(|mut w| *w = Some(tl));
-                    let _ = timeline_state
-                        .try_write()
-                        .map(|mut w| *w = LoadState::Loaded);
+                    timeline.set(Some(tl));
+                    timeline_state.set(LoadState::Loaded);
                 }
                 None => {
                     // Retry up to 2 times with backoff — the session may still be loading
@@ -777,17 +771,11 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                 return;
                             }
                             let dur = tl.duration_secs;
-                            if restore_time_range && saved_time_range.end > 0.0 {
-                                // Keep the saved time_range
-                            } else {
-                                let _ = time_range
-                                    .try_write()
-                                    .map(|mut w| *w = TimeRange::full(dur));
+                            if !restore_time_range || saved_time_range.end <= 0.0 {
+                                time_range.set(TimeRange::full(dur));
                             }
-                            let _ = timeline.try_write().map(|mut w| *w = Some(tl));
-                            let _ = timeline_state
-                                .try_write()
-                                .map(|mut w| *w = LoadState::Loaded);
+                            timeline.set(Some(tl));
+                            timeline_state.set(LoadState::Loaded);
                             succeeded = true;
                             break;
                         }
@@ -796,9 +784,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                         if *load_generation.peek() != generation {
                             return;
                         }
-                        let _ = timeline_state
-                            .try_write()
-                            .map(|mut w| *w = LoadState::Idle);
+                        timeline_state.set(LoadState::Idle);
                     }
                 }
             }
@@ -996,6 +982,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
 
             // Load ability breakdown for selected (or auto-selected) source
             let breakdown = *breakdown_mode.read();
+            let duration = timeline.read().as_ref().map(|t| t.duration_secs);
             if let Some(data) = api::query_breakdown(
                 tab,
                 idx,
@@ -1003,7 +990,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                 tr_opt.as_ref(),
                 None, // No entity filter when source is selected
                 Some(&breakdown),
-                timeline.read().as_ref().map(|t| t.duration_secs),
+                duration,
             )
             .await
             {
@@ -1487,7 +1474,6 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                             if let Ok(mut state) = props.state.try_write() {
                                                 state.data_explorer.show_only_bosses = checked;
                                             }
-                                            let mut toast = use_toast();
                                             spawn(async move {
                                                 if let Some(mut cfg) = api::get_config().await {
                                                     cfg.show_only_bosses = checked;
@@ -2280,16 +2266,16 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                             }
                                         }
                                     }
-                                    {render_usage_tab(
-                                        selected_encounter,
-                                        selected_source,
-                                        time_range,
-                                        usage_sort_column,
-                                        usage_sort_direction,
-                                        usage_selected_abilities,
-                                        timeline,
-                                        eu,
-                                    )}
+                                    UsageTab {
+                                        selected_encounter: selected_encounter,
+                                        selected_source: selected_source,
+                                        time_range: time_range,
+                                        usage_sort_column: usage_sort_column,
+                                        usage_sort_direction: usage_sort_direction,
+                                        selected_abilities: usage_selected_abilities,
+                                        timeline: timeline,
+                                        european: eu,
+                                    }
                                 }
                             } else if let Some(current_tab) = current_tab {
                             // Ability breakdown table
@@ -3113,17 +3099,24 @@ fn build_usage_timeline_option(
 }
 
 /// Render the ability usage tab content (table + timeline chart).
-#[allow(clippy::too_many_arguments)]
-fn render_usage_tab(
+///
+/// This is a proper component (not a plain function) so that its hooks
+/// (`use_resource`, `use_effect`) get their own lifecycle scope and are
+/// never conditionally registered in the parent component.
+#[component]
+fn UsageTab(
     selected_encounter: Signal<Option<u32>>,
     selected_source: Signal<Option<String>>,
     time_range: Signal<TimeRange>,
-    mut usage_sort_column: Signal<UsageSortColumn>,
-    mut usage_sort_direction: Signal<SortDirection>,
-    mut selected_abilities: Signal<Vec<(i64, &'static str)>>,
+    usage_sort_column: Signal<UsageSortColumn>,
+    usage_sort_direction: Signal<SortDirection>,
+    selected_abilities: Signal<Vec<(i64, &'static str)>>,
     timeline: Signal<Option<EncounterTimeline>>,
     european: bool,
 ) -> Element {
+    let mut usage_sort_column = usage_sort_column;
+    let mut usage_sort_direction = usage_sort_direction;
+    let mut selected_abilities = selected_abilities;
     // Fetch usage data reactively
     let usage_data = use_resource(move || {
         let enc = *selected_encounter.read();

@@ -1583,8 +1583,29 @@ pub fn App() -> Element {
                 // Data Explorer Tab
                 // ─────────────────────────────────────────────────────────────
                 if ui_state.read().active_tab == MainTab::DataExplorer {
-                    DataExplorerPanel {
-                        state: ui_state,
+                    ErrorBoundary {
+                        handle_error: |_errors: ErrorContext| {
+                            rsx! {
+                                div { class: "error-boundary-fallback",
+                                    style: "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-secondary, #999);",
+                                    i { class: "fa-solid fa-triangle-exclamation", style: "font-size: 2rem;" }
+                                    p { "Something went wrong." }
+                                    button {
+                                        class: "btn",
+                                        onclick: move |_| {
+                                            // Full page reload to recover from broken state
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.location().reload();
+                                            }
+                                        },
+                                        "Reload page"
+                                    }
+                                }
+                            }
+                        },
+                        DataExplorerPanel {
+                            state: ui_state,
+                        }
                     }
                 }
             }
