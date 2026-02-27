@@ -334,12 +334,7 @@ select optgroup {
   cursor: wait;
 }
 
-.app-header .subtitle {
-  width: 100%;
-  margin: 0.25vh 0 0 0;
-  font-size: clamp(0.7rem, 1.5vh, 1rem);
-  text-align: left;
-}
+/* subtitle removed — consolidated into session bar */
 
 .app-header .header-links {
   display: flex;
@@ -478,64 +473,44 @@ select optgroup {
   font-size: 0.85em;
 }
 
-/* Header session wrapper (resume button + indicator box horizontal) */
-.header-session-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-
-/* Header session indicator (always visible) */
-.header-session-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0.3em 0.6em;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(80, 80, 90, 0.3);
-  font-size: 0.8em;
-  max-width: 240px;
-}
-
-.header-session-indicator .status-dot {
+/* Status dot (inside header-overlay-controls) */
+.header-overlay-controls .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.header-session-indicator .status-dot.watching {
+.header-overlay-controls .status-dot.watching {
   background-color: #5aaa7a;
   box-shadow: 0 0 6px rgba(90, 170, 122, 0.5);
 }
 
-.header-session-indicator .status-dot.not-watching {
+.header-overlay-controls .status-dot.not-watching {
   background-color: var(--text-muted);
 }
 
-.header-session-indicator .status-dot.paused {
+.header-overlay-controls .status-dot.paused {
   background-color: #d4a850;
   box-shadow: 0 0 6px rgba(212, 168, 80, 0.5);
 }
 
-.header-session-indicator .session-file {
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.3em;
-}
-
-.header-session-indicator .session-file i {
+/* Mode label (Live / Historical / Idle) */
+.header-mode-label {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--text-muted);
-  font-size: 0.9em;
+  white-space: nowrap;
 }
 
-.header-session-indicator .session-file.latest i {
-  color: var(--swtor-blue-dim);
+.header-mode-label.live {
+  color: #5aaa7a;
+}
+
+.header-mode-label.historical {
+  color: #d4a850;
 }
 
 .btn-header-restart {
@@ -549,6 +524,14 @@ select optgroup {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.btn-header-restart.live {
+  color: #5aaa7a;
+}
+
+.btn-header-restart.historical {
+  color: #d4a850;
 }
 
 .btn-header-restart:hover {
@@ -1294,6 +1277,35 @@ button:active {
   align-items: center;
   gap: 0.5em;
   flex-shrink: 0;
+}
+
+/* Profile selector inside session dashboard bar */
+.dashboard-profile-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.dashboard-profile-save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-disabled);
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dashboard-profile-save-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--swtor-blue);
 }
 
 /* Settings row inside dashboard bar */
@@ -2545,24 +2557,7 @@ details[open] .collapsible-summary::before {
    Overlay Profiles
    ───────────────────────────────────────────────────────────────────────────── */
 
-.profile-current {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  margin-bottom: 0.75em;
-  padding: 0.5em 0.75em;
-  background: #2a2a2a;
-  border-radius: var(--radius-md);
-}
-
-.profile-current .label {
-  color: var(--text-muted);
-}
-
-.profile-current .value {
-  color: #7a9fcf;
-  font-weight: 500;
-}
+/* profile-current styles removed — profile selector consolidated to header */
 
 .profile-list {
   display: flex;
@@ -2819,119 +2814,8 @@ details[open] .collapsible-summary::before {
   color: #d4a849;
 }
 
-.profile-selector {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  color: var(--text-muted);
-}
-
-/* Override .profile-current when used inline in profile selector */
-.profile-selector .profile-current {
-  display: inline;
-  margin: 0;
-  padding: 0;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 0.85em;
-}
-
-.profile-label {
-  font-size: 0.85em;
-  color: #777;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.profile-dropdown {
-  padding: 0.35em 0.75em;
-  padding-right: 1.5em;
-  background: #353535;
-  border: 1px solid #4a4a4a;
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: 0.85em;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.5em center;
-  min-width: 120px;
-}
-
-.profile-dropdown:hover {
-  border-color: #5a5a5a;
-  background-color: #3a3a3a;
-}
-
-.profile-dropdown:focus {
-  outline: none;
-  border-color: #6a8aba;
-}
-
-.profile-dropdown option {
-  background: #2a2a2a;
-  color: var(--text-primary);
-}
-
-.profile-save-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: 0.25em;
-  padding: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-disabled);
-  font-size: 0.85em;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.profile-save-btn:hover {
-  background: #3a3a3a;
-  border-color: #5a5a5a;
-  color: #8ab4f8;
-}
-
-.profile-save-btn:active {
-  background: #4a4a4a;
-  transform: scale(0.95);
-}
-
-/* Create profile button (empty state with text) */
-.btn-create-profile {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-  padding: 0.4em 0.8em;
-  background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-  border: 1px solid #5a5a5a;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: 0.8em;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.btn-create-profile:hover {
-  background: linear-gradient(180deg, #4a4a4a 0%, #3a3a3a 100%);
-  border-color: #6a8aba;
-  color: #8ab4f8;
-}
-
-.btn-create-profile:active {
-  background: #3a3a3a;
-  transform: scale(0.98);
-}
-
-.btn-create-profile i {
-  font-size: 0.9em;
-}
+/* profile-selector, profile-dropdown, profile-save-btn, btn-create-profile styles
+   removed — profile selector consolidated to header-profile-dropdown */
 
 /* Compact profile list for settings panel */
 .profile-list.compact {

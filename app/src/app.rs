@@ -606,11 +606,38 @@ pub fn App() -> Element {
                             }
                         }
                     }
-                    p { class: "subtitle", "Battle Analysis and Raid Assessment System" }
                 }
-                // Session indicator wrapper (resume button on left + indicator box)
-                div { class: "header-session-wrapper",
-                    // Resume Live button on the left
+                // Session status + overlay controls (merged into one pill)
+                div { class: "header-overlay-controls",
+                    // Watcher status dot — green = live, gold = historical/paused, gray = not watching
+                    span {
+                        class: if !live_tailing { "status-dot paused" }
+                            else if watching { "status-dot watching" }
+                            else { "status-dot not-watching" },
+                        title: if !live_tailing { "Historical mode" } else if watching { "Live" } else { "Not watching" }
+                    }
+                    // Mode label
+                    span {
+                        class: if live_tailing && watching { "header-mode-label live" }
+                            else if !live_tailing { "header-mode-label historical" }
+                            else { "header-mode-label" },
+                        if !live_tailing { "Historical" } else if watching { "Live" } else { "Idle" }
+                    }
+                    // Restart watcher button — colored to match mode
+                    button {
+                        class: if live_tailing && watching { "btn-header-restart live" }
+                            else if !live_tailing { "btn-header-restart historical" }
+                            else { "btn-header-restart" },
+                        title: "Restart watcher",
+                        onclick: move |_| {
+                            spawn(async move {
+                                api::restart_watcher().await;
+                                is_live_tailing.set(true);
+                            });
+                        },
+                        i { class: "fa-solid fa-rotate" }
+                    }
+                    // Resume Live button (when paused/historical)
                     if !live_tailing {
                         button {
                             class: "btn-resume-live",
@@ -627,102 +654,6 @@ pub fn App() -> Element {
                             },
                             "Resume Live "
                             i { class: "fa-solid fa-play" }
-                        }
-                    }
-                    // Session indicator box
-                    div { class: "header-session-indicator",
-                        // Watcher status dot
-                        span {
-                            class: if !live_tailing { "status-dot paused" }
-                                else if watching { "status-dot watching" }
-                                else { "status-dot not-watching" },
-                            title: if !live_tailing { "Paused" } else if watching { "Watching" } else { "Not watching" }
-                        }
-                        // Viewing indicator
-                        {
-                            let current_meta = log_files().iter().find(|f| f.path == current_file).cloned();
-                            let display = current_meta.as_ref()
-                                .map(|f| {
-                                    f.character_name.clone().unwrap_or_else(|| {
-                                        // Show different text for historical vs live when no character
-                                        if live_tailing { "Waiting for player...".to_string() }
-                                        else { "Loading file...".to_string() }
-                                    })
-                                })
-                                .unwrap_or_else(|| "None".to_string());
-                            let date = current_meta.as_ref().map(|f| f.date.clone()).unwrap_or_default();
-                            let is_latest = log_files().first().map(|f| f.path == current_file).unwrap_or(false);
-                            rsx! {
-                                span {
-                                    class: if is_latest { "session-file latest" } else { "session-file" },
-                                    title: if is_latest { format!("Viewing latest: {} - {}", display, date) } else { format!("Viewing: {} - {}", display, date) },
-                                    if is_latest {
-                                        i { class: "fa-solid fa-clock" }
-                                    } else {
-                                        i { class: "fa-solid fa-file-lines" }
-                                    }
-                                    " {display}"
-                                }
-                            }
-                        }
-                        // Restart watcher button
-                        button {
-                            class: "btn-header-restart",
-                            title: "Restart watcher",
-                            onclick: move |_| {
-                                spawn(async move {
-                                    api::restart_watcher().await;
-                                    is_live_tailing.set(true);
-                                });
-                            },
-                            i { class: "fa-solid fa-rotate" }
-                        }
-                    }
-                }
-
-                // Quick overlay controls with profile dropdown
-                div { class: "header-overlay-controls",
-                    // Profile dropdown (no label, compact)
-                    if !profile_names().is_empty() {
-                        select {
-                            class: "header-profile-dropdown",
-                            title: "Switch profile",
-                            value: active_profile().unwrap_or_default(),
-                            onchange: move |e| {
-                                let selected = e.value();
-                                if selected.is_empty() { return; }
-                                let previous = active_profile();
-                                active_profile.set(Some(selected.clone()));
-                                let mut toast = use_toast();
-                                spawn(async move {
-                                    if let Err(err) = api::load_profile(&selected).await {
-                                        active_profile.set(previous);
-                                        toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
-                                    } else {
-                                        if let Some(cfg) = api::get_config().await {
-                                            overlay_settings.set(cfg.overlay_settings);
-                                        }
-                                        profile_dirty.set(false);
-                                        api::refresh_overlay_settings().await;
-                                        if let Some(status) = api::get_overlay_status().await {
-                                            apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
-                                                &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
-                                                &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
-                                                &mut effects_a_enabled, &mut effects_b_enabled,
-                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
-                                                &mut combat_time_enabled, &mut operation_timer_enabled,
-                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
-                                        }
-                                    }
-                                });
-                            },
-                            for name in profile_names().iter() {
-                                option {
-                                    value: "{name}",
-                                    selected: active_profile().as_deref() == Some(name.as_str()),
-                                    "{name}"
-                                }
-                            }
                         }
                     }
                     div { class: "header-controls-divider" }
@@ -810,35 +741,6 @@ pub fn App() -> Element {
                         i { class: "fa-solid fa-gear" }
                     }
                 }
-            }
-
-            // Tabs
-            nav { class: "main-tabs",
-               button {
-                    class: if ui_state.read().active_tab == MainTab::DataExplorer { "tab-btn active" } else { "tab-btn" },
-                    onclick: move |_| ui_state.write().active_tab = MainTab::DataExplorer,
-                    i { class: "fa-solid fa-magnifying-glass-chart" }
-                    " Data Explorer"
-                }
-                button {
-                    class: if ui_state.read().active_tab == MainTab::Overlays { "tab-btn active" } else { "tab-btn" },
-                    onclick: move |_| ui_state.write().active_tab = MainTab::Overlays,
-                    i { class: "fa-solid fa-layer-group" }
-                    " Overlays"
-                }
-                button {
-                    class: if ui_state.read().active_tab == MainTab::EncounterBuilder { "tab-btn active" } else { "tab-btn" },
-                    onclick: move |_| ui_state.write().active_tab = MainTab::EncounterBuilder,
-                    i { class: "fa-solid fa-hammer" }
-                    " Encounter Builder"
-                }
-                button {
-                    class: if ui_state.read().active_tab == MainTab::Effects { "tab-btn active" } else { "tab-btn" },
-                    onclick: move |_| ui_state.write().active_tab = MainTab::Effects,
-                    i { class: "fa-solid fa-heart-pulse" }
-                    " Effects Editor"
-                }
-
             }
 
             // ─────────────────────────────────────────────────────────────
@@ -1016,8 +918,75 @@ pub fn App() -> Element {
                                 }
                             }
 
-                            // Right side: Parsely upload (always visible)
+                            // Right side: profile selector + Parsely upload (always visible)
                             div { class: "dashboard-right",
+                                // Profile selector (inline in session bar)
+                                if !profile_names().is_empty() {
+                                    div { class: "dashboard-profile-group",
+                                        onclick: move |e| e.stop_propagation(),
+                                        select {
+                                            class: "header-profile-dropdown",
+                                            title: "Switch profile",
+                                            value: active_profile().unwrap_or_default(),
+                                            onchange: move |e| {
+                                                let selected = e.value();
+                                                if selected.is_empty() { return; }
+                                                let previous = active_profile();
+                                                active_profile.set(Some(selected.clone()));
+                                                let mut toast = use_toast();
+                                                spawn(async move {
+                                                    if let Err(err) = api::load_profile(&selected).await {
+                                                        active_profile.set(previous);
+                                                        toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
+                                                    } else {
+                                                        if let Some(cfg) = api::get_config().await {
+                                                            overlay_settings.set(cfg.overlay_settings);
+                                                        }
+                                                        profile_dirty.set(false);
+                                                        api::refresh_overlay_settings().await;
+                                                        if let Some(status) = api::get_overlay_status().await {
+                                                            apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
+                                                                &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
+                                                                &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
+                                                                &mut effects_a_enabled, &mut effects_b_enabled,
+                                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
+                                                                &mut combat_time_enabled, &mut operation_timer_enabled,
+                                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
+                                                        }
+                                                    }
+                                                });
+                                            },
+                                            for name in profile_names().iter() {
+                                                option {
+                                                    value: "{name}",
+                                                    selected: active_profile().as_deref() == Some(name.as_str()),
+                                                    "{name}"
+                                                }
+                                            }
+                                        }
+                                        if active_profile().is_some() {
+                                            button {
+                                                class: "dashboard-profile-save-btn",
+                                                title: "Save to profile",
+                                                onclick: move |e| {
+                                                    e.stop_propagation();
+                                                    if let Some(ref name) = active_profile() {
+                                                        let n = name.clone();
+                                                        let mut toast = use_toast();
+                                                        spawn(async move {
+                                                            if let Err(err) = api::save_profile(&n).await {
+                                                                toast.show(format!("Failed to save profile: {}", err), ToastSeverity::Normal);
+                                                            } else {
+                                                                profile_dirty.set(false);
+                                                            }
+                                                        });
+                                                    }
+                                                },
+                                                i { class: "fa-solid fa-floppy-disk" }
+                                            }
+                                        }
+                                    }
+                                }
                                 if !current_file.is_empty() {
                                     {
                                         let path = current_file.clone();
@@ -1183,6 +1152,34 @@ pub fn App() -> Element {
                 }
             }
 
+            // Tabs
+            nav { class: "main-tabs",
+               button {
+                    class: if ui_state.read().active_tab == MainTab::DataExplorer { "tab-btn active" } else { "tab-btn" },
+                    onclick: move |_| ui_state.write().active_tab = MainTab::DataExplorer,
+                    i { class: "fa-solid fa-magnifying-glass-chart" }
+                    " Data Explorer"
+                }
+                button {
+                    class: if ui_state.read().active_tab == MainTab::Overlays { "tab-btn active" } else { "tab-btn" },
+                    onclick: move |_| ui_state.write().active_tab = MainTab::Overlays,
+                    i { class: "fa-solid fa-layer-group" }
+                    " Overlays"
+                }
+                button {
+                    class: if ui_state.read().active_tab == MainTab::EncounterBuilder { "tab-btn active" } else { "tab-btn" },
+                    onclick: move |_| ui_state.write().active_tab = MainTab::EncounterBuilder,
+                    i { class: "fa-solid fa-hammer" }
+                    " Encounter Builder"
+                }
+                button {
+                    class: if ui_state.read().active_tab == MainTab::Effects { "tab-btn active" } else { "tab-btn" },
+                    onclick: move |_| ui_state.write().active_tab = MainTab::Effects,
+                    i { class: "fa-solid fa-heart-pulse" }
+                    " Effects Editor"
+                }
+            }
+
             // Tab Content
             div { class: "tab-content",
                 // ─────────────────────────────────────────────────────────────
@@ -1259,100 +1256,6 @@ pub fn App() -> Element {
                                         span { class: "toggle-slider" }
                                     }
                                     span { class: "toggle-text", "Hide in conversations" }
-                                }
-                            }
-                            div { class: "profile-selector",
-                                if profile_names().is_empty() {
-                                    // Empty state: no profiles exist
-                                    span { class: "profile-label", "Profile:" }
-                                    span { class: "profile-current", "Default" }
-                                    button {
-                                        class: "btn-create-profile",
-                                        title: "Save current settings as a profile",
-                                        onclick: move |_| {
-                                            let mut toast = use_toast();
-                                            spawn(async move {
-                                                // Generate a unique profile name
-                                                let name = "Profile 1".to_string();
-                                                match api::save_profile(&name).await {
-                                                    Err(err) => {
-                                                        toast.show(format!("Failed to create profile: {}", err), ToastSeverity::Normal);
-                                                    }
-                                                    Ok(_) => {
-                                                        // Refresh profile list and set as active
-                                                        let names = api::get_profile_names().await;
-                                                        profile_names.set(names);
-                                                        active_profile.set(Some(name));
-                                                        profile_dirty.set(false);
-                                                    }
-                                                }
-                                            });
-                                        },
-                                        i { class: "fa-solid fa-plus" }
-                                        " Save as Profile"
-                                    }
-                                } else {
-                                    // Profiles exist: show dropdown
-                                    span { class: "profile-label", "Profiles:" }
-                                    select {
-                                        class: "profile-dropdown",
-                                        value: active_profile().unwrap_or_default(),
-                                        onchange: move |e| {
-                                            let selected = e.value();
-                                            if selected.is_empty() { return; }
-                                            let previous = active_profile();
-                                            active_profile.set(Some(selected.clone()));
-                                            let mut toast = use_toast();
-                                            spawn(async move {
-                                                if let Err(err) = api::load_profile(&selected).await {
-                                                    active_profile.set(previous);
-                                                    toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
-                                                } else {
-                                                    if let Some(cfg) = api::get_config().await {
-                                                        overlay_settings.set(cfg.overlay_settings);
-                                                    }
-                                                    profile_dirty.set(false);
-                                                    api::refresh_overlay_settings().await;
-                                                    if let Some(status) = api::get_overlay_status().await {
-                                                        apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
-                                                            &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
-                                                            &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
-                                                            &mut effects_a_enabled, &mut effects_b_enabled,
-                                                            &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
-                                                            &mut combat_time_enabled, &mut operation_timer_enabled,
-                                                            &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
-                                                    }
-                                                }
-                                            });
-                                        },
-                                        for name in profile_names().iter() {
-                                            option {
-                                                value: "{name}",
-                                                selected: active_profile().as_deref() == Some(name.as_str()),
-                                                "{name}"
-                                            }
-                                        }
-                                    }
-                                    if active_profile().is_some() {
-                                        button {
-                                            class: "profile-save-btn",
-                                            title: "Save to profile",
-                                            onclick: move |_| {
-                                                if let Some(ref name) = active_profile() {
-                                                    let n = name.clone();
-                                                    let mut toast = use_toast();
-                                                    spawn(async move {
-                                                        if let Err(err) = api::save_profile(&n).await {
-                                                            toast.show(format!("Failed to save profile: {}", err), ToastSeverity::Normal);
-                                                        } else {
-                                                            profile_dirty.set(false);
-                                                        }
-                                                    });
-                                                }
-                                            },
-                                            i { class: "fa-solid fa-floppy-disk" }
-                                        }
-                                    }
                                 }
                             }
                         }
