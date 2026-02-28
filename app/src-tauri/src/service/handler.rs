@@ -934,6 +934,7 @@ impl ServiceHandle {
         target_name: Option<String>,
         time_range: Option<TimeRange>,
         duration_secs: f32,
+        source_filter: Option<String>,
     ) -> Result<Vec<EffectChartData>, String> {
         let session_guard = self.shared.session.read().await;
         let session = session_guard.as_ref().ok_or("No active session")?;
@@ -959,7 +960,12 @@ impl ServiceHandle {
             .query()
             .await
             .query()
-            .query_effect_uptime(target_name.as_deref(), time_range.as_ref(), duration_secs)
+            .query_effect_uptime(
+                target_name.as_deref(),
+                time_range.as_ref(),
+                duration_secs,
+                source_filter.as_deref(),
+            )
             .await
     }
 
@@ -971,6 +977,7 @@ impl ServiceHandle {
         target_name: Option<String>,
         time_range: Option<TimeRange>,
         duration_secs: f32,
+        source_filter: Option<String>,
     ) -> Result<Vec<EffectWindow>, String> {
         let session_guard = self.shared.session.read().await;
         let session = session_guard.as_ref().ok_or("No active session")?;
@@ -1001,6 +1008,7 @@ impl ServiceHandle {
                 target_name.as_deref(),
                 time_range.as_ref(),
                 duration_secs,
+                source_filter.as_deref(),
             )
             .await
     }

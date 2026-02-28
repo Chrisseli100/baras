@@ -157,9 +157,10 @@ pub async fn query_effect_uptime(
     target_name: Option<String>,
     time_range: Option<TimeRange>,
     duration_secs: f32,
+    source_filter: Option<String>,
 ) -> Result<Vec<EffectChartData>, String> {
     handle
-        .query_effect_uptime(encounter_idx, target_name, time_range, duration_secs)
+        .query_effect_uptime(encounter_idx, target_name, time_range, duration_secs, source_filter)
         .await
 }
 
@@ -172,6 +173,7 @@ pub async fn query_effect_windows(
     target_name: Option<String>,
     time_range: Option<TimeRange>,
     duration_secs: f32,
+    source_filter: Option<String>,
 ) -> Result<Vec<EffectWindow>, String> {
     handle
         .query_effect_windows(
@@ -180,6 +182,7 @@ pub async fn query_effect_windows(
             target_name,
             time_range,
             duration_secs,
+            source_filter,
         )
         .await
 }

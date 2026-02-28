@@ -824,8 +824,28 @@
    Charts Panel
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Main content area - charts on top, effects below */
+/* Main content area — wraps the ChartsPanel fragment */
 .charts-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  overflow: hidden;
+}
+
+/* Horizontal split: charts on the left, effects panel on the right */
+.charts-layout {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-sm);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Left column: toggles + chart canvases */
+.charts-column {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -839,6 +859,7 @@
   display: flex;
   flex-direction: row;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .chart-toggles label {
@@ -868,7 +889,7 @@
   color: #f1c40f;
 }
 
-/* Charts area - takes up available space */
+/* Charts area — takes up available space in the left column */
 .charts-area {
   flex: 1;
   display: flex;
@@ -908,17 +929,63 @@
   font-style: italic;
 }
 
-/* Effects row - horizontal layout below charts */
-.effects-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* ── Right column: effects panel ────────────────────────────────────────── */
+
+.effects-panel {
+  width: 280px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-sm);
+  overflow: hidden;
 }
 
+/* Source filter toggle buttons */
+.effects-source-filter {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.source-filter-btn {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: none;
+  border-radius: var(--radius-xs, 3px);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.source-filter-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.source-filter-btn.active {
+  background: var(--accent-gold, #d4a843);
+  color: #000;
+}
+
+/* Effect sections — each table fills available space */
 .effects-section {
   background: var(--bg-secondary);
   border-radius: var(--radius-sm);
   padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .effects-section h4 {
@@ -937,9 +1004,10 @@
   padding: var(--space-xs);
 }
 
-/* Effect table wrapper - scrollable container with fixed max height */
+/* Effect table wrapper — fills available space in its section, scrollable */
 .effect-table-wrapper {
-  max-height: 180px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);

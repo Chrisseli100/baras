@@ -1186,6 +1186,7 @@ pub async fn query_effect_uptime(
     target_name: Option<&str>,
     time_range: Option<&TimeRange>,
     duration_secs: f32,
+    source_filter: Option<&str>,
 ) -> Option<Vec<EffectChartData>> {
     let obj = js_sys::Object::new();
     if let Some(idx) = encounter_idx {
@@ -1209,6 +1210,11 @@ pub async fn query_effect_uptime(
         "durationSecs",
         &JsValue::from_f64(duration_secs as f64),
     );
+    if let Some(sf) = source_filter {
+        js_set(&obj, "sourceFilter", &JsValue::from_str(sf));
+    } else {
+        js_set(&obj, "sourceFilter", &JsValue::NULL);
+    }
     let result = invoke("query_effect_uptime", obj.into()).await;
     from_js(result)
 }
@@ -1220,6 +1226,7 @@ pub async fn query_effect_windows(
     target_name: Option<&str>,
     time_range: Option<&TimeRange>,
     duration_secs: f32,
+    source_filter: Option<&str>,
 ) -> Option<Vec<EffectWindow>> {
     let obj = js_sys::Object::new();
     if let Some(idx) = encounter_idx {
@@ -1244,6 +1251,11 @@ pub async fn query_effect_windows(
         "durationSecs",
         &JsValue::from_f64(duration_secs as f64),
     );
+    if let Some(sf) = source_filter {
+        js_set(&obj, "sourceFilter", &JsValue::from_str(sf));
+    } else {
+        js_set(&obj, "sourceFilter", &JsValue::NULL);
+    }
     let result = invoke("query_effect_windows", obj.into()).await;
     from_js(result)
 }

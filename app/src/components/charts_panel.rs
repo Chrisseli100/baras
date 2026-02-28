@@ -764,6 +764,8 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
     let mut selected_effects = use_signal(Vec::<(i64, &'static str)>::new);
     // (effect_id, window, color) - includes effect_id for grouping/stacking
     let mut effect_windows = use_signal(Vec::<(i64, EffectWindow, &'static str)>::new);
+    // Source filter: "all", "self", "other_players", "npcs"
+    let mut source_filter = use_signal(|| "all".to_string());
 
     // Loading state
     let mut loading = use_signal(|| false);
@@ -862,14 +864,19 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
         });
     });
 
-    // Load effect uptime data when entity or time range changes
+    // Load effect uptime data when entity, time range, or source filter changes
     use_effect(move || {
         let idx = encounter_idx_signal();
         let duration = props.duration_secs;
         let tr = time_range_signal.read().clone();
         let entity = selected_entity.read().clone();
+        let sf = source_filter.read().clone();
 
         let Some(entity) = entity else { return };
+
+        // Clear selected effects when source filter changes to avoid stale highlights
+        selected_effects.set(Vec::new());
+        effect_windows.set(Vec::new());
 
         spawn(async move {
             let tr_opt = if tr.start == 0.0 && tr.end == 0.0 {
@@ -877,9 +884,10 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
             } else {
                 Some(&tr)
             };
+            let sf_opt = if sf == "all" { None } else { Some(sf.as_str()) };
 
             if let Some(data) =
-                api::query_effect_uptime(idx, Some(&entity), tr_opt, duration).await
+                api::query_effect_uptime(idx, Some(&entity), tr_opt, duration, sf_opt).await
             {
                 let (active, passive): (Vec<_>, Vec<_>) =
                     data.into_iter().partition(|e| e.is_active);
@@ -896,6 +904,7 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
         let tr = time_range_signal.read().clone();
         let effects = selected_effects.read().clone();
         let entity = selected_entity.read().clone();
+        let sf = source_filter.read().clone();
 
         if effects.is_empty() {
             effect_windows.set(Vec::new());
@@ -906,10 +915,11 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                 } else {
                     Some(&tr)
                 };
+                let sf_opt = if sf == "all" { None } else { Some(sf.as_str()) };
                 let mut all_windows = Vec::new();
                 for (eid, color) in effects {
                     if let Some(windows) =
-                        api::query_effect_windows(idx, eid, entity.as_deref(), tr_opt, duration)
+                        api::query_effect_windows(idx, eid, entity.as_deref(), tr_opt, duration, sf_opt)
                             .await
                     {
                         for w in windows {
@@ -1062,43 +1072,48 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
     let dtps_empty = dtps_data.read().is_empty();
     let hp_empty = hp_data.read().is_empty();
 
+    let current_sf = source_filter.read().clone();
+
     rsx! {
-        // Chart visibility toggles (horizontal bar)
-        div { class: "chart-toggles",
-            label {
-                input {
-                    r#type: "checkbox",
-                    checked: *show_dps.read(),
-                    onchange: move |e| show_dps.set(e.checked())
+        div { class: "charts-layout",
+            // Left column: chart toggles + chart canvases
+            div { class: "charts-column",
+                // Chart visibility toggles (horizontal bar)
+                div { class: "chart-toggles",
+                    label {
+                        input {
+                            r#type: "checkbox",
+                            checked: *show_dps.read(),
+                            onchange: move |e| show_dps.set(e.checked())
+                        }
+                        span { class: "toggle-dps", "DPS" }
+                    }
+                    label {
+                        input {
+                            r#type: "checkbox",
+                            checked: *show_hps.read(),
+                            onchange: move |e| show_hps.set(e.checked())
+                        }
+                        span { class: "toggle-hps", "HPS" }
+                    }
+                    label {
+                        input {
+                            r#type: "checkbox",
+                            checked: *show_dtps.read(),
+                            onchange: move |e| show_dtps.set(e.checked())
+                        }
+                        span { class: "toggle-dtps", "DTPS" }
+                    }
+                    label {
+                        input {
+                            r#type: "checkbox",
+                            checked: *show_hp.read(),
+                            onchange: move |e| show_hp.set(e.checked())
+                        }
+                        span { class: "toggle-hp", "HP%" }
+                    }
                 }
-                span { class: "toggle-dps", "DPS" }
-            }
-            label {
-                input {
-                    r#type: "checkbox",
-                    checked: *show_hps.read(),
-                    onchange: move |e| show_hps.set(e.checked())
-                }
-                span { class: "toggle-hps", "HPS" }
-            }
-            label {
-                input {
-                    r#type: "checkbox",
-                    checked: *show_dtps.read(),
-                    onchange: move |e| show_dtps.set(e.checked())
-                }
-                span { class: "toggle-dtps", "DTPS" }
-            }
-            label {
-                input {
-                    r#type: "checkbox",
-                    checked: *show_hp.read(),
-                    onchange: move |e| show_hp.set(e.checked())
-                }
-                span { class: "toggle-hp", "HP%" }
-            }
-        }
-        // Charts area
+                // Charts area
                 div { class: "charts-area",
                     if *loading.read() {
                         div { class: "charts-loading",
@@ -1135,17 +1150,42 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                         }
                     }
                 }
+            }
 
-                // Effects section (below charts)
-                div { class: "effects-row",
-                    // Abilities (active effects triggered by ability cast)
-                    div { class: "effects-section",
-                        h4 { "Abilities" }
-                        if active.is_empty() {
-                            div { class: "effects-empty", "No abilities" }
-                        } else {
-                            div { class: "effect-table-wrapper",
-                                table { class: "effect-table",
+            // Right column: effects panel (stacked vertically)
+            div { class: "effects-panel",
+                // Source filter toggle buttons
+                div { class: "effects-source-filter",
+                    button {
+                        class: if current_sf == "all" { "source-filter-btn active" } else { "source-filter-btn" },
+                        onclick: move |_| source_filter.set("all".to_string()),
+                        "All"
+                    }
+                    button {
+                        class: if current_sf == "self" { "source-filter-btn active" } else { "source-filter-btn" },
+                        onclick: move |_| source_filter.set("self".to_string()),
+                        "Self"
+                    }
+                    button {
+                        class: if current_sf == "other_players" { "source-filter-btn active" } else { "source-filter-btn" },
+                        onclick: move |_| source_filter.set("other_players".to_string()),
+                        "Player"
+                    }
+                    button {
+                        class: if current_sf == "npcs" { "source-filter-btn active" } else { "source-filter-btn" },
+                        onclick: move |_| source_filter.set("npcs".to_string()),
+                        "NPC"
+                    }
+                }
+
+                // Abilities (active effects triggered by ability cast)
+                div { class: "effects-section",
+                    h4 { "Abilities" }
+                    if active.is_empty() {
+                        div { class: "effects-empty", "No abilities" }
+                    } else {
+                        div { class: "effect-table-wrapper",
+                            table { class: "effect-table",
                                 thead {
                                     tr {
                                         th { "Ability" }
@@ -1189,27 +1229,27 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                                     }
                                 }
                             }
-                            }
                         }
                     }
+                }
 
-                    // Passive effects
-                    div { class: "effects-section",
-                        h4 { "Passive Effects" }
-                        if passive.is_empty() {
-                            div { class: "effects-empty", "No passive effects" }
-                        } else {
-                            div { class: "effect-table-wrapper",
-                                table { class: "effect-table",
-                                    thead {
-                                        tr {
-                                            th { "Effect" }
-                                            th { class: "num", "Procs" }
-                                            th { class: "num", "Uptime" }
-                                            th { class: "num", "%" }
-                                        }
+                // Passive effects
+                div { class: "effects-section",
+                    h4 { "Passive Effects" }
+                    if passive.is_empty() {
+                        div { class: "effects-empty", "No passive effects" }
+                    } else {
+                        div { class: "effect-table-wrapper",
+                            table { class: "effect-table",
+                                thead {
+                                    tr {
+                                        th { "Effect" }
+                                        th { class: "num", "Procs" }
+                                        th { class: "num", "Uptime" }
+                                        th { class: "num", "%" }
                                     }
-                                    tbody {
+                                }
+                                tbody {
                                     for effect in passive.iter() {
                                         {
                                             let eid = effect.effect_id;
@@ -1240,11 +1280,12 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                                             }
                                         }
                                     }
-                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
     }
 }
