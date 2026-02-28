@@ -936,15 +936,19 @@
   gap: var(--space-sm);
   overflow-y: auto;
   min-height: 0;
+  position: relative;
 }
 
 .charts-loading {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-md);
   color: var(--text-muted);
   font-size: 12px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .chart-container {
