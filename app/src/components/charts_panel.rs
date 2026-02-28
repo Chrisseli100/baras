@@ -1218,81 +1218,27 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                     }
                 }
 
-                // Abilities (active effects triggered by ability cast)
+                // Combined effects table (active abilities + passive effects)
                 div { class: "effects-section",
-                    h4 { "Abilities" }
-                    if active.is_empty() {
-                        div { class: "effects-empty", "No abilities" }
-                    } else {
-                        div { class: "effect-table-wrapper",
-                            table { class: "effect-table",
-                                thead {
-                                    tr {
-                                        th { "Ability" }
-                                        th { class: "num", "Casts" }
-                                        th { class: "num", "Uptime" }
-                                        th { class: "num", "%" }
-                                    }
-                                }
-                                tbody {
-                                    for effect in active.iter() {
-                                        {
-                                            let eid = effect.effect_id;
-                                            let selected_color = current_effects.iter().find(|(id, _)| *id == eid).map(|(_, c)| *c);
-                                            let is_selected = selected_color.is_some();
-                                            rsx! {
-                                                tr {
-                                                    class: if is_selected { "selected" } else { "" },
-                                                    style: if let Some(c) = selected_color { format!("--effect-color: {c};") } else { String::new() },
-                                                    onclick: move |_| {
-                                                        let mut effects = selected_effects.read().clone();
-                                                        if let Some(pos) = effects.iter().position(|(id, _)| *id == eid) {
-                                                            effects.remove(pos);
-                                                        } else {
-                                                            let next_color = EFFECT_COLORS[effects.len() % EFFECT_COLORS.len()];
-                                                            effects.push((eid, next_color));
-                                                        }
-                                                        selected_effects.set(effects);
-                                                    },
-                                                    td { class: "effect-name-cell",
-                                                        if let Some(aid) = effect.ability_id {
-                                                            AbilityIcon { key: "{aid}", ability_id: aid, size: 16 }
-                                                        }
-                                                        "{effect.effect_name}"
-                                                    }
-                                                    td { class: "num", "{effect.count}" }
-                                                    td { class: "num", "{formatting::format_duration_f32(effect.total_duration_secs)}" }
-                                                    td { class: "num", "{formatting::format_pct_f32(effect.uptime_pct, props.european)}" }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Passive effects
-                div { class: "effects-section",
-                    h4 { "Passive Effects" }
-                    if passive.is_empty() {
-                        div { class: "effects-empty", "No passive effects" }
+                    h4 { "Effects" }
+                    if active.is_empty() && passive.is_empty() {
+                        div { class: "effects-empty", "No effects" }
                     } else {
                         div { class: "effect-table-wrapper",
                             table { class: "effect-table",
                                 thead {
                                     tr {
                                         th { "Effect" }
-                                        th { class: "num", "Procs" }
+                                        th { class: "num", "Applications" }
                                         th { class: "num", "Uptime" }
                                         th { class: "num", "%" }
                                     }
                                 }
                                 tbody {
-                                    for effect in passive.iter() {
+                                    for effect in active.iter().chain(passive.iter()) {
                                         {
                                             let eid = effect.effect_id;
+                                            let icon_id = effect.ability_id.unwrap_or(effect.effect_id);
                                             let selected_color = current_effects.iter().find(|(id, _)| *id == eid).map(|(_, c)| *c);
                                             let is_selected = selected_color.is_some();
                                             rsx! {
@@ -1310,7 +1256,7 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                                                         selected_effects.set(effects);
                                                     },
                                                     td { class: "effect-name-cell",
-                                                        AbilityIcon { key: "{effect.effect_id}", ability_id: effect.effect_id, size: 16 }
+                                                        AbilityIcon { key: "{icon_id}", ability_id: icon_id, size: 16 }
                                                         "{effect.effect_name}"
                                                     }
                                                     td { class: "num", "{effect.count}" }

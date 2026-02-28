@@ -971,8 +971,8 @@
 /* ── Right column: effects panel ────────────────────────────────────────── */
 
 .effects-panel {
-  width: 280px;
-  min-width: 240px;
+  width: 325px;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -1105,6 +1105,9 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Charts tab color */
