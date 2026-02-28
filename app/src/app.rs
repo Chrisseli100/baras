@@ -535,245 +535,249 @@ pub fn App() -> Element {
             // Header
             header { class: "app-header",
                 div { class: "header-top-row",
-                div { class: "header-content",
-                    h1 { "BARAS" }
-                    img { class: "header-logo", src: LOGO, alt: "BARAS mascot" }
-                    div { class: "header-version-group",
-                        div { class: "header-links",
-                            a {
-                                class: "header-link",
-                                href: "#",
-                                title: "Discord — Questions, bugs, or feedback",
-                                onclick: move |e| {
-                                    e.prevent_default();
-                                    spawn(async move {
-                                        api::open_url("https://discord.gg/zmtkYkhSM4").await;
-                                    });
-                                },
-                                i { class: "fa-brands fa-discord" }
-                            }
-                            a {
-                                class: "header-link",
-                                href: "#",
-                                title: "Documentation & Help",
-                                onclick: move |e| {
-                                    e.prevent_default();
-                                    spawn(async move {
-                                        api::open_url("https://baras-app.github.io/features/overview").await;
-                                    });
-                                },
-                                i { class: "fa-solid fa-circle-question" }
-                            }
-                        }
-                        if !app_version().is_empty() {
-                            if let Some(ref update) = update_available() {
-                                // Update available - show clickable notification
-                                button {
-                                    class: if update_installing() { "header-version update-available updating" } else { "header-version update-available" },
-                                    title: update.notes.as_deref().unwrap_or("Update available"),
-                                    disabled: update_installing(),
-                                    onclick: move |_| {
-                                        update_installing.set(true);
-                                        let mut toast = use_toast();
-                                        spawn(async move {
-                                            if let Err(e) = api::install_update().await {
-                                                toast.show(format!("Update failed: {}", e), ToastSeverity::Critical);
-                                                update_installing.set(false);
-                                            }
-                                            // On success, app will restart automatically
-                                        });
-                                    },
-                                    if update_installing() {
-                                        i { class: "fa-solid fa-spinner fa-spin" }
-                                        " Updating..."
-                                    } else {
-                                        i { class: "fa-solid fa-arrow-up" }
-                                        " Update Available!"
+                    div { class: "header-content",
+                        h1 { "BARAS" }
+                        img { class: "header-logo", src: LOGO, alt: "BARAS mascot" }
+                        div { class: "header-version-group",
+                            if !app_version().is_empty() {
+                                if let Some(ref update) = update_available() {
+                                    // Update available - show clickable notification
+                                    button {
+                                        class: if update_installing() { "header-version update-available updating" } else { "header-version update-available" },
+                                        title: update.notes.as_deref().unwrap_or("Update available"),
+                                        disabled: update_installing(),
+                                        onclick: move |_| {
+                                            update_installing.set(true);
+                                            let mut toast = use_toast();
+                                            spawn(async move {
+                                                if let Err(e) = api::install_update().await {
+                                                    toast.show(format!("Update failed: {}", e), ToastSeverity::Critical);
+                                                    update_installing.set(false);
+                                                }
+                                            });
+                                        },
+                                        if update_installing() {
+                                            i { class: "fa-solid fa-spinner fa-spin" }
+                                            " Updating..."
+                                        } else {
+                                            i { class: "fa-solid fa-arrow-up" }
+                                            " Update Available!"
+                                        }
+                                    }
+                                } else {
+                                    // No update - show current version (clickable for changelog)
+                                    button {
+                                        class: "header-version clickable",
+                                        title: "View changelog",
+                                        onclick: move |_| {
+                                            spawn(async move {
+                                                if let Some(response) = api::get_changelog().await {
+                                                    if let Some(html) = response.html {
+                                                        changelog_html.set(html);
+                                                    }
+                                                }
+                                                changelog_open.set(true);
+                                            });
+                                        },
+                                        "v{app_version}"
                                     }
                                 }
-                            } else {
-                                // No update - show current version (clickable for changelog)
-                                button {
-                                    class: "header-version clickable",
-                                    title: "View changelog",
-                                    onclick: move |_| {
+                            }
+                            div { class: "header-links",
+                                a {
+                                    class: "header-link",
+                                    href: "#",
+                                    title: "Discord — Questions, bugs, or feedback",
+                                    onclick: move |e| {
+                                        e.prevent_default();
                                         spawn(async move {
-                                            if let Some(response) = api::get_changelog().await {
-                                                if let Some(html) = response.html {
-                                                    changelog_html.set(html);
-                                                }
-                                            }
-                                            changelog_open.set(true);
+                                            api::open_url("https://discord.gg/zmtkYkhSM4").await;
                                         });
                                     },
-                                    "v{app_version}"
+                                    i { class: "fa-brands fa-discord" }
+                                }
+                                a {
+                                    class: "header-link",
+                                    href: "#",
+                                    title: "Documentation & Help",
+                                    onclick: move |e| {
+                                        e.prevent_default();
+                                        spawn(async move {
+                                            api::open_url("https://baras-app.github.io/features/overview").await;
+                                        });
+                                    },
+                                    i { class: "fa-solid fa-circle-question" }
                                 }
                             }
                         }
                     }
-                }
-                // Main navigation tabs (inline in header)
-                div { class: "header-tabs",
-                    button {
-                        class: if ui_state.read().active_tab == MainTab::DataExplorer { "tab-btn active" } else { "tab-btn" },
-                        onclick: move |_| ui_state.write().active_tab = MainTab::DataExplorer,
-                        i { class: "fa-solid fa-magnifying-glass-chart" }
-                        span { class: "tab-label", " Data Explorer" }
-                    }
-                    button {
-                        class: if ui_state.read().active_tab == MainTab::Overlays { "tab-btn active" } else { "tab-btn" },
-                        onclick: move |_| ui_state.write().active_tab = MainTab::Overlays,
-                        i { class: "fa-solid fa-layer-group" }
-                        span { class: "tab-label", " Overlays" }
-                    }
-                    button {
-                        class: if ui_state.read().active_tab == MainTab::EncounterBuilder { "tab-btn active" } else { "tab-btn" },
-                        onclick: move |_| ui_state.write().active_tab = MainTab::EncounterBuilder,
-                        i { class: "fa-solid fa-hammer" }
-                        span { class: "tab-label", " Encounter Builder" }
-                    }
-                    button {
-                        class: if ui_state.read().active_tab == MainTab::Effects { "tab-btn active" } else { "tab-btn" },
-                        onclick: move |_| ui_state.write().active_tab = MainTab::Effects,
-                        i { class: "fa-solid fa-heart-pulse" }
-                        span { class: "tab-label", " Effects Editor" }
-                    }
-                }
-                // Session status + overlay controls (merged into one pill)
-                div { class: "header-overlay-controls",
-                    // Watcher status dot — green = live, gold = historical/paused, gray = not watching
-                    span {
-                        class: if !live_tailing { "status-dot paused" }
-                            else if watching { "status-dot watching" }
-                            else { "status-dot not-watching" },
-                        title: if !live_tailing { "Historical mode" } else if watching { "Live" } else { "Not watching" }
-                    }
-                    // Mode label
-                    span {
-                        class: if live_tailing && watching { "header-mode-label live" }
-                            else if !live_tailing { "header-mode-label historical" }
-                            else { "header-mode-label" },
-                        if !live_tailing { "Historical" } else if watching { "Live" } else { "Idle" }
-                    }
-                    // Restart watcher button — colored to match mode
-                    button {
-                        class: if live_tailing && watching { "btn-header-restart live" }
-                            else if !live_tailing { "btn-header-restart historical" }
-                            else { "btn-header-restart" },
-                        title: "Restart watcher",
-                        onclick: move |_| {
-                            spawn(async move {
-                                api::restart_watcher().await;
-                                is_live_tailing.set(true);
-                            });
-                        },
-                        i { class: "fa-solid fa-rotate" }
-                    }
-                    // Resume Live button (when paused/historical)
-                    if !live_tailing {
-                        button {
-                            class: "btn-resume-live",
-                            title: "Resume live tailing",
-                            onclick: move |_| {
-                                let mut toast = use_toast();
-                                spawn(async move {
-                                    if let Err(err) = api::resume_live_tailing().await {
-                                        toast.show(format!("Failed to resume live tailing: {}", err), ToastSeverity::Normal);
-                                    } else {
+                    // Live/Historical status + File browser + settings buttons (top-right)
+                    div { class: "header-buttons",
+                        // Live/Historical toggle group
+                        div { class: "header-live-status",
+                            // Watcher status dot
+                            span {
+                                class: if !live_tailing { "status-dot paused" }
+                                    else if watching { "status-dot watching" }
+                                    else { "status-dot not-watching" },
+                                title: if !live_tailing { "Historical mode" } else if watching { "Live" } else { "Not watching" }
+                            }
+                            // Mode label
+                            span {
+                                class: if live_tailing && watching { "header-mode-label live" }
+                                    else if !live_tailing { "header-mode-label historical" }
+                                    else { "header-mode-label" },
+                                if !live_tailing { "Historical" } else if watching { "Live" } else { "Idle" }
+                            }
+                            // Restart watcher button
+                            button {
+                                class: if live_tailing && watching { "btn-header-restart live" }
+                                    else if !live_tailing { "btn-header-restart historical" }
+                                    else { "btn-header-restart" },
+                                title: "Restart watcher",
+                                onclick: move |_| {
+                                    spawn(async move {
+                                        api::restart_watcher().await;
                                         is_live_tailing.set(true);
+                                    });
+                                },
+                                i { class: "fa-solid fa-rotate" }
+                            }
+                            // Resume Live button (when paused/historical)
+                            if !live_tailing {
+                                button {
+                                    class: "btn-resume-live",
+                                    title: "Resume live tailing",
+                                    onclick: move |_| {
+                                        let mut toast = use_toast();
+                                        spawn(async move {
+                                            if let Err(err) = api::resume_live_tailing().await {
+                                                toast.show(format!("Failed to resume live tailing: {}", err), ToastSeverity::Normal);
+                                            } else {
+                                                is_live_tailing.set(true);
+                                            }
+                                        });
+                                    },
+                                    span { class: "resume-live-label", "Resume Live " }
+                                    i { class: "fa-solid fa-play" }
+                                }
+                            }
+                        }
+                        button {
+                            class: "btn btn-header-files",
+                            title: "Browse log files",
+                            onclick: move |_| {
+                                file_browser_filter.set(String::new());
+                                file_browser_open.set(true);
+                                spawn(async move {
+                                    api::refresh_file_sizes().await;
+                                    let result = api::get_log_files().await;
+                                    if let Ok(files) = serde_wasm_bindgen::from_value::<Vec<LogFileInfo>>(result) {
+                                        log_files.set(files);
                                     }
                                 });
                             },
-                            "Resume Live "
-                            i { class: "fa-solid fa-play" }
+                            i { class: "fa-solid fa-folder-open" }
+                        }
+                        button {
+                            class: "btn btn-header-settings",
+                            title: "Settings",
+                            onclick: move |_| general_settings_open.set(true),
+                            i { class: "fa-solid fa-gear" }
                         }
                     }
-                    div { class: "header-controls-divider" }
-                    button {
-                        class: if is_visible { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
-                        title: if is_visible { "Hide overlays" } else { "Show overlays" },
-                        disabled: !any_enabled,
-                        onclick: move |_| {
-                            let mut toast = use_toast();
-                            spawn(async move {
-                                if api::toggle_visibility(is_visible).await {
-                                    overlays_visible.set(!is_visible);
-                                    if is_visible { move_mode.set(false); }
-                                    // If trying to show but auto-hide is active, inform user
-                                    if !is_visible && auto_hidden() {
-                                        toast.show("Overlays are currently auto-hidden".to_string(), ToastSeverity::Normal);
-                                    }
-                                }
-                            });
-                        },
-                        i { class: if is_visible { "fa-solid fa-eye" } else { "fa-solid fa-eye-slash" } }
-                    }
-                    if overlays_auto_hidden {
-                        span {
-                            class: "auto-hide-indicator",
-                            title: "Overlays auto-hidden (not live)",
-                            i { class: "fa-solid fa-eye-slash" }
-                            " Auto"
-                        }
-                    }
-                    button {
-                        class: if is_move_mode { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
-                        title: if is_move_mode { "Lock overlays" } else { "Unlock overlays (move/resize)" },
-                        disabled: !is_visible || !any_enabled || is_rearrange || overlays_auto_hidden,
-                        onclick: move |_| { spawn(async move {
-                            if let Ok(new_mode) = api::toggle_move_mode().await {
-                                move_mode.set(new_mode);
-                                if new_mode { rearrange_mode.set(false); }
-                            }
-                        }); },
-                        i { class: if is_move_mode { "fa-solid fa-lock-open" } else { "fa-solid fa-lock" } }
-                    }
-                    button {
-                        class: if is_rearrange { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
-                        title: "Rearrange raid frames",
-                        disabled: !is_visible || !raid_on || is_move_mode || overlays_auto_hidden,
-                        onclick: move |_| { spawn(async move {
-                            if let Ok(new_mode) = api::toggle_raid_rearrange().await {
-                                rearrange_mode.set(new_mode);
-                            }
-                        }); },
-                        i { class: "fa-solid fa-grip" }
-                    }
-                    button {
-                        class: "btn btn-header-overlay",
-                        title: "Clear raid frame assignments",
-                        disabled: !raid_on,
-                        onclick: move |_| { spawn(async move { api::clear_raid_registry().await; }); },
-                        i { class: "fa-solid fa-eraser" }
-                    }
-                }
-
-                div { class: "header-buttons",
-                    button {
-                        class: "btn btn-header-files",
-                        title: "Browse log files",
-                        onclick: move |_| {
-                            file_browser_filter.set(String::new()); // Clear filter on open
-                            file_browser_open.set(true);
-                            // Refresh file sizes then fetch files
-                            spawn(async move {
-                                api::refresh_file_sizes().await;
-                                let result = api::get_log_files().await;
-                                if let Ok(files) = serde_wasm_bindgen::from_value::<Vec<LogFileInfo>>(result) {
-                                    log_files.set(files);
-                                }
-                            });
-                        },
-                        i { class: "fa-solid fa-folder-open" }
-                    }
-                    button {
-                        class: "btn btn-header-settings",
-                        title: "Settings",
-                        onclick: move |_| general_settings_open.set(true),
-                        i { class: "fa-solid fa-gear" }
-                    }
-                }
                 } // end header-top-row
+
+                // Navigation + controls row: | live/historical + overlay controls | tabs | file/settings |
+                div { class: "header-nav-row",
+                    // Overlay controls
+                    div { class: "header-overlay-controls",
+                        button {
+                            class: if is_visible { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
+                            title: if is_visible { "Hide overlays" } else { "Show overlays" },
+                            disabled: !any_enabled,
+                            onclick: move |_| {
+                                let mut toast = use_toast();
+                                spawn(async move {
+                                    if api::toggle_visibility(is_visible).await {
+                                        overlays_visible.set(!is_visible);
+                                        if is_visible { move_mode.set(false); }
+                                        if !is_visible && auto_hidden() {
+                                            toast.show("Overlays are currently auto-hidden".to_string(), ToastSeverity::Normal);
+                                        }
+                                    }
+                                });
+                            },
+                            i { class: if is_visible { "fa-solid fa-eye" } else { "fa-solid fa-eye-slash" } }
+                        }
+                        if overlays_auto_hidden {
+                            span {
+                                class: "auto-hide-indicator",
+                                title: "Overlays auto-hidden (not live)",
+                                i { class: "fa-solid fa-eye-slash" }
+                                " Auto"
+                            }
+                        }
+                        button {
+                            class: if is_move_mode { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
+                            title: if is_move_mode { "Lock overlays" } else { "Unlock overlays (move/resize)" },
+                            disabled: !is_visible || !any_enabled || is_rearrange || overlays_auto_hidden,
+                            onclick: move |_| { spawn(async move {
+                                if let Ok(new_mode) = api::toggle_move_mode().await {
+                                    move_mode.set(new_mode);
+                                    if new_mode { rearrange_mode.set(false); }
+                                }
+                            }); },
+                            i { class: if is_move_mode { "fa-solid fa-lock-open" } else { "fa-solid fa-lock" } }
+                        }
+                        button {
+                            class: if is_rearrange { "btn btn-header-overlay active" } else { "btn btn-header-overlay" },
+                            title: "Rearrange raid frames",
+                            disabled: !is_visible || !raid_on || is_move_mode || overlays_auto_hidden,
+                            onclick: move |_| { spawn(async move {
+                                if let Ok(new_mode) = api::toggle_raid_rearrange().await {
+                                    rearrange_mode.set(new_mode);
+                                }
+                            }); },
+                            i { class: "fa-solid fa-grip" }
+                        }
+                        button {
+                            class: "btn btn-header-overlay",
+                            title: "Clear raid frame assignments",
+                            disabled: !raid_on,
+                            onclick: move |_| { spawn(async move { api::clear_raid_registry().await; }); },
+                            i { class: "fa-solid fa-eraser" }
+                        }
+                    }
+
+                    // Navigation tabs (centered)
+                    div { class: "header-tabs",
+                        button {
+                            class: if ui_state.read().active_tab == MainTab::DataExplorer { "tab-btn active" } else { "tab-btn" },
+                            onclick: move |_| ui_state.write().active_tab = MainTab::DataExplorer,
+                            i { class: "fa-solid fa-magnifying-glass-chart" }
+                            span { class: "tab-label", " Data Explorer" }
+                        }
+                        button {
+                            class: if ui_state.read().active_tab == MainTab::Overlays { "tab-btn active" } else { "tab-btn" },
+                            onclick: move |_| ui_state.write().active_tab = MainTab::Overlays,
+                            i { class: "fa-solid fa-layer-group" }
+                            span { class: "tab-label", " Overlays" }
+                        }
+                        button {
+                            class: if ui_state.read().active_tab == MainTab::EncounterBuilder { "tab-btn active" } else { "tab-btn" },
+                            onclick: move |_| ui_state.write().active_tab = MainTab::EncounterBuilder,
+                            i { class: "fa-solid fa-hammer" }
+                            span { class: "tab-label", " Encounter Builder" }
+                        }
+                        button {
+                            class: if ui_state.read().active_tab == MainTab::Effects { "tab-btn active" } else { "tab-btn" },
+                            onclick: move |_| ui_state.write().active_tab = MainTab::Effects,
+                            i { class: "fa-solid fa-heart-pulse" }
+                            span { class: "tab-label", " Effects Editor" }
+                        }
+                    }
+                }
 
                 // ─────────────────────────────────────────────────────────────
                 // Collapsible Session Dashboard Bar (visible on all tabs)

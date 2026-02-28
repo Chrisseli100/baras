@@ -234,7 +234,7 @@ select optgroup {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75em 2vw;
+  padding: 0.4em 2vw;
 }
 
 .app-header .header-content {
@@ -248,7 +248,7 @@ select optgroup {
 .app-header h1 {
   margin: 0;
   font-family: "StarJedi", "Segoe UI", Arial, sans-serif;
-  font-size: clamp(1.2rem, 4vh, 2.5rem);
+  font-size: clamp(1rem, 3.2vh, 2rem);
   line-height: 1.1;
   letter-spacing: 0.05em;
   color: var(--swtor-blue);
@@ -258,18 +258,18 @@ select optgroup {
 }
 
 .app-header .header-logo {
-  width: clamp(28px, 5vh, 48px);
+  width: clamp(22px, 4vh, 38px);
   height: auto;
   object-fit: contain;
 }
 
 .app-header .header-version-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   align-self: flex-end;
   margin-bottom: 0.1em;
-  gap: 0.15rem;
+  gap: 0.4rem;
 }
 
 .app-header .header-version {
@@ -383,16 +383,49 @@ select optgroup {
 
 .header-buttons {
   display: flex;
+  align-items: center;
   gap: 0.5em;
+}
+
+/* Live/Historical status pill in top-right header area */
+.header-live-status {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.3em 0.6em;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(80, 80, 90, 0.3);
+  margin-right: 0.25em;
+}
+
+.header-live-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.header-live-status .status-dot.watching {
+  background-color: #5aaa7a;
+  box-shadow: 0 0 6px rgba(90, 170, 122, 0.5);
+}
+
+.header-live-status .status-dot.not-watching {
+  background-color: var(--text-muted);
+}
+
+.header-live-status .status-dot.paused {
+  background-color: #d4a850;
+  box-shadow: 0 0 6px rgba(212, 168, 80, 0.5);
 }
 
 /* Header overlay quick controls */
 .header-overlay-controls {
   display: flex;
   align-items: center;
-  gap: 0.35em;
-  margin-right: 1em;
-  padding: 0.3em 0.5em;
+  gap: 0.45em;
+  padding: 0.4em 0.7em;
   background: rgba(0, 0, 0, 0.3);
   border-radius: var(--radius-lg);
   border: 1px solid rgba(80, 80, 90, 0.3);
@@ -4152,13 +4185,21 @@ details[open] .collapsible-summary::before {
    Main Navigation Tabs
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* Navigation + controls row below branding */
+.header-nav-row {
+  display: flex;
+  align-items: center;
+  padding: 0.2em 2vw 0.4em;
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 0.5em;
+}
+
 .header-tabs {
   display: flex;
   align-items: center;
   gap: 0.4em;
-  flex: 1 1 auto;
+  flex: 1;
   justify-content: center;
-  min-width: 0;
 }
 
 .tab-btn {
@@ -4215,23 +4256,28 @@ details[open] .collapsible-summary::before {
   flex-direction: column;
   gap: 0.75vh;
   width: 100%;
-  padding: 0 2vw;
+  padding: 0 0.2vw;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 /* ── Header tabs responsive ────────────────────────────────── */
 
-/* Medium: wrap tabs to a second row within the header */
+/* Compress overlay controls at narrower widths */
 @media (max-width: 1100px) {
-  .header-top-row {
-    flex-wrap: wrap;
+  /* Hide mode label text, keep status dot as indicator */
+  .header-mode-label {
+    display: none;
   }
-  .header-tabs {
-    order: 10;
-    flex: 1 0 100%;
-    justify-content: center;
-    padding-top: 0.3em;
+  /* Resume Live → just the play icon */
+  .btn-resume-live .resume-live-label {
+    display: none;
+  }
+  .header-overlay-controls {
+    gap: 0.25em;
+  }
+  .header-live-status {
+    gap: 0.25em;
   }
 }
 
@@ -4242,6 +4288,23 @@ details[open] .collapsible-summary::before {
   }
   .tab-btn {
     padding: 0.35em 0.6em;
+  }
+  /* Further compress overlay controls */
+  .header-overlay-controls {
+    gap: 0.2em;
+    padding: 0.25em 0.4em;
+  }
+  .header-live-status {
+    gap: 0.2em;
+    padding: 0.25em 0.4em;
+  }
+  .btn-header-overlay {
+    width: 26px;
+    height: 26px;
+    font-size: 0.8em;
+  }
+  .header-controls-divider {
+    height: 16px;
   }
 }
 
