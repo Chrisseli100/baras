@@ -1016,7 +1016,8 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                         _ => {}
                     }
                 },
-                // Header row (sticky)
+
+                // Sticky header row
                 div {
                     class: "log-header",
                     onmousemove: move |e| {

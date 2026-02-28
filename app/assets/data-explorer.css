@@ -1187,7 +1187,7 @@
   min-height: 0;
 }
 
-/* Header row */
+/* Header row — sticky inside scroll container, GPU-composited to prevent jitter */
 .log-header {
   display: flex;
   position: sticky;
@@ -1199,6 +1199,8 @@
   font-weight: 600;
   text-transform: uppercase;
   color: var(--text-muted);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .log-header .log-cell {
