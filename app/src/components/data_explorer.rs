@@ -581,10 +581,16 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     use_effect(move || {
         let (damage_data, threat_data, healing_data, taken_data) = chart_data();
         let is_overview = matches!(*view_mode.read(), ViewMode::Overview);
+        let visible = *content_visible.read(); // subscribe so we re-run when DOM mounts
 
         // Dispose charts when not showing overview (cleanup old instances)
         if !is_overview {
             dispose_all_overview_charts();
+            return;
+        }
+
+        // Wait for DOM to be mounted before trying to init charts
+        if !visible {
             return;
         }
 
@@ -640,6 +646,19 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
         }
 
         closure.forget();
+    });
+
+    // Resize overview donut charts when layout changes (sidebar collapse, entity panel, fullscreen)
+    // CSS transitions take ~250ms, so delay resize to let the layout settle
+    use_effect(move || {
+        let _sidebar = *sidebar_collapsed.read();
+        let _entity = *entity_collapsed.read();
+        let _fullscreen = *overview_fullscreen.read();
+
+        spawn(async move {
+            gloo_timers::future::TimeoutFuture::new(300).await;
+            resize_all_overview_charts();
+        });
     });
 
     // Load encounter list on mount (auto-select latest encounter unless user had one selected)
@@ -2562,6 +2581,9 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                     time_range: tr,
                                                     selected_source: selected_source,
                                                     european: eu,
+                                                    sidebar_collapsed: sidebar_collapsed,
+                                                    entity_collapsed: entity_collapsed,
+                                                    overview_fullscreen: overview_fullscreen,
                                                     on_time_range_change: move |new_range: TimeRange| {
                                                         time_range.set(new_range);
                                                     },
