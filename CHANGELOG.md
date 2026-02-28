@@ -1,39 +1,27 @@
-# v2026.2.2700
+# v2026.2.2800
 
-**Operations Timer** a new timer feature has been added that starts a time countdown from either the first boss pull or when the user triggers it.
-This can be a great help when trying to track timer runs! Note: as of now, it must be manually stopped once it starts running.
+## UI upgrades
 
-The last window size and position should now be remembered upon re-opening the application.
+The user interface has been significantly changed to be more compact and intuitive. The positioning of controls has been shifted, but everything should still be only a few clicks away.
 
-## UI
+## Live Query Mode
 
-- The session page has been removed; relevant information has been rolled into a persistent header panel
-- Encounter-specific parsely upload, challenges, and enemy lists are now displayed in the data explorer
-- Discipline specific icons are now used in the UI instead of the class icons
-- Effects tab renamed to Effects Editor
-- Time range selection clear button is now red
+The data explorer now supports querying data for the live encounter! It updates every 2.5 seconds, and you can enable it by clicking the **Live** button in the encounter sidebar.
 
-## Log Management
+Live Query mode is disabled by default, enabling it will moderately increase the application's CPU usage while viewing the data explorer.
 
-- Log indexing happens in a background process to prevent hanging when large amounts of log files are present
+## Data Explorer
 
-## Timers
+- Eliminated much of the flickering, pop-in, shifting, and stutter visual artifacts caused by page loads when navigating the UI.
+- Charts tab has been reworked so effect/ability boxes are easier to navigate
+- Effect and ability uptime calculations are now more accurate
+- Effects can now be filtered based on the source type
 
-- Fixed bug where compound cancel trigger were being evaluated via invalid codepath
-- Definitions now hot reload in-game when changes are made to phases or variable counters
-- Unified trigger handling logic across all objects
-- Added `Timer Time Remaining` condition type
-- Added `Timer Canceled` trigger type
+## Other
 
-## Effects
+- Added hotkey for starting/stopping the operations timer
 
-- Fixed issue causing medical probe to add a kolto probe stack
-- Fixed issue where other modified charges events of other players were being attributed to the local player if
-  same ability was cast on the same target
-- Fixed issue with Kolto Probes being refreshed erroneously if ability cast shortly after they expired
-- Fixed issue with Kolto Shells / Trauma Probes double registering if the "Other's" effects were activated
+## Bugfixes
 
-## Misc
-
-- Removed "Imperfect Construct" from XR-53 boss definition fallback list
-- Process monitor for `swtor.exe` now runs and is used to ensure prior session indicator stays in-sync
+- Fixed issue where certain icons were not being rendered in the overlay
+- Fixed issue causing timer based phase transition logic to be ignored when parsing historical files.
