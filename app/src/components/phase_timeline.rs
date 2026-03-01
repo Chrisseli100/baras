@@ -355,7 +355,7 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                     input {
                         class: "phase-timeline-range-value",
                         r#type: "text",
-                        size: 5,
+                        size: 6,
                         value: "{start_display}",
                         onfocus: move |_| {
                             editing_start.set(Some(format_time(range.start)));
@@ -414,7 +414,7 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                     input {
                         class: "phase-timeline-range-value",
                         r#type: "text",
-                        size: 5,
+                        size: 6,
                         value: "{end_display}",
                         onfocus: move |_| {
                             editing_end.set(Some(format_time(range.end)));
