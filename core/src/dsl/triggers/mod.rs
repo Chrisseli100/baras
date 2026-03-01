@@ -17,6 +17,37 @@ use crate::dsl::EntityDefinition;
 use serde::{Deserialize, Serialize};
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Trigger Kind (discriminant-only enum for indexing)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Lightweight discriminant of a [`Trigger`] variant, used as an index key.
+///
+/// Each variant maps 1:1 to a `Trigger` variant (except `AnyOf`, which is
+/// expanded into its constituent kinds). `CombatTime` covers both
+/// `CombatStart` and `TimeElapsed` since they are evaluated together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TriggerKind {
+    CombatTime, // CombatStart + TimeElapsed
+    AbilityCast,
+    EffectApplied,
+    EffectRemoved,
+    DamageTaken,
+    HealingTaken,
+    BossHpBelow,
+    BossHpAbove,
+    NpcAppears,
+    EntityDeath,
+    TargetSet,
+    PhaseEntered,
+    PhaseEnded,
+    AnyPhaseChange,
+    CounterReaches,
+    TimerExpires,
+    TimerStarted,
+    TimerCanceled,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Unified Trigger Enum
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -184,6 +215,39 @@ pub enum Trigger {
 }
 
 impl Trigger {
+    /// Collect all [`TriggerKind`]s this trigger can match.
+    ///
+    /// For simple variants this is a single kind. For `AnyOf`, each nested
+    /// condition's kinds are collected recursively.
+    pub fn collect_kinds(&self, out: &mut Vec<TriggerKind>) {
+        match self {
+            Self::CombatStart | Self::TimeElapsed { .. } => out.push(TriggerKind::CombatTime),
+            Self::CombatEnd | Self::Manual | Self::Never => {} // not indexed
+            Self::AbilityCast { .. } => out.push(TriggerKind::AbilityCast),
+            Self::EffectApplied { .. } => out.push(TriggerKind::EffectApplied),
+            Self::EffectRemoved { .. } => out.push(TriggerKind::EffectRemoved),
+            Self::DamageTaken { .. } => out.push(TriggerKind::DamageTaken),
+            Self::HealingTaken { .. } => out.push(TriggerKind::HealingTaken),
+            Self::BossHpBelow { .. } => out.push(TriggerKind::BossHpBelow),
+            Self::BossHpAbove { .. } => out.push(TriggerKind::BossHpAbove),
+            Self::NpcAppears { .. } => out.push(TriggerKind::NpcAppears),
+            Self::EntityDeath { .. } => out.push(TriggerKind::EntityDeath),
+            Self::TargetSet { .. } => out.push(TriggerKind::TargetSet),
+            Self::PhaseEntered { .. } => out.push(TriggerKind::PhaseEntered),
+            Self::PhaseEnded { .. } => out.push(TriggerKind::PhaseEnded),
+            Self::AnyPhaseChange => out.push(TriggerKind::AnyPhaseChange),
+            Self::CounterReaches { .. } => out.push(TriggerKind::CounterReaches),
+            Self::TimerExpires { .. } => out.push(TriggerKind::TimerExpires),
+            Self::TimerStarted { .. } => out.push(TriggerKind::TimerStarted),
+            Self::TimerCanceled { .. } => out.push(TriggerKind::TimerCanceled),
+            Self::AnyOf { conditions } => {
+                for condition in conditions {
+                    condition.collect_kinds(out);
+                }
+            }
+        }
+    }
+
     /// Check if this trigger contains CombatStart (directly or nested in AnyOf).
     pub fn contains_combat_start(&self) -> bool {
         match self {

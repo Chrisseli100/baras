@@ -20,6 +20,8 @@ use super::matching::{is_definition_active, matches_source_target_filters};
 use super::signal_handlers;
 use super::{ActiveTimer, TimerDefinition, TimerKey, TimerPreferences, TimerTrigger};
 
+use crate::dsl::TriggerKind;
+
 // EncounterContext removed: context now read directly from CombatEncounter
 
 /// A fired alert (ephemeral notification, not a countdown timer)
@@ -44,6 +46,11 @@ pub struct FiredAlert {
 pub struct TimerManager {
     /// Timer definitions indexed by ID (Arc for cheap cloning in signal handlers)
     pub(super) definitions: HashMap<String, Arc<TimerDefinition>>,
+
+    /// Per-trigger-kind index: maps each [`TriggerKind`] to the definitions
+    /// whose `trigger` (or nested `AnyOf` conditions) can produce that kind.
+    /// Rebuilt when definitions change, avoids O(n) full scans per signal.
+    trigger_index: HashMap<TriggerKind, Vec<Arc<TimerDefinition>>>,
 
     /// User preferences (color, audio, enabled overrides)
     preferences: TimerPreferences,
@@ -123,6 +130,7 @@ impl TimerManager {
     pub fn new() -> Self {
         Self {
             definitions: HashMap::new(),
+            trigger_index: HashMap::new(),
             preferences: TimerPreferences::new(),
             active_timers: HashMap::new(),
             fired_alerts: Vec::new(),
@@ -246,6 +254,9 @@ impl TimerManager {
 
         // Validate timer chain references
         self.validate_timer_chains();
+
+        // Rebuild per-trigger-kind index
+        self.rebuild_trigger_index();
     }
 
     /// Alias for load_definitions (matches effect tracker API)
@@ -323,6 +334,9 @@ impl TimerManager {
         // Validate timer chain references
         self.validate_timer_chains();
 
+        // Rebuild per-trigger-kind index
+        self.rebuild_trigger_index();
+
         // No special mid-combat handling needed: combat_start and time_elapsed
         // triggers are evaluated continuously by handle_combat_time_triggers
         // on every tick/event. When definitions load mid-combat, the next
@@ -362,6 +376,38 @@ impl TimerManager {
                 );
             }
         }
+    }
+
+    /// Rebuild the per-trigger-kind index from current definitions.
+    ///
+    /// Called automatically after `load_definitions` / `load_boss_definitions`.
+    fn rebuild_trigger_index(&mut self) {
+        self.trigger_index.clear();
+        let mut kinds_buf = Vec::new();
+        let mut seen = HashSet::new();
+        for def in self.definitions.values() {
+            kinds_buf.clear();
+            seen.clear();
+            def.trigger.collect_kinds(&mut kinds_buf);
+            for &kind in &kinds_buf {
+                // Deduplicate kinds (AnyOf can produce repeats)
+                if seen.insert(kind) {
+                    self.trigger_index
+                        .entry(kind)
+                        .or_default()
+                        .push(Arc::clone(def));
+                }
+            }
+        }
+    }
+
+    /// Return definitions that could match the given trigger kind.
+    ///
+    /// Falls back to an empty slice when no definitions are registered for
+    /// that kind, avoiding allocation.
+    pub(super) fn definitions_for_kind(&self, kind: TriggerKind) -> &[Arc<TimerDefinition>] {
+        static EMPTY: &[Arc<TimerDefinition>] = &[];
+        self.trigger_index.get(&kind).map_or(EMPTY, |v| v.as_slice())
     }
 
     /// Tick to process timer expirations and time-elapsed triggers based on real time.
@@ -704,7 +750,7 @@ impl TimerManager {
     }
 
     /// Cancel active timers whose cancel_trigger matches the given predicate
-    pub(super) fn cancel_timers_matching<F>(&mut self, trigger_matches: F, _reason: &str)
+    pub(super) fn cancel_timers_matching<F>(&mut self, trigger_matches: F)
     where
         F: Fn(&TimerTrigger) -> bool,
     {
@@ -736,7 +782,6 @@ impl TimerManager {
         &mut self,
         entities: &[crate::dsl::EntityDefinition],
         trigger_matches: F,
-        _reason: &str,
     ) where
         F: Fn(&TimerTrigger, &[crate::dsl::EntityDefinition]) -> bool,
     {
@@ -850,8 +895,8 @@ impl TimerManager {
         let expired_ids = self.expired_this_tick.clone();
         for expired_id in &expired_ids {
             let matching: Vec<_> = self
-                .definitions
-                .values()
+                .definitions_for_kind(TriggerKind::TimerExpires)
+                .iter()
                 .filter(|d| {
                     d.matches_timer_expires(expired_id) && self.is_definition_active(d, encounter)
                 })
@@ -896,14 +941,16 @@ impl TimerManager {
     }
 
     pub fn start_timers_on_cancel(&mut self, canceled_timer_id: &str, current_time: NaiveDateTime) {
-        let keys_to_start: Vec<_> = self.definitions.values()
+        let keys_to_start: Vec<_> = self
+            .definitions_for_kind(TriggerKind::TimerCanceled)
+            .iter()
             .filter(|d| d.matches_timer_canceled(canceled_timer_id))
             .cloned()
             .collect();
 
         for key in keys_to_start {
             self.start_timer(&key, current_time, None);
-        };
+        }
     }
 
     // ─── Entity Filter Matching (delegates to matching module) ─────────────────

@@ -8,6 +8,7 @@ use chrono::NaiveDateTime;
 use crate::combat_log::EntityType;
 use crate::context::IStr;
 use crate::dsl::EntityDefinition;
+use crate::dsl::TriggerKind;
 use crate::encounter::CombatEncounter;
 
 use super::TimerManager;
@@ -44,8 +45,8 @@ pub(super) fn handle_ability(
     let ability_name_str = crate::context::resolve(ability_name);
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::AbilityCast)
+        .iter()
         .filter(|d| {
             d.matches_ability_with_name(ability_id, Some(ability_name_str))
                 && manager.is_definition_active(d, encounter)
@@ -75,10 +76,7 @@ pub(super) fn handle_ability(
     }
 
     // Check for cancel triggers on ability cast
-    manager.cancel_timers_matching(
-        |t| t.matches_ability(ability_id, Some(ability_name_str)),
-        &format!("ability {} cast", ability_id),
-    );
+    manager.cancel_timers_matching(|t| t.matches_ability(ability_id, Some(ability_name_str)));
 }
 
 /// Handle effect applied
@@ -101,8 +99,8 @@ pub(super) fn handle_effect_applied(
     let effect_id = effect_id as u64;
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::EffectApplied)
+        .iter()
         .filter(|d| {
             d.matches_effect_applied(effect_id, Some(effect_name))
                 && manager.is_definition_active(d, encounter)
@@ -132,10 +130,7 @@ pub(super) fn handle_effect_applied(
     }
 
     // Check for cancel triggers on effect applied
-    manager.cancel_timers_matching(
-        |t| t.matches_effect_applied(effect_id, Some(effect_name)),
-        &format!("effect {} applied", effect_name),
-    );
+    manager.cancel_timers_matching(|t| t.matches_effect_applied(effect_id, Some(effect_name)));
 }
 
 /// Handle effect removed
@@ -158,8 +153,8 @@ pub(super) fn handle_effect_removed(
     let effect_id = effect_id as u64;
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::EffectRemoved)
+        .iter()
         .filter(|d| {
             d.matches_effect_removed(effect_id, Some(effect_name))
                 && manager.is_definition_active(d, encounter)
@@ -189,10 +184,7 @@ pub(super) fn handle_effect_removed(
     }
 
     // Check for cancel triggers on effect removed
-    manager.cancel_timers_matching(
-        |t| t.matches_effect_removed(effect_id, Some(effect_name)),
-        &format!("effect {} removed", effect_name),
-    );
+    manager.cancel_timers_matching(|t| t.matches_effect_removed(effect_id, Some(effect_name)));
 }
 
 /// Handle boss HP change - check for HP threshold triggers
@@ -211,8 +203,8 @@ pub(super) fn handle_boss_hp_change(
     }
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::BossHpBelow)
+        .iter()
         .filter(|d| {
             d.matches_boss_hp_threshold(
                 get_entities(encounter),
@@ -232,11 +224,9 @@ pub(super) fn handle_boss_hp_change(
     // Check for cancel triggers on boss HP threshold
     let entities = get_entities(encounter);
     let npc_name_owned = npc_name.to_string();
-    manager.cancel_timers_matching_with_entities(
-        entities,
-        |t, ents| t.matches_boss_hp_below(ents, npc_id, &npc_name_owned, previous_hp, current_hp),
-        &format!("boss HP below threshold for {}", npc_name),
-    );
+    manager.cancel_timers_matching_with_entities(entities, |t, ents| {
+        t.matches_boss_hp_below(ents, npc_id, &npc_name_owned, previous_hp, current_hp)
+    });
 }
 
 /// Handle phase change - check for PhaseEntered triggers
@@ -247,8 +237,8 @@ pub(super) fn handle_phase_change(
     timestamp: NaiveDateTime,
 ) {
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::PhaseEntered)
+        .iter()
         .filter(|d| d.matches_phase_entered(phase_id) && manager.is_definition_active(d, encounter))
         .cloned()
         .collect();
@@ -258,10 +248,7 @@ pub(super) fn handle_phase_change(
     }
 
     // Check for cancel triggers on phase entered
-    manager.cancel_timers_matching(
-        |t| t.matches_phase_entered(phase_id),
-        &format!("phase {} entered", phase_id),
-    );
+    manager.cancel_timers_matching(|t| t.matches_phase_entered(phase_id));
 }
 
 /// Handle phase ended - check for PhaseEnded triggers
@@ -272,8 +259,8 @@ pub(super) fn handle_phase_ended(
     timestamp: NaiveDateTime,
 ) {
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::PhaseEnded)
+        .iter()
         .filter(|d| d.matches_phase_ended(phase_id) && manager.is_definition_active(d, encounter))
         .cloned()
         .collect();
@@ -283,10 +270,7 @@ pub(super) fn handle_phase_ended(
     }
 
     // Check for cancel triggers on phase ended
-    manager.cancel_timers_matching(
-        |t| t.matches_phase_ended(phase_id),
-        &format!("phase {} ended", phase_id),
-    );
+    manager.cancel_timers_matching(|t| t.matches_phase_ended(phase_id));
 }
 
 /// Handle counter change - check for CounterReaches triggers
@@ -299,8 +283,8 @@ pub(super) fn handle_counter_change(
     timestamp: NaiveDateTime,
 ) {
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::CounterReaches)
+        .iter()
         .filter(|d| {
             d.matches_counter_reaches(counter_id, old_value, new_value)
                 && manager.is_definition_active(d, encounter)
@@ -313,10 +297,7 @@ pub(super) fn handle_counter_change(
     }
 
     // Check for cancel triggers on counter change
-    manager.cancel_timers_matching(
-        |t| t.matches_counter_reaches(counter_id, old_value, new_value),
-        &format!("counter {} reached {}", counter_id, new_value),
-    );
+    manager.cancel_timers_matching(|t| t.matches_counter_reaches(counter_id, old_value, new_value));
 }
 
 /// Handle NPC first seen - check for NpcAppears triggers
@@ -328,8 +309,8 @@ pub(super) fn handle_npc_first_seen(
     timestamp: NaiveDateTime,
 ) {
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::NpcAppears)
+        .iter()
         .filter(|d| {
             d.matches_npc_appears(get_entities(encounter), npc_id, Some(npc_name))
                 && manager.is_definition_active(d, encounter)
@@ -344,11 +325,9 @@ pub(super) fn handle_npc_first_seen(
     // Check for cancel triggers on NPC appears
     let entities = get_entities(encounter);
     let npc_name_owned = npc_name.to_string();
-    manager.cancel_timers_matching_with_entities(
-        entities,
-        |t, ents| t.matches_npc_appears(ents, npc_id, &npc_name_owned),
-        &format!("NPC {} appeared", npc_name),
-    );
+    manager.cancel_timers_matching_with_entities(entities, |t, ents| {
+        t.matches_npc_appears(ents, npc_id, &npc_name_owned)
+    });
 }
 
 /// Handle entity death - check for EntityDeath triggers
@@ -360,8 +339,8 @@ pub(super) fn handle_entity_death(
     timestamp: NaiveDateTime,
 ) {
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::EntityDeath)
+        .iter()
         .filter(|d| {
             d.matches_entity_death(get_entities(encounter), npc_id, Some(entity_name))
                 && manager.is_definition_active(d, encounter)
@@ -376,11 +355,9 @@ pub(super) fn handle_entity_death(
     // Check for cancel triggers on entity death
     let entities = get_entities(encounter);
     let entity_name_owned = entity_name.to_string();
-    manager.cancel_timers_matching_with_entities(
-        entities,
-        |t, ents| t.matches_entity_death(ents, npc_id, &entity_name_owned),
-        &format!("entity {} died", entity_name),
-    );
+    manager.cancel_timers_matching_with_entities(entities, |t, ents| {
+        t.matches_entity_death(ents, npc_id, &entity_name_owned)
+    });
 }
 
 /// Handle target set - check for TargetSet triggers (e.g., sphere targeting player)
@@ -399,8 +376,8 @@ pub(super) fn handle_target_set(
     let entities = get_entities(encounter);
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::TargetSet)
+        .iter()
         .filter(|d| {
             d.matches_target_set(entities, source_npc_id, Some(source_name_str))
                 && manager.is_definition_active(d, encounter)
@@ -426,11 +403,9 @@ pub(super) fn handle_target_set(
 
     // Check for cancel triggers on target set
     let source_name_owned = source_name_str.to_string();
-    manager.cancel_timers_matching_with_entities(
-        entities,
-        |t, ents| t.matches_target_set(ents, source_npc_id, Some(&source_name_owned)),
-        &format!("target set by {}", source_name_owned),
-    );
+    manager.cancel_timers_matching_with_entities(entities, |t, ents| {
+        t.matches_target_set(ents, source_npc_id, Some(&source_name_owned))
+    });
 }
 
 /// Handle damage taken - check for DamageTaken triggers (tank busters, raid damage, etc.)
@@ -453,8 +428,8 @@ pub(super) fn handle_damage_taken(
     let ability_name_str = crate::context::resolve(ability_name);
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::DamageTaken)
+        .iter()
         .filter(|d| {
             d.matches_damage_taken(ability_id, Some(&ability_name_str))
                 && manager.is_definition_active(d, encounter)
@@ -484,10 +459,7 @@ pub(super) fn handle_damage_taken(
     }
 
     // Check for cancel triggers on damage taken
-    manager.cancel_timers_matching(
-        |t| t.matches_damage_taken(ability_id, Some(&ability_name_str)),
-        &format!("damage taken from {}", ability_name_str),
-    );
+    manager.cancel_timers_matching(|t| t.matches_damage_taken(ability_id, Some(&ability_name_str)));
 }
 
 /// Handle healing taken - check for HealingTaken triggers
@@ -510,8 +482,8 @@ pub(super) fn handle_healing_taken(
     let ability_name_str = crate::context::resolve(ability_name);
 
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::HealingTaken)
+        .iter()
         .filter(|d| {
             d.matches_healing_taken(ability_id, Some(&ability_name_str))
                 && manager.is_definition_active(d, encounter)
@@ -541,10 +513,8 @@ pub(super) fn handle_healing_taken(
     }
 
     // Check for cancel triggers on healing taken
-    manager.cancel_timers_matching(
-        |t| t.matches_healing_taken(ability_id, Some(&ability_name_str)),
-        &format!("healing taken from {}", ability_name_str),
-    );
+    manager
+        .cancel_timers_matching(|t| t.matches_healing_taken(ability_id, Some(&ability_name_str)));
 }
 
 /// Evaluate combat-time-based triggers: CombatStart and TimeElapsed.
@@ -576,8 +546,8 @@ pub(super) fn handle_combat_time_triggers(
     // Find definitions whose combat-time trigger is met (CombatStart or TimeElapsed)
     // Skip definitions already started this combat (prevents re-creation after cancel)
     let matching: Vec<_> = manager
-        .definitions
-        .values()
+        .definitions_for_kind(TriggerKind::CombatTime)
+        .iter()
         .filter(|d| {
             d.trigger.is_combat_time_met(combat_secs)
                 && !manager.combat_time_started.contains(&d.id)
@@ -594,7 +564,7 @@ pub(super) fn handle_combat_time_triggers(
     }
 
     // Cancel triggers based on combat time
-    manager.cancel_timers_matching(|t| t.is_combat_time_met(combat_secs), "combat_time cancel");
+    manager.cancel_timers_matching(|t| t.is_combat_time_met(combat_secs));
 }
 
 /// Clear all combat-scoped timers and encounter context

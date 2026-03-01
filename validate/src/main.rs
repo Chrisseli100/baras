@@ -30,7 +30,7 @@ use baras_core::encounter::combat::ActiveBoss;
 use baras_core::game_data::{effect_id, effect_type_id};
 use baras_core::signal_processor::{
     EventProcessor, GameSignal, SignalHandler, check_counter_signal_triggers,
-    check_counter_timer_triggers, check_timer_phase_transitions,
+    check_counter_timer_triggers, check_entity_phase_transitions, check_timer_phase_transitions,
 };
 use baras_core::state::SessionCache;
 use baras_core::timers::TimerManager;
@@ -479,10 +479,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let mut watermark = 0;
                     for _ in 0..10 {
                         let w = new_signals.len();
-                        if w == watermark { break; }
+                        if w == watermark {
+                            break;
+                        }
                         let slice = &new_signals[watermark..];
                         watermark = w;
-                        new_signals.extend(check_counter_signal_triggers(&mut cache, slice, event.timestamp));
+
+                        // Phase transitions from counter/signal changes
+                        new_signals.extend(check_entity_phase_transitions(
+                            &mut cache,
+                            slice,
+                            event.timestamp,
+                        ));
+
+                        // Counter reactions to new phase/counter signals
+                        let new_slice = &new_signals[watermark..];
+                        new_signals.extend(check_counter_signal_triggers(
+                            &mut cache,
+                            new_slice,
+                            event.timestamp,
+                        ));
                     }
                 }
 

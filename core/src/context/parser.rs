@@ -409,19 +409,38 @@ impl ParsingSession {
             }
 
             // Run the inner counter↔phase fixed-point loop on any new signals
-            // so that timer→counter→phase and timer→phase→counter chains resolve
+            // so that timer→counter→phase and timer→phase→counter chains resolve.
+            // This mirrors the fixed-point loop in processor.rs but operates on
+            // signals produced by timer events rather than combat events.
             if !new_signals.is_empty() {
                 if let Some(cache) = &mut self.session_cache {
-                    use crate::signal_processor::check_counter_signal_triggers;
+                    use crate::signal_processor::{
+                        check_counter_signal_triggers, check_entity_phase_transitions,
+                    };
                     let mut watermark = 0;
                     for _ in 0..10 {
                         let w = new_signals.len();
-                        if w == watermark { break; }
+                        if w == watermark {
+                            break;
+                        }
                         let slice = &new_signals[watermark..];
                         watermark = w;
-                        new_signals.extend(check_counter_signal_triggers(cache, slice, timestamp));
-                        // Phase transitions from counter changes are handled by the
-                        // next outer iteration (timer dispatch will see PhaseChanged signals)
+
+                        // Phase transitions from counter changes (CounterReaches,
+                        // PhaseEntered, PhaseEnded, EntityDeath, NpcAppears, etc.)
+                        new_signals.extend(check_entity_phase_transitions(
+                            cache,
+                            slice,
+                            timestamp,
+                        ));
+
+                        // Counter reactions to new phase/counter signals
+                        let new_slice = &new_signals[watermark..];
+                        new_signals.extend(check_counter_signal_triggers(
+                            cache,
+                            new_slice,
+                            timestamp,
+                        ));
                     }
                 }
             }

@@ -22,8 +22,8 @@ use baras_core::context::{parse_log_filename, resolve};
 use baras_core::dsl::{build_area_index, load_bosses_with_custom};
 use baras_core::game_data::defense_type;
 use baras_core::signal_processor::{
-    check_counter_timer_triggers, check_timer_phase_transitions, EventProcessor, GameSignal,
-    SignalHandler,
+    check_counter_signal_triggers, check_counter_timer_triggers, check_entity_phase_transitions,
+    check_timer_phase_transitions, EventProcessor, GameSignal, SignalHandler,
 };
 use baras_core::state::{ParseWorkerOutput, SessionCache};
 use baras_core::storage::encounter_filename;
@@ -816,38 +816,81 @@ fn process_and_write_encounters(
             }
         }
 
-        // Step 2: Timer-driven counter feedback (timer expires → counter increment)
-        let timer_counter_signals = check_counter_timer_triggers(
-            &expired_timer_ids,
-            &started_timer_ids,
-            &canceled_timer_ids,
-            &mut cache,
-            event.timestamp,
-        );
+        // Step 2: Timer feedback loop — timer events can trigger counter/phase
+        // changes, which produce new signals dispatched back to timers.
+        {
+            let mut iter_expired = expired_timer_ids.clone();
+            let mut iter_started = started_timer_ids.clone();
+            let mut iter_canceled = canceled_timer_ids.clone();
 
-        if !timer_counter_signals.is_empty() {
-            let encounter = cache.current_encounter();
-            for signal in &timer_counter_signals {
-                timer_manager.handle_signal(signal, encounter);
-                expired_timer_ids.extend(timer_manager.expired_timer_ids().iter().cloned());
-                started_timer_ids.extend(timer_manager.started_timer_ids().iter().cloned());
-                canceled_timer_ids.extend(timer_manager.canceled_timer_ids().iter().cloned());
-            }
-        }
+            for _feedback_iter in 0..10 {
+                if iter_expired.is_empty() && iter_started.is_empty() && iter_canceled.is_empty() {
+                    break;
+                }
 
-        // Step 3: Timer-driven phase transitions (timer expires → phase change)
-        let timer_phase_signals = check_timer_phase_transitions(
-            &expired_timer_ids,
-            &started_timer_ids,
-            &canceled_timer_ids,
-            &mut cache,
-            event.timestamp,
-        );
+                let mut new_signals = Vec::new();
 
-        if !timer_phase_signals.is_empty() {
-            let encounter = cache.current_encounter();
-            for signal in &timer_phase_signals {
-                timer_manager.handle_signal(signal, encounter);
+                // Counter triggers from timer events
+                new_signals.extend(check_counter_timer_triggers(
+                    &iter_expired,
+                    &iter_started,
+                    &iter_canceled,
+                    &mut cache,
+                    event.timestamp,
+                ));
+
+                // Phase triggers from timer events
+                new_signals.extend(check_timer_phase_transitions(
+                    &iter_expired,
+                    &iter_started,
+                    &iter_canceled,
+                    &mut cache,
+                    event.timestamp,
+                ));
+
+                // Inner counter↔phase fixed-point loop
+                if !new_signals.is_empty() {
+                    let mut watermark = 0;
+                    for _ in 0..10 {
+                        let w = new_signals.len();
+                        if w == watermark {
+                            break;
+                        }
+                        let slice = &new_signals[watermark..];
+                        watermark = w;
+                        new_signals.extend(check_entity_phase_transitions(
+                            &mut cache,
+                            slice,
+                            event.timestamp,
+                        ));
+                        let new_slice = &new_signals[watermark..];
+                        new_signals.extend(check_counter_signal_triggers(
+                            &mut cache,
+                            new_slice,
+                            event.timestamp,
+                        ));
+                    }
+                }
+
+                if new_signals.is_empty() {
+                    break;
+                }
+
+                // Dispatch new signals to timer manager
+                let encounter = cache.current_encounter();
+                for signal in &new_signals {
+                    timer_manager.handle_signal(signal, encounter);
+                }
+
+                // Read this iteration's new timer events
+                iter_expired = timer_manager.expired_timer_ids().to_vec();
+                iter_started = timer_manager.started_timer_ids().to_vec();
+                iter_canceled = timer_manager.canceled_timer_ids().to_vec();
+
+                // Accumulate into totals
+                expired_timer_ids.extend(iter_expired.iter().cloned());
+                started_timer_ids.extend(iter_started.iter().cloned());
+                canceled_timer_ids.extend(iter_canceled.iter().cloned());
             }
         }
 

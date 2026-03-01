@@ -36,24 +36,24 @@ impl EventProcessor {
         event: CombatEvent,
         cache: &mut SessionCache,
     ) -> (Vec<GameSignal>, CombatEvent, bool) {
-        let mut signals = Vec::new();
+        let mut signals = Vec::with_capacity(8);
 
         // ═══════════════════════════════════════════════════════════════════════
         // PHASE 1: Global Event Handlers (state-independent)
         // ═══════════════════════════════════════════════════════════════════════
 
         // 1a. Player/discipline tracking
-        signals.extend(self.handle_discipline_event(&event, cache));
+        self.handle_discipline_event(&event, cache, &mut signals);
 
         // 1b. Entity lifecycle (death/revive)
-        signals.extend(self.handle_entity_lifecycle(&event, cache));
+        self.handle_entity_lifecycle(&event, cache, &mut signals);
 
         // 1b'. Synthetic death from 0 HP observation (handles missing death events
         // in 16-man and other content where SWTOR doesn't log entity death events)
-        signals.extend(self.handle_zero_hp_deaths(&event, cache));
+        self.handle_zero_hp_deaths(&event, cache, &mut signals);
 
         // 1c. Area transitions
-        signals.extend(self.handle_area_transition(&event, cache));
+        self.handle_area_transition(&event, cache, &mut signals);
 
         // Detect missing area: if no AreaEntered has been seen after the first event,
         // the log file is incomplete (e.g., crash/disconnect caused SWTOR to resume
@@ -66,16 +66,16 @@ impl EventProcessor {
         }
 
         // 1d. NPC first seen tracking (for ANY NPC, not just bosses)
-        signals.extend(self.handle_npc_first_seen(&event, cache));
+        self.handle_npc_first_seen(&event, cache, &mut signals);
 
         // 1e. Boss encounter detection
-        signals.extend(self.handle_boss_detection(&event, cache));
+        self.handle_boss_detection(&event, cache, &mut signals);
 
         // 1f. Boss HP tracking and phase transitions
-        signals.extend(self.handle_boss_hp_and_phases(&event, cache));
+        self.handle_boss_hp_and_phases(&event, cache, &mut signals);
 
         // 1g. NPC Target Tracking
-        signals.extend(self.handle_target_changed(&event, cache));
+        self.handle_target_changed(&event, cache, &mut signals);
 
         // 1h. Battle rez tracking (must run after target tracking and entity lifecycle)
         self.handle_battle_rez_tracking(&event, cache);
@@ -84,10 +84,10 @@ impl EventProcessor {
         // PHASE 2: Signal Emission (pure transformation)
         // ═══════════════════════════════════════════════════════════════════════
 
-        signals.extend(self.emit_effect_signals(&event));
-        signals.extend(self.emit_action_signals(&event));
-        signals.extend(self.emit_damage_signals(&event));
-        signals.extend(self.emit_healing_signals(&event));
+        self.emit_effect_signals(&event, &mut signals);
+        self.emit_action_signals(&event, &mut signals);
+        self.emit_damage_signals(&event, &mut signals);
+        self.emit_healing_signals(&event, &mut signals);
 
         // Check if current phase's end_trigger fired (emits PhaseEndTriggered signal)
         signals.extend(phase::check_phase_end_triggers(&event, cache, &signals));
@@ -147,12 +147,12 @@ impl EventProcessor {
             }
 
             // Evaluate counters against only the NEW signals from this iteration
-            let new_signals = &signals[watermark..];
-            signals.extend(counter::check_counter_signal_triggers(
+            let new_counter_signals = counter::check_counter_signal_triggers(
                 cache,
-                new_signals,
+                &signals[watermark..],
                 event.timestamp,
-            ));
+            );
+            signals.extend(new_counter_signals);
 
             // If still nothing new after counter eval, we're done
             if signals.len() == watermark {
@@ -256,18 +256,17 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
+        out: &mut Vec<GameSignal>,
+    ) {
         if event.effect.type_id != effect_type_id::DISCIPLINECHANGED {
-            return Vec::new();
+            return;
         }
-
-        let mut signals = Vec::new();
 
         // Initialize or update primary player
         if !cache.player_initialized || event.source_entity.log_id == cache.player.id {
             self.update_primary_player(event, cache);
             if cache.player_initialized {
-                signals.push(GameSignal::PlayerInitialized {
+                out.push(GameSignal::PlayerInitialized {
                     entity_id: cache.player.id,
                     timestamp: event.timestamp,
                 });
@@ -279,15 +278,13 @@ impl EventProcessor {
 
         // Emit DisciplineChanged for ALL players (used for raid frame role detection)
         if event.effect.discipline_id != 0 {
-            signals.push(GameSignal::DisciplineChanged {
+            out.push(GameSignal::DisciplineChanged {
                 entity_id: event.source_entity.log_id,
                 class_id: event.effect.effect_id,
                 discipline_id: event.effect.discipline_id,
                 timestamp: event.timestamp,
             });
         }
-
-        signals
     }
 
     /// Handle Death and Revive events.
@@ -295,9 +292,8 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
-        let mut signals = Vec::new();
-
+        out: &mut Vec<GameSignal>,
+    ) {
         if event.effect.effect_id == effect_id::DEATH {
             // Check if entity was already marked dead (e.g., synthetic death from 0 HP
             // observation fired on a previous event). If so, skip signal emission to
@@ -330,7 +326,7 @@ impl EventProcessor {
 
             // Only emit signal if not already dead (prevents duplicate signals)
             if !already_dead {
-                signals.push(GameSignal::EntityDeath {
+                out.push(GameSignal::EntityDeath {
                     entity_id: event.target_entity.log_id,
                     entity_type: event.target_entity.entity_type,
                     npc_id: event.target_entity.class_id,
@@ -376,7 +372,7 @@ impl EventProcessor {
                     enc.check_all_players_dead();
                 }
             }
-            signals.push(GameSignal::EntityRevived {
+            out.push(GameSignal::EntityRevived {
                 entity_id: event.source_entity.log_id,
                 entity_type: event.source_entity.entity_type,
                 npc_id: event.source_entity.class_id,
@@ -412,8 +408,6 @@ impl EventProcessor {
                 }
             }
         }
-
-        signals
     }
 
     /// Detect entity deaths from 0 HP when no explicit death event was logged.
@@ -428,9 +422,8 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
-        let mut signals = Vec::new();
-
+        out: &mut Vec<GameSignal>,
+    ) {
         for entity in [&event.source_entity, &event.target_entity] {
             // Must have 0 current HP with a valid max HP (not an empty/uninitialized entity)
             if entity.health.0 != 0 || entity.health.1 <= 0 {
@@ -459,7 +452,7 @@ impl EventProcessor {
 
                     enc.set_entity_death(entity.log_id, &entity.entity_type, event.timestamp);
 
-                    signals.push(GameSignal::EntityDeath {
+                    out.push(GameSignal::EntityDeath {
                         entity_id: entity.log_id,
                         entity_type: entity.entity_type,
                         npc_id,
@@ -483,7 +476,7 @@ impl EventProcessor {
                     enc.set_entity_death(entity.log_id, &entity.entity_type, event.timestamp);
                     enc.check_all_players_dead();
 
-                    signals.push(GameSignal::EntityDeath {
+                    out.push(GameSignal::EntityDeath {
                         entity_id: entity.log_id,
                         entity_type: entity.entity_type,
                         npc_id: 0,
@@ -494,8 +487,6 @@ impl EventProcessor {
                 _ => {}
             }
         }
-
-        signals
     }
 
     /// Handle AreaEntered events.
@@ -503,9 +494,10 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
+        out: &mut Vec<GameSignal>,
+    ) {
         if event.effect.type_id != effect_type_id::AREAENTERED {
-            return Vec::new();
+            return;
         }
 
         // Detect character mismatch: if a different player enters an area after the
@@ -549,13 +541,13 @@ impl EventProcessor {
             }
         }
 
-        vec![GameSignal::AreaEntered {
+        out.push(GameSignal::AreaEntered {
             area_id: event.effect.effect_id,
             area_name: resolve(event.effect.effect_name).to_string(),
             difficulty_id: event.effect.difficulty_id,
             difficulty_name: resolve(event.effect.difficulty_name).to_string(),
             timestamp: event.timestamp,
-        }]
+        });
     }
 
     /// Emit NpcFirstSeen for any NPC instance encountered for the first time.
@@ -565,9 +557,8 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
-        let mut signals = Vec::new();
-
+        out: &mut Vec<GameSignal>,
+    ) {
         for entity in [&event.source_entity, &event.target_entity] {
             // Only track NPCs with valid IDs
             if entity.entity_type != EntityType::Npc || entity.class_id == 0 || entity.log_id == 0 {
@@ -577,7 +568,7 @@ impl EventProcessor {
             // Track by log_id (instance) so each spawn is detected
             // Signal includes npc_id (class_id) for timer matching
             if cache.seen_npc_instances.insert(entity.log_id) {
-                signals.push(GameSignal::NpcFirstSeen {
+                out.push(GameSignal::NpcFirstSeen {
                     entity_id: entity.log_id, // Unique instance
                     npc_id: entity.class_id,  // NPC type for timer matching
                     entity_name: resolve(entity.name).to_string(),
@@ -585,8 +576,6 @@ impl EventProcessor {
                 });
             }
         }
-
-        signals
     }
 
     /// Detect boss encounters based on NPC class IDs.
@@ -595,11 +584,12 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
+        out: &mut Vec<GameSignal>,
+    ) {
         // Gather state from immutable borrow first
         let (has_active_boss, in_combat, has_definitions, registered_npcs) = {
             let Some(enc) = cache.current_encounter() else {
-                return Vec::new();
+                return;
             };
             (
                 enc.active_boss_idx().is_some(),
@@ -612,17 +602,17 @@ impl EventProcessor {
 
         // Already tracking a boss encounter
         if has_active_boss {
-            return Vec::new();
+            return;
         }
 
         // Only detect bosses when actually in combat
         if !in_combat {
-            return Vec::new();
+            return;
         }
 
         // No boss definitions loaded for this area
         if !has_definitions {
-            return Vec::new();
+            return;
         }
 
         // Check source and target entities for boss NPC match
@@ -675,7 +665,7 @@ impl EventProcessor {
                         .set_phase(&initial.id, event.timestamp);
                 }
 
-                let mut signals = vec![GameSignal::BossEncounterDetected {
+                out.push(GameSignal::BossEncounterDetected {
                     definition_id: def_id.clone(),
                     boss_name,
                     definition_idx: idx,
@@ -683,14 +673,14 @@ impl EventProcessor {
                     npc_id: entity.class_id,
                     boss_npc_class_ids: npc_ids,
                     timestamp: event.timestamp,
-                }];
+                });
 
                 // Activate initial phase (CombatStart trigger)
                 if let Some(ref initial) = initial_phase {
                     enc.set_phase(&initial.id, event.timestamp);
                     enc.reset_counters_to_initial(&initial.resets_counters, &counters);
 
-                    signals.push(GameSignal::PhaseChanged {
+                    out.push(GameSignal::PhaseChanged {
                         boss_id: def_id,
                         old_phase: None,
                         new_phase: initial.id.clone(),
@@ -698,11 +688,9 @@ impl EventProcessor {
                     });
                 }
 
-                return signals;
+                return;
             }
         }
-
-        Vec::new()
     }
 
     /// Track boss HP changes and evaluate phase transitions.
@@ -710,16 +698,15 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
+        out: &mut Vec<GameSignal>,
+    ) {
         // No active boss encounter
         let Some(enc) = cache.current_encounter() else {
-            return Vec::new();
+            return;
         };
         let Some(def_idx) = enc.active_boss_idx() else {
-            return Vec::new();
+            return;
         };
-
-        let mut signals = Vec::new();
 
         // Update HP for entities that are boss NPCs
         for entity in [&event.source_entity, &event.target_entity] {
@@ -749,7 +736,7 @@ impl EventProcessor {
             };
             if let Some((old_hp, new_hp)) = enc.update_entity_hp(entity.log_id, current_hp, max_hp)
             {
-                signals.push(GameSignal::BossHpChanged {
+                out.push(GameSignal::BossHpChanged {
                     entity_id: entity.log_id,
                     npc_id: entity.class_id,
                     entity_name: resolve(entity.name).to_string(),
@@ -761,7 +748,7 @@ impl EventProcessor {
                 });
 
                 // Check for HP-based phase transitions
-                signals.extend(phase::check_hp_phase_transitions(
+                out.extend(phase::check_hp_phase_transitions(
                     cache,
                     old_hp,
                     new_hp,
@@ -771,8 +758,6 @@ impl EventProcessor {
                 ));
             }
         }
-
-        signals
     }
 
     /// Check for victory trigger on special encounters (e.g., Coratanni, Terror from Beyond).
@@ -856,12 +841,11 @@ impl EventProcessor {
         &self,
         event: &CombatEvent,
         cache: &mut SessionCache,
-    ) -> Vec<GameSignal> {
-        let mut signals = Vec::new();
-
+        out: &mut Vec<GameSignal>,
+    ) {
         match event.effect.effect_id {
             effect_id::TARGETSET => {
-                signals.push(GameSignal::TargetChanged {
+                out.push(GameSignal::TargetChanged {
                     source_id: event.source_entity.log_id,
                     source_entity_type: event.source_entity.entity_type,
                     source_npc_id: event.source_entity.class_id,
@@ -879,7 +863,7 @@ impl EventProcessor {
                 }
             }
             effect_id::TARGETCLEARED => {
-                signals.push(GameSignal::TargetCleared {
+                out.push(GameSignal::TargetCleared {
                     source_id: event.source_entity.log_id,
                     timestamp: event.timestamp,
                 });
@@ -891,7 +875,6 @@ impl EventProcessor {
             }
             _ => {}
         }
-        signals
     }
 
     /// Track battle rez casts targeting the local player.
@@ -961,11 +944,11 @@ impl EventProcessor {
 
     /// Emit signals for effect application/removal/charge changes.
     /// Pure transformation - no encounter state modification.
-    fn emit_effect_signals(&self, event: &CombatEvent) -> Vec<GameSignal> {
+    fn emit_effect_signals(&self, event: &CombatEvent, out: &mut Vec<GameSignal>) {
         match event.effect.type_id {
             effect_type_id::APPLYEFFECT => {
                 if event.target_entity.entity_type == EntityType::Empty {
-                    return Vec::new();
+                    return;
                 }
                 let charges = if event.details.charges > 0 {
                     Some(correct_apply_charges(
@@ -975,7 +958,7 @@ impl EventProcessor {
                 } else {
                     None
                 };
-                vec![GameSignal::EffectApplied {
+                out.push(GameSignal::EffectApplied {
                     effect_id: event.effect.effect_id,
                     effect_name: event.effect.effect_name,
                     action_id: event.action.action_id,
@@ -990,13 +973,13 @@ impl EventProcessor {
                     target_npc_id: event.target_entity.class_id,
                     timestamp: event.timestamp,
                     charges,
-                }]
+                });
             }
             effect_type_id::REMOVEEFFECT => {
                 if event.source_entity.entity_type == EntityType::Empty {
-                    return Vec::new();
+                    return;
                 }
-                vec![GameSignal::EffectRemoved {
+                out.push(GameSignal::EffectRemoved {
                     effect_id: event.effect.effect_id,
                     effect_name: event.effect.effect_name,
                     source_id: event.source_entity.log_id,
@@ -1008,13 +991,13 @@ impl EventProcessor {
                     target_name: event.target_entity.name,
                     target_npc_id: event.target_entity.class_id,
                     timestamp: event.timestamp,
-                }]
+                });
             }
             effect_type_id::MODIFYCHARGES => {
                 if event.target_entity.entity_type == EntityType::Empty {
-                    return Vec::new();
+                    return;
                 }
-                vec![GameSignal::EffectChargesChanged {
+                out.push(GameSignal::EffectChargesChanged {
                     effect_id: event.effect.effect_id,
                     effect_name: event.effect.effect_name,
                     action_id: event.action.action_id,
@@ -1024,21 +1007,20 @@ impl EventProcessor {
                     target_id: event.target_entity.log_id,
                     timestamp: event.timestamp,
                     charges: event.details.charges as u8,
-                }]
+                });
             }
-            _ => Vec::new(),
+            _ => {}
         }
     }
 
     /// Emit signals for ability activations and target changes.
     /// Pure transformation - no encounter state modification.
-    fn emit_action_signals(&self, event: &CombatEvent) -> Vec<GameSignal> {
-        let mut signals = Vec::new();
+    fn emit_action_signals(&self, event: &CombatEvent, out: &mut Vec<GameSignal>) {
         let effect_id = event.effect.effect_id;
 
         // Ability activation
         if effect_id == effect_id::ABILITYACTIVATE {
-            signals.push(GameSignal::AbilityActivated {
+            out.push(GameSignal::AbilityActivated {
                 ability_id: event.action.action_id,
                 ability_name: event.action.name,
                 source_id: event.source_entity.log_id,
@@ -1052,27 +1034,26 @@ impl EventProcessor {
                 timestamp: event.timestamp,
             });
         }
-        signals
     }
 
     /// Emit signals for damage events (tank buster detection, raid-wide damage, etc.).
     /// Pure transformation - no encounter state modification.
-    fn emit_damage_signals(&self, event: &CombatEvent) -> Vec<GameSignal> {
+    fn emit_damage_signals(&self, event: &CombatEvent, out: &mut Vec<GameSignal>) {
         // Only emit for damage during APPLYEFFECT
         if event.effect.type_id != effect_type_id::APPLYEFFECT
             || event.effect.effect_id != effect_id::DAMAGE
         {
-            return Vec::new();
+            return;
         }
 
         // Ensure we have valid source and target
         if event.source_entity.entity_type == EntityType::Empty
             || event.target_entity.entity_type == EntityType::Empty
         {
-            return Vec::new();
+            return;
         }
 
-        vec![GameSignal::DamageTaken {
+        out.push(GameSignal::DamageTaken {
             ability_id: event.action.action_id,
             ability_name: event.action.name,
             source_id: event.source_entity.log_id,
@@ -1084,27 +1065,27 @@ impl EventProcessor {
             target_name: event.target_entity.name,
             target_npc_id: event.target_entity.class_id,
             timestamp: event.timestamp,
-        }]
+        });
     }
 
     /// Emit signals for healing events (for effect refresh on heal completion).
     /// Pure transformation - no encounter state modification.
-    fn emit_healing_signals(&self, event: &CombatEvent) -> Vec<GameSignal> {
+    fn emit_healing_signals(&self, event: &CombatEvent, out: &mut Vec<GameSignal>) {
         // Only emit for heals during APPLYEFFECT
         if event.effect.type_id != effect_type_id::APPLYEFFECT
             || event.effect.effect_id != effect_id::HEAL
         {
-            return Vec::new();
+            return;
         }
 
         // Ensure we have valid source and target
         if event.source_entity.entity_type == EntityType::Empty
             || event.target_entity.entity_type == EntityType::Empty
         {
-            return Vec::new();
+            return;
         }
 
-        vec![GameSignal::HealingDone {
+        out.push(GameSignal::HealingDone {
             ability_id: event.action.action_id,
             ability_name: event.action.name,
             source_id: event.source_entity.log_id,
@@ -1116,7 +1097,7 @@ impl EventProcessor {
             target_name: event.target_entity.name,
             target_npc_id: event.target_entity.class_id,
             timestamp: event.timestamp,
-        }]
+        });
     }
 }
 

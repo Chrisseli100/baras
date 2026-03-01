@@ -525,6 +525,10 @@ pub fn check_timer_phase_transitions(
 
 /// Check if the current phase's end_trigger fired.
 /// Emits PhaseEndTriggered signal which other phases can use as a start_trigger.
+///
+/// Deduplicates: if a PhaseEndTriggered signal for this phase already exists in
+/// `current_signals`, we skip emission to prevent duplicates when this function
+/// is called multiple times per event (before and inside the fixed-point loop).
 pub fn check_phase_end_triggers(
     event: &CombatEvent,
     cache: &SessionCache,
@@ -539,6 +543,14 @@ pub fn check_phase_end_triggers(
     let Some(current_phase_id) = &enc.current_phase else {
         return Vec::new();
     };
+
+    // Dedup: already emitted PhaseEndTriggered for this phase in this event cycle
+    let already_emitted = current_signals.iter().any(|s| {
+        matches!(s, GameSignal::PhaseEndTriggered { phase_id, .. } if phase_id == current_phase_id)
+    });
+    if already_emitted {
+        return Vec::new();
+    }
 
     let def = &enc.boss_definitions()[def_idx];
 
