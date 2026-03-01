@@ -331,19 +331,12 @@ pub trait OverlayPlatform: Sized {
     /// Get information about all connected monitors
     fn get_monitors(&self) -> Vec<MonitorInfo>;
 
-    /// Get the monitor that contains the overlay's current position
-    /// Returns the primary monitor if the overlay is not on any monitor
+    /// Get the monitor that contains the overlay's current position.
+    /// Uses the overlay's center point (not top-left corner) to handle cases
+    /// where grid snapping pushes the top-left onto an adjacent monitor boundary.
     fn current_monitor(&self) -> Option<MonitorInfo> {
         let monitors = self.get_monitors();
-        let x = self.x();
-        let y = self.y();
-
-        // Find the monitor containing the overlay's top-left corner
-        monitors
-            .iter()
-            .find(|m| m.contains(x, y))
-            .or_else(|| monitors.iter().find(|m| m.is_primary))
-            .cloned()
+        find_monitor_at(self.x(), self.y(), self.width(), self.height(), &monitors).cloned()
     }
 
     /// Get the monitor ID for the overlay's current position

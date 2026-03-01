@@ -448,9 +448,20 @@ impl CliOutput {
         println!("{}", line);
         println!("  TIMER VALIDATION SUMMARY");
         println!("{}", line);
+        let active_at_end = self
+            .timers_started
+            .saturating_sub(self.timers_expired + self.timers_canceled);
         println!("Timers Started:   {}", self.timers_started);
         println!("Timers Expired:   {}", self.timers_expired);
         println!("Timers Canceled:  {}", self.timers_canceled);
+        println!(
+            "Active at End:    {}",
+            if active_at_end > 0 {
+                self.yellow(&active_at_end.to_string())
+            } else {
+                "0".to_string()
+            }
+        );
         println!("Alerts Fired:     {}", self.alerts_fired);
         println!(
             "Phase Changes:    {}",
