@@ -16,6 +16,7 @@
   --swtor-gold: #c9a227;
   --swtor-gold-dim: #8a7020;
   --swtor-gold-glow: rgba(201, 162, 39, 0.3);
+  --accent-gold: #d4a843;
   --swtor-red: #ff4a4a;
   --swtor-orange: #ff8c42;
   --swtor-orange-alpha-15: rgba(255, 140, 66, 0.15);
@@ -897,7 +898,7 @@ button:active {
 .overlay-controls {
   margin: 0;
   width: 100%;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -4262,8 +4263,10 @@ details[open] .collapsible-summary::before {
     var(--blue-alpha-15) 0%,
     var(--blue-alpha-5) 100%
   );
-  color: var(--swtor-blue);
+  color: var(--text-primary);
+  font-weight: 600;
   border-color: var(--swtor-blue-dim);
+  border-bottom: 2px solid var(--swtor-blue);
   box-shadow:
     0 0 10px var(--swtor-blue-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -6397,7 +6400,9 @@ details[open] .collapsible-summary::before {
 .tab-btn.active {
   background: var(--blue-alpha-15);
   border-color: var(--border-accent-medium);
-  color: var(--swtor-blue);
+  border-bottom: 2px solid var(--swtor-blue);
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 /* ─── Expandable List Items ──────────────────────────────────────────────────── */

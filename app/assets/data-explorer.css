@@ -483,11 +483,11 @@
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   background: var(--bg-tertiary);
   border: 1px solid transparent;
   border-bottom: none;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   cursor: pointer;
   transition: all var(--transition-fast);
   text-align: center;
@@ -503,21 +503,24 @@
 
 .data-tab.active {
   color: var(--text-primary);
+  font-weight: 600;
   background: var(--bg-secondary);
-  border-color: var(--border-subtle);
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-right: 2px solid rgba(255, 255, 255, 0.18);
+  border-top: none;
   border-bottom-color: var(--bg-secondary);
   position: relative;
 }
 
-/* Active tab underline accent */
+/* Active tab top accent bar */
 .data-tab.active::after {
   content: "";
   position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent-gold);
+  top: 0;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 /* Tab-specific accent colors */
@@ -525,15 +528,18 @@
   background: var(--accent-gold);
 } /* Overview - gold */
 .data-tab:nth-child(2).active::after {
+  background: hsl(270, 60%, 55%);
+} /* Charts - purple */
+.data-tab:nth-child(3).active::after {
   background: hsl(0, 70%, 50%);
 } /* Damage - red */
-.data-tab:nth-child(3).active::after {
+.data-tab:nth-child(4).active::after {
   background: hsl(120, 60%, 45%);
 } /* Healing - green */
-.data-tab:nth-child(4).active::after {
+.data-tab:nth-child(5).active::after {
   background: hsl(30, 80%, 50%);
 } /* Damage Taken - orange */
-.data-tab:nth-child(5).active::after {
+.data-tab:nth-child(6).active::after {
   background: hsl(180, 60%, 45%);
 } /* Healing Taken - teal */
 
@@ -1182,13 +1188,10 @@
   text-overflow: ellipsis;
 }
 
-/* Charts tab color */
-.data-tab:nth-child(6).active::after {
-  background: hsl(270, 60%, 55%);
-} /* Charts - purple */
+/* Combat Log tab color */
 .data-tab:nth-child(7).active::after {
-  background: hsl(180, 60%, 45%);
-} /* Combat Log - teal */
+  background: hsl(210, 50%, 55%);
+} /* Combat Log - steel blue */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Combat Log Panel
