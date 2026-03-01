@@ -9,7 +9,7 @@ use crate::state::info::AreaInfo;
 use crate::state::ipc::{
     ParseWorkerOutput, WorkerAreaInfo, WorkerPlayerDiscipline, WorkerPlayerInfo,
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet as HashbrownSet};
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
@@ -116,6 +116,19 @@ impl SessionCache {
         // Finalize the current encounter before creating a new one
         self.finalize_current_encounter();
 
+        // Collect log_ids of dead NPCs from the outgoing encounter so the next
+        // encounter can reject stale registrations for the same NPC instances.
+        let dead_npc_ids: HashbrownSet<i64> = self
+            .current_encounter()
+            .map(|enc| {
+                enc.npcs
+                    .values()
+                    .filter(|npc| npc.is_dead)
+                    .map(|npc| npc.log_id)
+                    .collect()
+            })
+            .unwrap_or_default();
+
         // Clear NPC instance tracking for fresh detection in new encounter
         self.seen_npc_instances.clear();
 
@@ -126,6 +139,17 @@ impl SessionCache {
         } else {
             CombatEncounter::new(id, ProcessingMode::Live)
         };
+
+        // Carry forward dead NPC log_ids from the prior encounter to prevent
+        // stale dead NPCs from being re-registered in rapid encounter transitions
+        if !dead_npc_ids.is_empty() {
+            tracing::debug!(
+                "[ENCOUNTER] Carrying {} dead NPC log_ids from prior encounter into new encounter ID={}",
+                dead_npc_ids.len(),
+                id
+            );
+            encounter.set_prior_dead_npcs(dead_npc_ids);
+        }
 
         // Set context from current area (use ID for language independence)
         let difficulty = Difficulty::from_difficulty_id(self.current_area.difficulty_id);

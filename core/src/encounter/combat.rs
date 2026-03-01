@@ -113,6 +113,10 @@ pub struct CombatEncounter {
     pub npcs: HashMap<i64, NpcInfo>,
     /// Buffered NPC targets from TargetSet events that arrived before InCombat
     pending_npc_targets: HashMap<i64, i64>,
+    /// NPC log_ids that were dead at the end of the prior encounter.
+    /// Used to prevent stale dead NPCs from being re-registered when a new
+    /// encounter starts quickly after the previous one.
+    prior_dead_npc_log_ids: HashSet<i64>,
     /// Whether all players are dead (sticky - once true, stays true)
     pub all_players_dead: bool,
     /// Whether the victory trigger has fired (for has_victory_trigger encounters).
@@ -187,6 +191,7 @@ impl CombatEncounter {
             players: HashMap::new(),
             npcs: HashMap::new(),
             pending_npc_targets: HashMap::new(),
+            prior_dead_npc_log_ids: HashSet::new(),
             all_players_dead: false,
             victory_triggered: false,
             victory_triggered_at: None,
@@ -225,6 +230,12 @@ impl CombatEncounter {
         player.death_time = None;
         enc.players.insert(player.id, player);
         enc
+    }
+
+    /// Set the log_ids of NPCs that were dead at the end of the prior encounter.
+    /// These NPCs will be excluded from registration in this encounter.
+    pub fn set_prior_dead_npcs(&mut self, ids: HashSet<i64>) {
+        self.prior_dead_npc_log_ids = ids;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -829,6 +840,17 @@ impl CombatEncounter {
                 // from targeting nearby enemies during grace period (e.g., boss jumping down
                 // after trash) or mount/dismount respawns between encounters
                 if self.state != EncounterState::InCombat {
+                    return;
+                }
+
+                // Skip NPCs that were dead at the end of the prior encounter.
+                // Prevents stale dead NPCs from bleeding into a new encounter when
+                // encounters transition quickly (e.g., wipe and immediate repull).
+                if self.prior_dead_npc_log_ids.contains(&entity.log_id) {
+                    tracing::trace!(
+                        "[ENCOUNTER] Skipping NPC registration for log_id={} (dead in prior encounter)",
+                        entity.log_id
+                    );
                     return;
                 }
 
