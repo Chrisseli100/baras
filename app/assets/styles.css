@@ -898,7 +898,7 @@ button:active {
 .overlay-controls {
   margin: 0;
   width: 100%;
-  flex: 0 0 auto;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
