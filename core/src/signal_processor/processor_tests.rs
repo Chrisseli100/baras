@@ -875,3 +875,669 @@ fn test_bestia_complete_encounter() {
     eprintln!("Total timers activated: {}", timers_activated.len());
     eprintln!("Activated timers: {:?}", timers_activated);
 }
+
+/// Test that counters with PhaseEntered triggers fire correctly for non-HP phase transitions.
+///
+/// This verifies the two-pass counter evaluation fix: counters are first evaluated before
+/// phase transitions (so counter_condition guards work), then re-evaluated after phase
+/// transitions so PhaseEntered/PhaseEnded/AnyPhaseChange triggers see the new phases.
+#[test]
+fn test_counter_phase_entered_trigger() {
+    use crate::combat_log::{Action, CombatEvent, Details, Effect, Entity, EntityType};
+    use crate::context::intern;
+    use crate::dsl::{
+        BossEncounterDefinition, CounterDefinition, EntityDefinition, PhaseDefinition, Trigger,
+    };
+    use crate::encounter::EncounterState;
+    use crate::encounter::entity_info::NpcInfo;
+    use crate::game_data::effect_id;
+
+    let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+        .unwrap()
+        .and_hms_opt(12, 0, 0)
+        .unwrap();
+
+    const ADD_NPC_CLASS_ID: i64 = 999001;
+    const ADD_NPC_LOG_ID: i64 = 888001;
+
+    // Build a boss definition with:
+    // - Phase p1 (initial, starts on CombatStart)
+    // - Phase p2 (starts on EntityDeath of add NPC)
+    // - Counter that increments on PhaseEntered(p2)
+    // - Counter that resets on PhaseEnded(p1)
+    let mut boss_def = BossEncounterDefinition {
+        id: "test_phase_counter".to_string(),
+        name: "Test Phase Counter".to_string(),
+        entities: vec![
+            EntityDefinition {
+                name: "Boss".to_string(),
+                ids: vec![100001],
+                is_boss: true,
+                is_kill_target: true,
+                triggers_encounter: None,
+                show_on_hp_overlay: None,
+            },
+            EntityDefinition {
+                name: "Add".to_string(),
+                ids: vec![ADD_NPC_CLASS_ID],
+                is_boss: false,
+                is_kill_target: false,
+                triggers_encounter: None,
+                show_on_hp_overlay: None,
+            },
+        ],
+        phases: vec![
+            PhaseDefinition {
+                id: "p1".to_string(),
+                name: "Phase 1".to_string(),
+                display_text: None,
+                start_trigger: Trigger::CombatStart,
+                end_trigger: None,
+                preceded_by: None,
+                conditions: vec![],
+                counter_condition: None,
+                resets_counters: vec![],
+            },
+            PhaseDefinition {
+                id: "p2".to_string(),
+                name: "Phase 2".to_string(),
+                display_text: None,
+                start_trigger: Trigger::EntityDeath {
+                    selector: vec![crate::dsl::triggers::EntitySelector::Name(
+                        "Add".to_string(),
+                    )],
+                },
+                end_trigger: None,
+                preceded_by: None,
+                conditions: vec![],
+                counter_condition: None,
+                resets_counters: vec![],
+            },
+        ],
+        counters: vec![
+            CounterDefinition {
+                id: "phase_enter_ct".to_string(),
+                name: "Phase Enter Counter".to_string(),
+                display_text: None,
+                increment_on: Trigger::PhaseEntered {
+                    phase_id: "p2".to_string(),
+                },
+                decrement_on: None,
+                reset_on: Trigger::CombatEnd,
+                initial_value: 0,
+                decrement: false,
+                set_value: None,
+            },
+            CounterDefinition {
+                id: "phase_end_ct".to_string(),
+                name: "Phase End Counter".to_string(),
+                display_text: None,
+                increment_on: Trigger::PhaseEnded {
+                    phase_id: "p1".to_string(),
+                },
+                decrement_on: None,
+                reset_on: Trigger::CombatEnd,
+                initial_value: 0,
+                decrement: false,
+                set_value: None,
+            },
+        ],
+        ..Default::default()
+    };
+    boss_def.build_indexes();
+
+    // Setup cache
+    let mut cache = SessionCache::default();
+    cache.load_boss_definitions(vec![boss_def], true);
+
+    // Get encounter into InCombat state with active boss and initial phase
+    if let Some(enc) = cache.current_encounter_mut() {
+        enc.state = EncounterState::InCombat;
+        enc.enter_combat_time = Some(ts);
+        enc.set_active_boss_idx(Some(0));
+        enc.set_phase("p1", ts);
+
+        // Register the add NPC so entity lifecycle can track it
+        enc.npcs.insert(
+            ADD_NPC_LOG_ID,
+            NpcInfo {
+                name: intern("Add"),
+                log_id: ADD_NPC_LOG_ID,
+                class_id: ADD_NPC_CLASS_ID,
+                current_hp: 1000,
+                max_hp: 1000,
+                ..Default::default()
+            },
+        );
+    }
+
+    let mut processor = EventProcessor::new();
+
+    // Mark the add NPC instance as seen (required for NpcFirstSeen dedup)
+    // We do this by processing a dummy event from the NPC first
+    let npc_seen_event = CombatEvent {
+        line_number: 1,
+        timestamp: ts,
+        source_entity: Entity {
+            name: intern("Add"),
+            class_id: ADD_NPC_CLASS_ID,
+            log_id: ADD_NPC_LOG_ID,
+            entity_type: EntityType::Npc,
+            health: (1000, 1000),
+        },
+        target_entity: Entity::default(),
+        action: Action::default(),
+        effect: Effect::default(),
+        details: Details::default(),
+    };
+    let _ = processor.process_event(npc_seen_event, &mut cache);
+
+    // Now send a death event for the add NPC — this should:
+    // 1. Emit EntityDeath signal
+    // 2. check_entity_phase_transitions matches EntityDeath -> starts p2
+    // 3. Second-pass counter eval sees PhaseChanged(p2) -> increments phase_enter_ct
+    let death_event = CombatEvent {
+        line_number: 2,
+        timestamp: ts + chrono::Duration::seconds(10),
+        source_entity: Entity::default(),
+        target_entity: Entity {
+            name: intern("Add"),
+            class_id: ADD_NPC_CLASS_ID,
+            log_id: ADD_NPC_LOG_ID,
+            entity_type: EntityType::Npc,
+            health: (0, 1000),
+        },
+        action: Action::default(),
+        effect: Effect {
+            effect_id: effect_id::DEATH,
+            ..Default::default()
+        },
+        details: Details::default(),
+    };
+    let (signals, _, _) = processor.process_event(death_event, &mut cache);
+
+    // Debug: print all signals
+    for s in &signals {
+        eprintln!("Signal: {}", signal_type_name(s));
+        if let GameSignal::PhaseChanged {
+            old_phase,
+            new_phase,
+            ..
+        } = s
+        {
+            eprintln!("  PhaseChanged: {:?} -> {}", old_phase, new_phase);
+        }
+        if let GameSignal::CounterChanged {
+            counter_id,
+            old_value,
+            new_value,
+            ..
+        } = s
+        {
+            eprintln!(
+                "  CounterChanged: {} {} -> {}",
+                counter_id, old_value, new_value
+            );
+        }
+    }
+
+    // Verify EntityDeath signal was emitted
+    let has_entity_death = signals
+        .iter()
+        .any(|s| matches!(s, GameSignal::EntityDeath { .. }));
+    assert!(has_entity_death, "Expected EntityDeath signal");
+
+    // Verify phase changed to p2
+    let has_phase_change = signals.iter().any(
+        |s| matches!(s, GameSignal::PhaseChanged { new_phase, .. } if new_phase == "p2"),
+    );
+    assert!(
+        has_phase_change,
+        "Expected PhaseChanged to p2 on EntityDeath"
+    );
+
+    // Verify counter with PhaseEntered(p2) trigger incremented (THE KEY FIX)
+    let phase_enter_counter = signals.iter().find(
+        |s| matches!(s, GameSignal::CounterChanged { counter_id, .. } if counter_id == "phase_enter_ct"),
+    );
+    assert!(
+        phase_enter_counter.is_some(),
+        "Expected CounterChanged for phase_enter_ct (PhaseEntered trigger). \
+         This tests the two-pass counter evaluation fix."
+    );
+    if let Some(GameSignal::CounterChanged {
+        old_value,
+        new_value,
+        ..
+    }) = phase_enter_counter
+    {
+        assert_eq!(*old_value, 0, "Counter should start at 0");
+        assert_eq!(*new_value, 1, "Counter should increment to 1");
+    }
+
+    // Verify the encounter's counter state is correct
+    let enc = cache.current_encounter().unwrap();
+    assert_eq!(
+        enc.get_counter("phase_enter_ct"),
+        1,
+        "phase_enter_ct should be 1 after PhaseEntered(p2)"
+    );
+    assert_eq!(
+        enc.phase(),
+        Some("p2"),
+        "Current phase should be p2 after entity death transition"
+    );
+}
+
+/// Test the fixed-point loop: phase cascade (A → B → C) in a single event.
+///
+/// Phase A ends via EntityDeath → Phase B starts (PhaseEnded(A) trigger) →
+/// Phase B's end_trigger fires immediately → Phase C starts (PhaseEnded(B) trigger).
+/// All three phase transitions happen within a single process_event call.
+#[test]
+fn test_phase_cascade_in_single_event() {
+    use crate::combat_log::{Action, CombatEvent, Details, Effect, Entity, EntityType};
+    use crate::context::intern;
+    use crate::dsl::{
+        BossEncounterDefinition, CounterDefinition, EntityDefinition, PhaseDefinition, Trigger,
+    };
+    use crate::encounter::EncounterState;
+    use crate::encounter::entity_info::NpcInfo;
+    use crate::game_data::effect_id;
+
+    let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+        .unwrap()
+        .and_hms_opt(12, 0, 0)
+        .unwrap();
+
+    const ADD_NPC_CLASS_ID: i64 = 999001;
+    const ADD_NPC_LOG_ID: i64 = 888001;
+
+    // Phase chain: p1 → p2 (on EntityDeath) → p3 (on PhaseEnded(p2), immediate end_trigger)
+    // Phase p2 has an end_trigger that fires immediately (PhaseEntered(p2) — fires the moment p2 starts)
+    // Counter tracks how many phase entries happened
+    let mut boss_def = BossEncounterDefinition {
+        id: "test_cascade".to_string(),
+        name: "Test Cascade".to_string(),
+        entities: vec![
+            EntityDefinition {
+                name: "Boss".to_string(),
+                ids: vec![100001],
+                is_boss: true,
+                is_kill_target: true,
+                triggers_encounter: None,
+                show_on_hp_overlay: None,
+            },
+            EntityDefinition {
+                name: "Add".to_string(),
+                ids: vec![ADD_NPC_CLASS_ID],
+                is_boss: false,
+                is_kill_target: false,
+                triggers_encounter: None,
+                show_on_hp_overlay: None,
+            },
+        ],
+        phases: vec![
+            PhaseDefinition {
+                id: "p1".to_string(),
+                name: "Phase 1".to_string(),
+                display_text: None,
+                start_trigger: Trigger::CombatStart,
+                end_trigger: Some(Trigger::EntityDeath {
+                    selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                }),
+                preceded_by: None,
+                conditions: vec![],
+                counter_condition: None,
+                resets_counters: vec![],
+            },
+            PhaseDefinition {
+                id: "p2".to_string(),
+                name: "Phase 2 (transient)".to_string(),
+                display_text: None,
+                start_trigger: Trigger::PhaseEnded {
+                    phase_id: "p1".to_string(),
+                },
+                // p2's end trigger fires on EntityDeath too (same signal that started the chain)
+                end_trigger: Some(Trigger::EntityDeath {
+                    selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                }),
+                preceded_by: Some("p1".to_string()),
+                conditions: vec![],
+                counter_condition: None,
+                resets_counters: vec![],
+            },
+            PhaseDefinition {
+                id: "p3".to_string(),
+                name: "Phase 3 (final)".to_string(),
+                display_text: None,
+                start_trigger: Trigger::PhaseEnded {
+                    phase_id: "p2".to_string(),
+                },
+                end_trigger: None,
+                preceded_by: Some("p2".to_string()),
+                conditions: vec![],
+                counter_condition: None,
+                resets_counters: vec![],
+            },
+        ],
+        counters: vec![CounterDefinition {
+            id: "cascade_ct".to_string(),
+            name: "Cascade Counter".to_string(),
+            display_text: None,
+            increment_on: Trigger::AnyPhaseChange,
+            decrement_on: None,
+            reset_on: Trigger::CombatEnd,
+            initial_value: 0,
+            decrement: false,
+            set_value: None,
+        }],
+        ..Default::default()
+    };
+    boss_def.build_indexes();
+
+    let mut cache = SessionCache::default();
+    cache.load_boss_definitions(vec![boss_def], true);
+
+    if let Some(enc) = cache.current_encounter_mut() {
+        enc.state = EncounterState::InCombat;
+        enc.enter_combat_time = Some(ts);
+        enc.set_active_boss_idx(Some(0));
+        enc.set_phase("p1", ts);
+        enc.npcs.insert(
+            ADD_NPC_LOG_ID,
+            NpcInfo {
+                name: intern("Add"),
+                log_id: ADD_NPC_LOG_ID,
+                class_id: ADD_NPC_CLASS_ID,
+                current_hp: 1000,
+                max_hp: 1000,
+                ..Default::default()
+            },
+        );
+    }
+
+    let mut processor = EventProcessor::new();
+
+    // Register NPC
+    let npc_event = CombatEvent {
+        line_number: 1,
+        timestamp: ts,
+        source_entity: Entity {
+            name: intern("Add"),
+            class_id: ADD_NPC_CLASS_ID,
+            log_id: ADD_NPC_LOG_ID,
+            entity_type: EntityType::Npc,
+            health: (1000, 1000),
+        },
+        target_entity: Entity::default(),
+        action: Action::default(),
+        effect: Effect::default(),
+        details: Details::default(),
+    };
+    let _ = processor.process_event(npc_event, &mut cache);
+
+    // Kill the add — should cascade: p1→p2→p3 in a single event
+    let death_event = CombatEvent {
+        line_number: 2,
+        timestamp: ts + chrono::Duration::seconds(10),
+        source_entity: Entity::default(),
+        target_entity: Entity {
+            name: intern("Add"),
+            class_id: ADD_NPC_CLASS_ID,
+            log_id: ADD_NPC_LOG_ID,
+            entity_type: EntityType::Npc,
+            health: (0, 1000),
+        },
+        action: Action::default(),
+        effect: Effect {
+            effect_id: effect_id::DEATH,
+            ..Default::default()
+        },
+        details: Details::default(),
+    };
+    let (signals, _, _) = processor.process_event(death_event, &mut cache);
+
+    // Debug output
+    for s in &signals {
+        match s {
+            GameSignal::PhaseChanged { old_phase, new_phase, .. } => {
+                eprintln!("PhaseChanged: {:?} -> {}", old_phase, new_phase);
+            }
+            GameSignal::CounterChanged { counter_id, old_value, new_value, .. } => {
+                eprintln!("CounterChanged: {} {} -> {}", counter_id, old_value, new_value);
+            }
+            GameSignal::PhaseEndTriggered { phase_id, .. } => {
+                eprintln!("PhaseEndTriggered: {}", phase_id);
+            }
+            _ => {}
+        }
+    }
+
+    // Verify full cascade happened
+    let phase_changes: Vec<_> = signals
+        .iter()
+        .filter_map(|s| match s {
+            GameSignal::PhaseChanged { new_phase, .. } => Some(new_phase.as_str()),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        phase_changes.contains(&"p2"),
+        "Expected PhaseChanged to p2. Got: {:?}",
+        phase_changes
+    );
+    assert!(
+        phase_changes.contains(&"p3"),
+        "Expected PhaseChanged to p3 (cascade). Got: {:?}",
+        phase_changes
+    );
+
+    // Final state should be p3
+    let enc = cache.current_encounter().unwrap();
+    assert_eq!(enc.phase(), Some("p3"), "Final phase should be p3");
+
+    // Counter should have incremented for each phase change (p1→p2, p2→p3)
+    let cascade_count = enc.get_counter("cascade_ct");
+    assert!(
+        cascade_count >= 2,
+        "cascade_ct should be >= 2 (one per phase change), got {}",
+        cascade_count
+    );
+}
+
+/// Test counter → phase chain: counter reaches threshold → phase transition.
+///
+/// Multiple EntityDeath events increment a counter. When it reaches 3, a phase
+/// transition with counter_condition fires. All within the fixed-point loop.
+#[test]
+fn test_counter_reaches_enables_phase() {
+    use crate::combat_log::{Action, CombatEvent, Details, Effect, Entity, EntityType};
+    use crate::context::intern;
+    use crate::dsl::CounterCondition;
+    use crate::dsl::{
+        BossEncounterDefinition, CounterDefinition, EntityDefinition, PhaseDefinition, Trigger,
+    };
+    use crate::encounter::EncounterState;
+    use crate::encounter::entity_info::NpcInfo;
+    use crate::game_data::effect_id;
+
+    let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+        .unwrap()
+        .and_hms_opt(12, 0, 0)
+        .unwrap();
+
+    const ADD_NPC_CLASS_ID: i64 = 999001;
+
+    // Phase p2 requires kill_count >= 3
+    let mut boss_def = BossEncounterDefinition {
+        id: "test_counter_phase".to_string(),
+        name: "Test Counter Phase".to_string(),
+        entities: vec![
+            EntityDefinition {
+                name: "Boss".to_string(),
+                ids: vec![100001],
+                is_boss: true,
+                is_kill_target: true,
+                triggers_encounter: None,
+                show_on_hp_overlay: None,
+            },
+            EntityDefinition {
+                name: "Add".to_string(),
+                ids: vec![ADD_NPC_CLASS_ID],
+                is_boss: false,
+                is_kill_target: false,
+                triggers_encounter: None,
+                show_on_hp_overlay: None,
+            },
+        ],
+        phases: vec![
+            PhaseDefinition {
+                id: "p1".to_string(),
+                name: "Phase 1".to_string(),
+                display_text: None,
+                start_trigger: Trigger::CombatStart,
+                end_trigger: None,
+                preceded_by: None,
+                conditions: vec![],
+                counter_condition: None,
+                resets_counters: vec![],
+            },
+            PhaseDefinition {
+                id: "p2".to_string(),
+                name: "Phase 2 (after 3 kills)".to_string(),
+                display_text: None,
+                start_trigger: Trigger::EntityDeath {
+                    selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                },
+                end_trigger: None,
+                preceded_by: None,
+                conditions: vec![],
+                counter_condition: Some(CounterCondition {
+                    counter_id: "kill_count".to_string(),
+                    operator: crate::dsl::ComparisonOp::Gte,
+                    value: 3,
+                }),
+                resets_counters: vec![],
+            },
+        ],
+        counters: vec![CounterDefinition {
+            id: "kill_count".to_string(),
+            name: "Kill Count".to_string(),
+            display_text: None,
+            increment_on: Trigger::EntityDeath {
+                selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+            },
+            decrement_on: None,
+            reset_on: Trigger::CombatEnd,
+            initial_value: 0,
+            decrement: false,
+            set_value: None,
+        }],
+        ..Default::default()
+    };
+    boss_def.build_indexes();
+
+    let mut cache = SessionCache::default();
+    cache.load_boss_definitions(vec![boss_def], true);
+
+    if let Some(enc) = cache.current_encounter_mut() {
+        enc.state = EncounterState::InCombat;
+        enc.enter_combat_time = Some(ts);
+        enc.set_active_boss_idx(Some(0));
+        enc.set_phase("p1", ts);
+    }
+
+    let mut processor = EventProcessor::new();
+
+    // Kill 3 adds (different log_ids so each registers as a fresh death)
+    for i in 0..3u32 {
+        let log_id = 888000 + i as i64;
+        let event_ts = ts + chrono::Duration::seconds(i as i64 + 1);
+
+        // Register NPC
+        if let Some(enc) = cache.current_encounter_mut() {
+            enc.npcs.insert(
+                log_id,
+                NpcInfo {
+                    name: intern("Add"),
+                    log_id,
+                    class_id: ADD_NPC_CLASS_ID,
+                    current_hp: 1000,
+                    max_hp: 1000,
+                    ..Default::default()
+                },
+            );
+        }
+
+        // NPC seen event
+        let seen = CombatEvent {
+            line_number: i as u64 * 2,
+            timestamp: event_ts,
+            source_entity: Entity {
+                name: intern("Add"),
+                class_id: ADD_NPC_CLASS_ID,
+                log_id,
+                entity_type: EntityType::Npc,
+                health: (1000, 1000),
+            },
+            target_entity: Entity::default(),
+            action: Action::default(),
+            effect: Effect::default(),
+            details: Details::default(),
+        };
+        let _ = processor.process_event(seen, &mut cache);
+
+        // Kill event
+        let death = CombatEvent {
+            line_number: i as u64 * 2 + 1,
+            timestamp: event_ts,
+            source_entity: Entity::default(),
+            target_entity: Entity {
+                name: intern("Add"),
+                class_id: ADD_NPC_CLASS_ID,
+                log_id,
+                entity_type: EntityType::Npc,
+                health: (0, 1000),
+            },
+            action: Action::default(),
+            effect: Effect {
+                effect_id: effect_id::DEATH,
+                ..Default::default()
+            },
+            details: Details::default(),
+        };
+        let (signals, _, _) = processor.process_event(death, &mut cache);
+
+        let kill_num = i + 1;
+        eprintln!("Kill #{}: counter={}", kill_num, cache.current_encounter().unwrap().get_counter("kill_count"));
+
+        if kill_num < 3 {
+            // Phase should NOT have transitioned yet
+            let has_p2 = signals.iter().any(
+                |s| matches!(s, GameSignal::PhaseChanged { new_phase, .. } if new_phase == "p2"),
+            );
+            assert!(
+                !has_p2,
+                "Phase should NOT transition to p2 after only {} kills",
+                kill_num
+            );
+        } else {
+            // Kill 3: counter_condition (kill_count >= 3) should be satisfied
+            // AND EntityDeath trigger matches → phase transitions to p2
+            let has_p2 = signals.iter().any(
+                |s| matches!(s, GameSignal::PhaseChanged { new_phase, .. } if new_phase == "p2"),
+            );
+            assert!(
+                has_p2,
+                "Phase SHOULD transition to p2 on kill #{} (counter_condition: kill_count >= 3)",
+                kill_num
+            );
+        }
+    }
+
+    let enc = cache.current_encounter().unwrap();
+    assert_eq!(enc.phase(), Some("p2"), "Final phase should be p2");
+    assert_eq!(enc.get_counter("kill_count"), 3, "kill_count should be 3");
+}

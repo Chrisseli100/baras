@@ -6,10 +6,7 @@
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    ChallengeDefinition, Condition, CounterCondition, CounterDefinition, CounterTrigger,
-    PhaseDefinition,
-};
+use super::{ChallengeDefinition, Condition, CounterCondition, CounterDefinition, PhaseDefinition};
 use crate::dsl::audio::AudioConfig;
 use baras_types::AlertTrigger;
 
@@ -493,33 +490,6 @@ impl BossEncounterDefinition {
             .find(|p| p.start_trigger.contains_combat_start())
     }
 
-    /// Get counters that should reset on any phase change
-    pub fn counters_reset_on_phase(&self) -> Vec<&str> {
-        self.counters
-            .iter()
-            .filter(|c| matches!(c.reset_on, CounterTrigger::AnyPhaseChange))
-            .map(|c| c.id.as_str())
-            .collect()
-    }
-
-    /// Get counters that reset on a specific phase
-    pub fn counters_reset_on_specific_phase(&self, phase_id: &str) -> Vec<&str> {
-        self.counters
-            .iter()
-            .filter(|c| matches!(&c.reset_on, CounterTrigger::PhaseEntered { phase_id: p } if p == phase_id))
-            .map(|c| c.id.as_str())
-            .collect()
-    }
-
-    /// Get counters that reset when a specific timer expires
-    pub fn counters_reset_on_timer(&self, timer_id: &str) -> Vec<&str> {
-        self.counters
-            .iter()
-            .filter(|c| matches!(&c.reset_on, CounterTrigger::TimerExpires { timer_id: t } if t == timer_id))
-            .map(|c| c.id.as_str())
-            .collect()
-    }
-
     /// Check if this encounter is for the given area
     pub fn matches_area(&self, area_name: &str) -> bool {
         self.area_name.eq_ignore_ascii_case(area_name)
@@ -531,6 +501,80 @@ impl BossEncounterDefinition {
             .iter()
             .flat_map(|e| e.ids.iter().copied())
             .collect();
+        self.validate_triggers();
+    }
+
+    /// Validate that triggers are used in supported contexts.
+    /// Logs warnings for trigger/system combinations that will silently never fire.
+    fn validate_triggers(&self) {
+        // Validate counter triggers
+        for counter in &self.counters {
+            let triggers: &[(&str, &crate::dsl::Trigger)] = &[
+                ("increment_on", &counter.increment_on),
+                ("reset_on", &counter.reset_on),
+            ];
+            for (field, trigger) in triggers {
+                if let Some(kind) = trigger.contains_unsupported_for_counters_phases() {
+                    tracing::warn!(
+                        boss = %self.id,
+                        counter = %counter.id,
+                        field = %field,
+                        trigger_type = %kind,
+                        "Counter trigger type is not supported (only works for timers) and will never fire"
+                    );
+                }
+            }
+            if let Some(ref dec_trigger) = counter.decrement_on {
+                if let Some(kind) = dec_trigger.contains_unsupported_for_counters_phases() {
+                    tracing::warn!(
+                        boss = %self.id,
+                        counter = %counter.id,
+                        field = "decrement_on",
+                        trigger_type = %kind,
+                        "Counter trigger type is not supported (only works for timers) and will never fire"
+                    );
+                }
+            }
+        }
+
+        // Validate phase triggers
+        for phase in &self.phases {
+            if let Some(kind) = phase
+                .start_trigger
+                .contains_unsupported_for_counters_phases()
+            {
+                tracing::warn!(
+                    boss = %self.id,
+                    phase = %phase.id,
+                    field = "start_trigger",
+                    trigger_type = %kind,
+                    "Phase trigger type is not supported (only works for timers) and will never fire"
+                );
+            }
+            if let Some(ref end_trigger) = phase.end_trigger {
+                if let Some(kind) = end_trigger.contains_unsupported_for_counters_phases() {
+                    tracing::warn!(
+                        boss = %self.id,
+                        phase = %phase.id,
+                        field = "end_trigger",
+                        trigger_type = %kind,
+                        "Phase trigger type is not supported (only works for timers) and will never fire"
+                    );
+                }
+            }
+        }
+
+        // Validate victory trigger
+        if let Some(ref trigger) = self.victory_trigger {
+            if let Some(kind) = trigger.contains_unsupported_for_victory() {
+                tracing::warn!(
+                    boss = %self.id,
+                    field = "victory_trigger",
+                    trigger_type = %kind,
+                    "Victory trigger type is not supported and will never fire"
+                );
+            }
+        }
     }
 
     /// Check if any entity in this encounter has the given NPC class ID

@@ -92,27 +92,79 @@ impl EventProcessor {
         // Check if current phase's end_trigger fired (emits PhaseEndTriggered signal)
         signals.extend(phase::check_phase_end_triggers(&event, cache, &signals));
 
-        // Check for counter increments based on events and signals
-        // IMPORTANT: This must happen BEFORE phase transitions so counter_conditions
-        // see the updated values (e.g., fs_burn needs counter=4 after 4th shield phase)
+        // ── Counter ↔ Phase fixed-point loop ────────────────────────────────
+        //
+        // Counters and phases can trigger each other:
+        //   - Counter increments can satisfy counter_conditions on phases
+        //   - Phase transitions produce PhaseChanged/PhaseEndTriggered signals
+        //     that counters react to (PhaseEntered, PhaseEnded, AnyPhaseChange)
+        //   - Counter changes produce CounterChanged signals that other counters
+        //     or phases may react to (CounterReaches)
+        //
+        // We evaluate in a loop until no new signals are produced (fixed-point).
+        // The watermark tracks which signals have already been processed so each
+        // iteration only evaluates NEW signals — preventing double-counting.
+        //
+        // First iteration: evaluate counters against the raw event + all signals
+        // so far (event-based triggers like AbilityCast only fire here).
+        // Subsequent iterations: evaluate counters against new signals only.
+        //
+        // Phases are naturally idempotent (current_phase == target is skipped).
+        // Counters are safe because each iteration only sees new signals via watermark.
+        //
+        // Termination: bounded by number of phases (each can enter at most once)
+        // plus number of counters. Safety cap prevents infinite loops from
+        // circular definitions.
+
+        const MAX_ITERATIONS: usize = 20;
+        let skip_time_phases = cache.is_in_grace_window();
+
+        // First iteration: event-based counter evaluation
         signals.extend(counter::check_counter_increments(&event, cache, &signals));
 
-        // Check for ability/effect-based phase transitions (can now match PhaseEnded)
-        signals.extend(phase::check_ability_phase_transitions(
-            &event, cache, &signals,
-        ));
+        for iteration in 0..MAX_ITERATIONS {
+            let watermark = signals.len();
 
-        // Check for entity-based phase transitions (EntityFirstSeen, EntityDeath, PhaseEnded)
-        signals.extend(phase::check_entity_phase_transitions(
-            cache,
-            &signals,
-            event.timestamp,
-        ));
+            // Phases: check all transition types against current signal state
+            signals.extend(phase::check_ability_phase_transitions(
+                &event, cache, &signals,
+            ));
+            signals.extend(phase::check_entity_phase_transitions(
+                cache,
+                &signals,
+                event.timestamp,
+            ));
+            if !skip_time_phases {
+                signals.extend(phase::check_time_phase_transitions(cache, event.timestamp));
+            }
 
-        // Update combat time and check for TimeElapsed phase transitions
-        // Skip during grace window to prevent inflating combat_time_secs/phase durations
-        if !cache.is_in_grace_window() {
-            signals.extend(phase::check_time_phase_transitions(cache, event.timestamp));
+            // Check if current phase's end_trigger fired from new signals
+            signals.extend(phase::check_phase_end_triggers(&event, cache, &signals));
+
+            // Did anything new get produced?
+            if signals.len() == watermark {
+                break; // Fixed-point reached
+            }
+
+            // Evaluate counters against only the NEW signals from this iteration
+            let new_signals = &signals[watermark..];
+            signals.extend(counter::check_counter_signal_triggers(
+                cache,
+                new_signals,
+                event.timestamp,
+            ));
+
+            // If still nothing new after counter eval, we're done
+            if signals.len() == watermark {
+                break;
+            }
+
+            if iteration == MAX_ITERATIONS - 1 {
+                tracing::warn!(
+                    "Counter/phase fixed-point loop hit safety cap ({MAX_ITERATIONS} iterations). \
+                     Possible circular trigger definition."
+                );
+            }
         }
 
         // Victory trigger detection (for special encounters like Coratanni)

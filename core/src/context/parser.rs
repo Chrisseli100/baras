@@ -235,10 +235,16 @@ impl ParsingSession {
             // Capture timestamp before dispatch (needed for counter triggers)
             let event_timestamp = event.timestamp;
 
+            // ── Timer feedback loop ─────────────────────────────────────────
+            //
+            // Dispatch signals to timers, then check if timer events (expires,
+            // starts, cancels) trigger counter/phase changes. If they do,
+            // re-dispatch those new signals and repeat until quiescent.
+            //
+            // This closes the full interaction loop:
+            //   signals → timers → timer events → counters/phases → new signals → timers → ...
             self.dispatch_signals(&signals);
-
-            // Process counter triggers from any timers that expired during signal dispatch
-            self.process_timer_counter_triggers(event_timestamp);
+            self.process_timer_feedback_loop(event_timestamp);
 
             if should_flush {
                 self.flush_encounter_parquet();
@@ -350,44 +356,88 @@ impl ParsingSession {
         }
     }
 
-    /// Process counter triggers from timer events (expires and starts).
-    /// Must be called after dispatch_signals when timer manager may have timer events.
-    fn process_timer_counter_triggers(&mut self, timestamp: chrono::NaiveDateTime) {
-        // Get timer IDs from timer manager (clone to release lock before further processing)
-        let Some(timer_mgr) = &self.timer_manager else {
-            return;
-        };
-        let timer_mgr = timer_mgr.lock().unwrap_or_else(|p| p.into_inner());
-        let (expired_ids, started_ids, canceled_ids) = (
-            timer_mgr.expired_timer_ids().to_vec(),
-            timer_mgr.started_timer_ids().to_vec(),
-            timer_mgr.canceled_timer_ids().to_vec(),
-        );
-        drop(timer_mgr); // Release lock before further processing
+    /// Timer feedback loop: process counter/phase triggers from timer events until quiescent.
+    ///
+    /// After `dispatch_signals()` sends signals to the TimerManager, timers may have
+    /// expired, started, or been canceled. Those timer events can trigger counter
+    /// increments and phase transitions, which produce new signals that are dispatched
+    /// back to timers. This loop repeats until no new timer events are produced.
+    ///
+    /// This closes all cross-system interaction gaps:
+    ///   - Timer expires → counter increments → CounterReaches on timer/phase
+    ///   - Timer expires → phase transition → PhaseEntered on counter/timer
+    ///   - Timer starts → counter/phase → new signals → more timers
+    fn process_timer_feedback_loop(&mut self, timestamp: chrono::NaiveDateTime) {
+        const MAX_ITERATIONS: usize = 10;
 
-        if expired_ids.is_empty() && started_ids.is_empty() && canceled_ids.is_empty() {
-            return;
-        }
+        for iteration in 0..MAX_ITERATIONS {
+            // Read timer events (clone to release lock before further processing)
+            let (expired_ids, started_ids, canceled_ids) = {
+                let Some(timer_mgr) = &self.timer_manager else {
+                    return;
+                };
+                let timer_mgr = timer_mgr.lock().unwrap_or_else(|p| p.into_inner());
+                let result = (
+                    timer_mgr.batch_expired_timer_ids().to_vec(),
+                    timer_mgr.batch_started_timer_ids().to_vec(),
+                    timer_mgr.batch_canceled_timer_ids().to_vec(),
+                );
+                drop(timer_mgr);
+                result
+            };
 
-        // Update counters based on timer events and dispatch the resulting signals
-        // so that counter_reaches triggers can fire from timer-driven counter changes.
-        if let Some(cache) = &mut self.session_cache {
-            use crate::signal_processor::check_counter_timer_triggers;
-            let counter_signals =
-                check_counter_timer_triggers(&expired_ids, &started_ids, &canceled_ids, cache, timestamp);
-            if !counter_signals.is_empty() {
-                self.dispatch_signals(&counter_signals);
+            if expired_ids.is_empty() && started_ids.is_empty() && canceled_ids.is_empty() {
+                break; // No timer events — quiescent
             }
-        }
 
-        // Check phase transitions triggered by timer events (TimerExpires/TimerStarted).
-        // Run after counter dispatch so phases can react to updated counter state.
-        if let Some(cache) = &mut self.session_cache {
-            use crate::signal_processor::check_timer_phase_transitions;
-            let phase_signals =
-                check_timer_phase_transitions(&expired_ids, &started_ids, &canceled_ids, cache, timestamp);
-            if !phase_signals.is_empty() {
-                self.dispatch_signals(&phase_signals);
+            let mut new_signals = Vec::new();
+
+            // Counter triggers from timer events
+            if let Some(cache) = &mut self.session_cache {
+                use crate::signal_processor::check_counter_timer_triggers;
+                new_signals.extend(check_counter_timer_triggers(
+                    &expired_ids, &started_ids, &canceled_ids, cache, timestamp,
+                ));
+            }
+
+            // Phase triggers from timer events
+            if let Some(cache) = &mut self.session_cache {
+                use crate::signal_processor::check_timer_phase_transitions;
+                new_signals.extend(check_timer_phase_transitions(
+                    &expired_ids, &started_ids, &canceled_ids, cache, timestamp,
+                ));
+            }
+
+            // Run the inner counter↔phase fixed-point loop on any new signals
+            // so that timer→counter→phase and timer→phase→counter chains resolve
+            if !new_signals.is_empty() {
+                if let Some(cache) = &mut self.session_cache {
+                    use crate::signal_processor::check_counter_signal_triggers;
+                    let mut watermark = 0;
+                    for _ in 0..10 {
+                        let w = new_signals.len();
+                        if w == watermark { break; }
+                        let slice = &new_signals[watermark..];
+                        watermark = w;
+                        new_signals.extend(check_counter_signal_triggers(cache, slice, timestamp));
+                        // Phase transitions from counter changes are handled by the
+                        // next outer iteration (timer dispatch will see PhaseChanged signals)
+                    }
+                }
+            }
+
+            if new_signals.is_empty() {
+                break; // No counter/phase reactions — quiescent
+            }
+
+            // Dispatch new signals back to timers (may start/expire more timers)
+            self.dispatch_signals(&new_signals);
+
+            if iteration == MAX_ITERATIONS - 1 {
+                tracing::warn!(
+                    "Timer feedback loop hit safety cap ({MAX_ITERATIONS} iterations). \
+                     Possible circular timer/counter/phase definition."
+                );
             }
         }
     }
@@ -454,6 +504,11 @@ impl ParsingSession {
                 .and_then(|c| c.current_encounter());
             timer_mgr.lock().unwrap_or_else(|p| p.into_inner()).tick(encounter);
         }
+
+        // Run timer feedback loop so timer expirations during tick() can
+        // cascade into counter/phase changes and back into timers.
+        let now = chrono::Local::now().naive_local();
+        self.process_timer_feedback_loop(now);
     }
 
     /// Update effect definitions (e.g., after config reload). No-op in Historical mode.

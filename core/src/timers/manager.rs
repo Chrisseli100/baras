@@ -54,14 +54,25 @@ pub struct TimerManager {
     /// Fired alerts (ephemeral notifications, not countdown timers)
     pub(super) fired_alerts: Vec<FiredAlert>,
 
-    /// Timers that expired this tick (for chaining)
+    /// Timers that expired during the current signal (cleared per-signal for
+    /// correct chain-trigger logic inside `process_expirations`).
     expired_this_tick: Vec<String>,
 
-    /// Timers that started this tick (for counter triggers)
+    /// Timers that started during the current signal (cleared per-signal).
     started_this_tick: Vec<String>,
 
-    /// Timers that were canceled this tick (for validation output)
+    /// Timers that were canceled during the current signal (cleared per-signal).
     canceled_this_tick: Vec<String>,
+
+    /// Batch-level accumulation of expired timer IDs across all signals in a
+    /// `handle_signals` or `tick` call. Read by the timer feedback loop.
+    batch_expired: Vec<String>,
+
+    /// Batch-level accumulation of started timer IDs.
+    batch_started: Vec<String>,
+
+    /// Batch-level accumulation of canceled timer IDs.
+    batch_canceled: Vec<String>,
 
     /// Whether we're currently in combat
     pub(super) in_combat: bool,
@@ -118,6 +129,9 @@ impl TimerManager {
             expired_this_tick: Vec::new(),
             started_this_tick: Vec::new(),
             canceled_this_tick: Vec::new(),
+            batch_expired: Vec::new(),
+            batch_started: Vec::new(),
+            batch_canceled: Vec::new(),
             in_combat: false,
             combat_start_time: None,
             last_timestamp: None,
@@ -355,6 +369,14 @@ impl TimerManager {
     /// Pass the current encounter context to allow timer restarts.
     pub fn tick(&mut self, encounter: Option<&crate::encounter::CombatEncounter>) {
         if let Some(ts) = self.last_timestamp {
+            // Clear per-signal and batch vectors (tick is a standalone entry point)
+            self.started_this_tick.clear();
+            self.canceled_this_tick.clear();
+            self.expired_this_tick.clear();
+            self.batch_expired.clear();
+            self.batch_started.clear();
+            self.batch_canceled.clear();
+
             // Evaluate combat-time triggers (CombatStart + TimeElapsed) so they
             // fire even during idle periods (no combat events arriving).
             signal_handlers::handle_combat_time_triggers(self, encounter);
@@ -373,6 +395,11 @@ impl TimerManager {
             for timer_id in self.canceled_this_tick.clone() {
                 self.start_timers_on_cancel(&timer_id, ts);
             }
+
+            // Populate batch vectors so accessors return tick's events
+            self.batch_expired.extend(self.expired_this_tick.drain(..));
+            self.batch_started.extend(self.started_this_tick.drain(..));
+            self.batch_canceled.extend(self.canceled_this_tick.drain(..));
         }
     }
 
@@ -506,19 +533,36 @@ impl TimerManager {
         &self.fired_alerts
     }
 
-    /// Get timer IDs that expired this tick (for counter triggers).
+    /// Get timer IDs that expired during the last `handle_signal` call.
+    /// For per-signal consumers (e.g. validation tool).
     pub fn expired_timer_ids(&self) -> &[String] {
         &self.expired_this_tick
     }
 
-    /// Get timer IDs that started this tick (for counter triggers).
+    /// Get timer IDs that started during the last `handle_signal` call.
     pub fn started_timer_ids(&self) -> &[String] {
         &self.started_this_tick
     }
 
-    /// Get timer IDs that were canceled this tick (for validation output).
+    /// Get timer IDs that were canceled during the last `handle_signal` call.
     pub fn canceled_timer_ids(&self) -> &[String] {
         &self.canceled_this_tick
+    }
+
+    /// Get timer IDs that expired across the entire `handle_signals` batch.
+    /// Used by the timer feedback loop in `parser.rs`.
+    pub fn batch_expired_timer_ids(&self) -> &[String] {
+        &self.batch_expired
+    }
+
+    /// Get timer IDs that started across the entire `handle_signals` batch.
+    pub fn batch_started_timer_ids(&self) -> &[String] {
+        &self.batch_started
+    }
+
+    /// Get timer IDs that were canceled across the entire `handle_signals` batch.
+    pub fn batch_canceled_timer_ids(&self) -> &[String] {
+        &self.batch_canceled
     }
 
     /// Check if a timer definition is active for current encounter context.
@@ -726,8 +770,6 @@ impl TimerManager {
         encounter: Option<&crate::encounter::CombatEncounter>,
     ) {
         self.expired_this_tick.clear();
-        // Note: started_this_tick is cleared at the START of handle_signal,
-        // not here, because timer starts happen BEFORE process_expirations.
 
         // Find expired timer keys
         let expired_keys: Vec<_> = self
@@ -899,6 +941,32 @@ impl TimerManager {
 }
 
 impl SignalHandler for TimerManager {
+    /// Override handle_signals to accumulate batch-level timer event vectors.
+    ///
+    /// Per-signal vectors (`expired_this_tick`, `started_this_tick`, `canceled_this_tick`)
+    /// are cleared at the start of each `handle_signal` / `process_expirations` call
+    /// so that chain-trigger logic within a single signal sees only that signal's events.
+    ///
+    /// After each signal, we drain the per-signal vectors into the batch-level vectors
+    /// (`batch_expired`, `batch_started`, `batch_canceled`) so the timer feedback loop
+    /// in `parser.rs` can see ALL timer events from the entire batch.
+    fn handle_signals(
+        &mut self,
+        signals: &[GameSignal],
+        encounter: Option<&crate::encounter::CombatEncounter>,
+    ) {
+        self.batch_expired.clear();
+        self.batch_started.clear();
+        self.batch_canceled.clear();
+        for signal in signals {
+            self.handle_signal(signal, encounter);
+            // Accumulate per-signal events into batch-level vectors
+            self.batch_expired.extend(self.expired_this_tick.drain(..));
+            self.batch_started.extend(self.started_this_tick.drain(..));
+            self.batch_canceled.extend(self.canceled_this_tick.drain(..));
+        }
+    }
+
     fn handle_signal(
         &mut self,
         signal: &GameSignal,
@@ -947,8 +1015,8 @@ impl SignalHandler for TimerManager {
             }
         }
 
-        // Clear tick-tracking vectors at the start of each signal processing.
-        // Timer starts/cancels accumulate during matching below, then we read them after handle_signal.
+        // Clear per-signal tracking vectors. Batch-level accumulation happens in
+        // handle_signals() after each handle_signal() call.
         self.started_this_tick.clear();
         self.canceled_this_tick.clear();
 

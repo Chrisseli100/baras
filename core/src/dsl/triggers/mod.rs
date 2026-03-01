@@ -627,6 +627,39 @@ impl Trigger {
         }
     }
 
+    /// Check if this trigger contains variants that are unsupported for counters/phases.
+    ///
+    /// `TargetSet` and `TimeElapsed` only work in the timer system. Using them on
+    /// counters or phases will silently never fire.
+    pub fn contains_unsupported_for_counters_phases(&self) -> Option<&'static str> {
+        match self {
+            Self::TargetSet { .. } => Some("target_set"),
+            Self::TimeElapsed { .. } => Some("time_elapsed"),
+            Self::AnyOf { conditions } => conditions
+                .iter()
+                .find_map(|c| c.contains_unsupported_for_counters_phases()),
+            _ => None,
+        }
+    }
+
+    /// Check if this trigger contains variants that are unsupported for victory triggers.
+    ///
+    /// `TargetSet`, `TimeElapsed`, `TimerExpires`, `TimerStarted`, and `TimerCanceled`
+    /// are not evaluated for victory triggers.
+    pub fn contains_unsupported_for_victory(&self) -> Option<&'static str> {
+        match self {
+            Self::TargetSet { .. } => Some("target_set"),
+            Self::TimeElapsed { .. } => Some("time_elapsed"),
+            Self::TimerExpires { .. } => Some("timer_expires"),
+            Self::TimerStarted { .. } => Some("timer_started"),
+            Self::TimerCanceled { .. } => Some("timer_canceled"),
+            Self::AnyOf { conditions } => conditions
+                .iter()
+                .find_map(|c| c.contains_unsupported_for_victory()),
+            _ => None,
+        }
+    }
+
     /// Collect all timer IDs referenced by this trigger (recursively for AnyOf).
     /// Returns TimerExpires, TimerStarted, and TimerCanceled timer_id values.
     pub fn collect_timer_refs(&self, out: &mut HashSet<String>) {

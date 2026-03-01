@@ -52,6 +52,16 @@ increment_on = { type = "phase_ended", phase_id = "test_timed_phase" }
 reset_on = { type = "combat_end" }
 initial_value = 0
 
+# Test counter + PhaseEntered (tests second-pass counter evaluation)
+# This counter should increment when the timed phase (TimeElapsed) starts,
+# which is a non-HP phase transition that requires the two-pass fix.
+[[boss.counters]]
+id = "phase_entered_count"
+name = "Phase Entered Count"
+increment_on = { type = "phase_entered", phase_id = "test_timed_phase" }
+reset_on = { type = "combat_end" }
+initial_value = 0
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PHASES - Test phase triggers
 # ═══════════════════════════════════════════════════════════════════════════════

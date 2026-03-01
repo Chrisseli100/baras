@@ -12,13 +12,16 @@ use crate::state::SessionCache;
 use super::GameSignal;
 use super::trigger_eval::{self, FilterContext};
 
-/// Check for counter increments/decrements based on events and emit CounterChanged signals.
+/// Check for counter increments/decrements based on the raw combat event AND accumulated signals.
+///
+/// Called once per event at the start of the counter↔phase evaluation loop.
+/// This handles event-based triggers (AbilityCast, EffectApplied, etc.) as well as
+/// signal-based triggers against the full signal batch up to this point.
 pub fn check_counter_increments(
     event: &CombatEvent,
     cache: &mut SessionCache,
     current_signals: &[GameSignal],
 ) -> Vec<GameSignal> {
-    // Clone the Arc (cheap) to hold definitions while we mutate cache
     let (definitions, def_idx, boss_ids, local_player_id, current_target_id) = {
         let Some(enc) = cache.current_encounter() else {
             return Vec::new();
@@ -44,7 +47,7 @@ pub fn check_counter_increments(
     let mut signals = Vec::new();
 
     for counter in &def.counters {
-        // Check increment_on trigger
+        // Check increment_on trigger (event + signals)
         if check_counter_trigger(&counter.increment_on, event, current_signals, &filter_ctx) {
             let Some(enc) = cache.current_encounter_mut() else {
                 tracing::error!(
@@ -54,7 +57,7 @@ pub fn check_counter_increments(
             };
             let (old_value, new_value) = enc.modify_counter(
                 &counter.id,
-                counter.decrement, // Legacy: use decrement flag for increment_on
+                counter.decrement,
                 counter.set_value,
             );
 
@@ -66,7 +69,7 @@ pub fn check_counter_increments(
             });
         }
 
-        // Check decrement_on trigger (always decrements)
+        // Check decrement_on trigger (event + signals)
         if let Some(ref decrement_trigger) = counter.decrement_on
             && check_counter_trigger(decrement_trigger, event, current_signals, &filter_ctx)
         {
@@ -78,8 +81,8 @@ pub fn check_counter_increments(
             };
             let (old_value, new_value) = enc.modify_counter(
                 &counter.id,
-                true, // Always decrement
-                None, // Never set_value for decrement_on
+                true,
+                None,
             );
 
             signals.push(GameSignal::CounterChanged {
@@ -90,7 +93,7 @@ pub fn check_counter_increments(
             });
         }
 
-        // Check reset_on trigger (resets to initial_value)
+        // Check reset_on trigger (event + signals)
         if check_counter_trigger(&counter.reset_on, event, current_signals, &filter_ctx) {
             let Some(enc) = cache.current_encounter_mut() else {
                 tracing::error!("BUG: encounter missing in check_counter_increments (reset_on)");
@@ -99,7 +102,6 @@ pub fn check_counter_increments(
             let old_value = enc.get_counter(&counter.id);
             let new_value = counter.initial_value;
 
-            // Only emit signal if value actually changes
             if old_value != new_value {
                 enc.set_counter(&counter.id, new_value);
                 signals.push(GameSignal::CounterChanged {
@@ -107,6 +109,117 @@ pub fn check_counter_increments(
                     old_value,
                     new_value,
                     timestamp: event.timestamp,
+                });
+            }
+        }
+    }
+
+    signals
+}
+
+/// Check for counter increments/decrements based on NEW signals only (no event matching).
+///
+/// Called on each iteration of the counter↔phase fixed-point loop with only the
+/// signals produced since the last watermark. This ensures counters react to
+/// PhaseChanged, CounterChanged, and other signals without double-counting.
+pub fn check_counter_signal_triggers(
+    cache: &mut SessionCache,
+    new_signals: &[GameSignal],
+    timestamp: chrono::NaiveDateTime,
+) -> Vec<GameSignal> {
+    if new_signals.is_empty() {
+        return Vec::new();
+    }
+
+    let (definitions, def_idx, boss_ids, local_player_id, current_target_id) = {
+        let Some(enc) = cache.current_encounter() else {
+            return Vec::new();
+        };
+        let Some(idx) = enc.active_boss_idx() else {
+            return Vec::new();
+        };
+        let boss_ids = enc.boss_entity_ids();
+        let local_player_id = Some(cache.player.id).filter(|&id| id != 0);
+        let current_target_id =
+            local_player_id.and_then(|pid| enc.local_player_target_id(pid));
+        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id)
+    };
+    let def = &definitions[def_idx];
+
+    let filter_ctx = FilterContext {
+        entities: &def.entities,
+        local_player_id,
+        current_target_id,
+        boss_entity_ids: &boss_ids,
+    };
+
+    let mut signals = Vec::new();
+
+    for counter in &def.counters {
+        // Check increment_on trigger (signals only)
+        if trigger_eval::check_signal_trigger(&counter.increment_on, new_signals, &filter_ctx) {
+            let Some(enc) = cache.current_encounter_mut() else {
+                tracing::error!(
+                    "BUG: encounter missing in check_counter_signal_triggers (increment_on)"
+                );
+                continue;
+            };
+            let (old_value, new_value) = enc.modify_counter(
+                &counter.id,
+                counter.decrement,
+                counter.set_value,
+            );
+
+            signals.push(GameSignal::CounterChanged {
+                counter_id: counter.id.clone(),
+                old_value,
+                new_value,
+                timestamp,
+            });
+        }
+
+        // Check decrement_on trigger (signals only)
+        if let Some(ref decrement_trigger) = counter.decrement_on
+            && trigger_eval::check_signal_trigger(decrement_trigger, new_signals, &filter_ctx)
+        {
+            let Some(enc) = cache.current_encounter_mut() else {
+                tracing::error!(
+                    "BUG: encounter missing in check_counter_signal_triggers (decrement_on)"
+                );
+                continue;
+            };
+            let (old_value, new_value) = enc.modify_counter(
+                &counter.id,
+                true,
+                None,
+            );
+
+            signals.push(GameSignal::CounterChanged {
+                counter_id: counter.id.clone(),
+                old_value,
+                new_value,
+                timestamp,
+            });
+        }
+
+        // Check reset_on trigger (signals only)
+        if trigger_eval::check_signal_trigger(&counter.reset_on, new_signals, &filter_ctx) {
+            let Some(enc) = cache.current_encounter_mut() else {
+                tracing::error!(
+                    "BUG: encounter missing in check_counter_signal_triggers (reset_on)"
+                );
+                continue;
+            };
+            let old_value = enc.get_counter(&counter.id);
+            let new_value = counter.initial_value;
+
+            if old_value != new_value {
+                enc.set_counter(&counter.id, new_value);
+                signals.push(GameSignal::CounterChanged {
+                    counter_id: counter.id.clone(),
+                    old_value,
+                    new_value,
+                    timestamp,
                 });
             }
         }
@@ -128,7 +241,6 @@ pub fn check_counter_timer_triggers(
         return Vec::new();
     }
 
-    // Clone the Arc (cheap) to hold definitions while we mutate cache
     let (definitions, def_idx) = {
         let Some(enc) = cache.current_encounter() else {
             return Vec::new();
@@ -177,7 +289,7 @@ pub fn check_counter_timer_triggers(
                 };
                 let (old_value, new_value) = enc.modify_counter(
                     &counter.id,
-                    true, // Always decrement
+                    true,
                     None,
                 );
                 signals.push(GameSignal::CounterChanged {
@@ -220,19 +332,14 @@ pub fn check_counter_timer_triggers(
 }
 
 /// Check if a counter trigger is satisfied by the current event/signals.
-///
-/// Delegates to the unified trigger evaluation functions in `trigger_eval`.
 fn check_counter_trigger(
     trigger: &crate::dsl::Trigger,
     event: &CombatEvent,
     current_signals: &[GameSignal],
     filter_ctx: &FilterContext,
 ) -> bool {
-    // Try event-based triggers first (from CombatEvent)
     if trigger_eval::check_event_trigger(trigger, event, Some(filter_ctx)) {
         return true;
     }
-
-    // Then check signal-based triggers (from GameSignal)
     trigger_eval::check_signal_trigger(trigger, current_signals, filter_ctx)
 }

@@ -459,13 +459,6 @@ impl CombatEncounter {
         (old_value, new_value)
     }
 
-    /// Decrement a counter (saturates at 0)
-    pub fn decrement_counter(&mut self, counter_id: &str) -> u32 {
-        let count = self.counters.entry(counter_id.to_string()).or_insert(0);
-        *count = count.saturating_sub(1);
-        *count
-    }
-
     /// Get the current value of a counter
     pub fn get_counter(&self, counter_id: &str) -> u32 {
         self.counters.get(counter_id).copied().unwrap_or(0)
@@ -474,18 +467,6 @@ impl CombatEncounter {
     /// Set a counter to a specific value
     pub fn set_counter(&mut self, counter_id: &str, value: u32) {
         self.counters.insert(counter_id.to_string(), value);
-    }
-
-    /// Reset a counter to 0
-    pub fn reset_counter(&mut self, counter_id: &str) {
-        self.counters.insert(counter_id.to_string(), 0);
-    }
-
-    /// Reset multiple counters to 0
-    pub fn reset_counters(&mut self, counter_ids: &[String]) {
-        for id in counter_ids {
-            self.counters.insert(id.clone(), 0);
-        }
     }
 
     /// Reset multiple counters to their initial values
