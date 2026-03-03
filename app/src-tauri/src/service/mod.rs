@@ -132,6 +132,8 @@ pub enum ServiceCommand {
     ResetOperationTimer,
     /// Update the operation name context (from area entered signal)
     SetOperationTimerContext { operation_name: Option<String> },
+    /// Auto-switch profile based on role change (triggered by DisciplineChanged)
+    AutoSwitchProfile { role_name: String },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -286,6 +288,8 @@ struct CombatSignalHandler {
     cmd_tx: mpsc::Sender<ServiceCommand>,
     /// Local player entity ID (set on first DisciplineChanged)
     local_player_id: Option<i64>,
+    /// Current role of the local player (for auto-switching profiles on role change)
+    current_role: Option<Role>,
     /// Whether we've already requested the process monitor for this tailing session
     monitor_requested: bool,
 }
@@ -305,6 +309,7 @@ impl CombatSignalHandler {
             overlay_tx,
             cmd_tx,
             local_player_id: None,
+            current_role: None,
             monitor_requested: false,
         }
     }
@@ -363,6 +368,18 @@ impl SignalHandler for CombatSignalHandler {
                     let _ = self
                         .overlay_tx
                         .try_send(OverlayUpdate::NotLiveStateChanged { is_live: true });
+                }
+                // Auto-switch profile on role change (only for local player)
+                if self.local_player_id == Some(*entity_id) {
+                    if let Some(discipline) = Discipline::from_guid(*discipline_id) {
+                        let new_role = discipline.role();
+                        let role_changed = self.current_role.map_or(true, |r| r != new_role);
+                        self.current_role = Some(new_role);
+                        if role_changed {
+                            let role_name = format!("{:?}", new_role);
+                            let _ = self.cmd_tx.try_send(ServiceCommand::AutoSwitchProfile { role_name });
+                        }
+                    }
                 }
             }
             GameSignal::EffectApplied {
@@ -1117,6 +1134,31 @@ impl CombatService {
                         ServiceCommand::SetOperationTimerContext { operation_name } => {
                             let mut timer = self.shared.operation_timer.lock().unwrap();
                             timer.operation_name = operation_name;
+                        }
+                        ServiceCommand::AutoSwitchProfile { role_name } => {
+                            let config = self.shared.config.read().await;
+                            if let Some(profile_name) = config.default_profile_per_role.get(&role_name) {
+                                // Skip if this profile is already active
+                                let already_active = config.active_profile_name.as_deref() == Some(profile_name);
+                                // Skip if the profile no longer exists
+                                let profile_exists = config.profiles.iter().any(|p| p.name == *profile_name);
+                                let profile_name = profile_name.clone();
+                                drop(config);
+
+                                if !already_active && profile_exists {
+                                    let mut config = self.shared.config.write().await;
+                                    if config.load_profile(&profile_name).is_ok() {
+                                        let saved = config.clone().save();
+                                        drop(config);
+                                        if let Err(e) = saved {
+                                            warn!("Failed to save config after auto-switching profile: {e}");
+                                        } else {
+                                            info!("Auto-switched to profile '{}' for role {}", profile_name, role_name);
+                                            let _ = self.app_handle.emit("profile-auto-switched", &profile_name);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

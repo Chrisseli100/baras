@@ -297,6 +297,36 @@ pub fn App() -> Element {
         closure.forget();
     });
 
+    // Listen for profile auto-switch events (role-based default profiles)
+    use_future(move || async move {
+        let closure = Closure::new(move |_event: JsValue| {
+            spawn_local(async move {
+                // Refresh profile state from backend
+                let names = api::get_profile_names().await;
+                let active = api::get_active_profile().await;
+                profile_names.set(names);
+                active_profile.set(active);
+                profile_dirty.set(false);
+                // Refresh overlay settings to match the newly loaded profile
+                if let Some(cfg) = api::get_config().await {
+                    overlay_settings.set(cfg.overlay_settings);
+                }
+                api::refresh_overlay_settings().await;
+                if let Some(status) = api::get_overlay_status().await {
+                    apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
+                        &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
+                        &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
+                        &mut effects_a_enabled, &mut effects_b_enabled,
+                        &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
+                        &mut combat_time_enabled, &mut operation_timer_enabled,
+                        &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
+                }
+            });
+        });
+        api::tauri_listen("profile-auto-switched", &closure).await;
+        closure.forget();
+    });
+
     // Periodic refresh for live session duration (every 60 seconds)
     use_future(move || async move {
         loop {

@@ -149,6 +149,8 @@ impl AppConfigExt for AppConfig {
         if self.active_profile_name.as_deref() == Some(name) {
             self.active_profile_name = None;
         }
+        // Clear any role defaults pointing to this profile
+        self.default_profile_per_role.retain(|_, v| v != name);
         Ok(())
     }
 
@@ -165,7 +167,13 @@ impl AppConfigExt for AppConfig {
         profile.name = new_name.clone();
 
         if self.active_profile_name.as_deref() == Some(old_name) {
-            self.active_profile_name = Some(new_name);
+            self.active_profile_name = Some(new_name.clone());
+        }
+        // Update any role defaults pointing to the old name
+        for value in self.default_profile_per_role.values_mut() {
+            if value == old_name {
+                *value = new_name.clone();
+            }
         }
         Ok(())
     }

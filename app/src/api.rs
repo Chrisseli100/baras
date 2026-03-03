@@ -386,6 +386,28 @@ pub async fn rename_profile(old_name: &str, new_name: &str) -> Result<(), String
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Role Default Profile Commands
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Get the default profile mapping per role (Tank, Healer, Dps)
+pub async fn get_default_profiles_per_role() -> std::collections::HashMap<String, String> {
+    let result = invoke("get_default_profiles_per_role", JsValue::NULL).await;
+    from_js(result).unwrap_or_default()
+}
+
+/// Set or clear the default profile for a role
+pub async fn set_default_profile_for_role(role: &str, profile_name: Option<&str>) -> Result<(), String> {
+    let obj = js_sys::Object::new();
+    js_set(&obj, "role", &JsValue::from_str(role));
+    match profile_name {
+        Some(name) => js_set(&obj, "profileName", &JsValue::from_str(name)),
+        None => js_set(&obj, "profileName", &JsValue::NULL),
+    }
+    try_invoke("set_default_profile_for_role", obj.into()).await?;
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Dialog Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -2827,6 +2827,51 @@ details[open] .collapsible-summary::before {
   color: #8a8;
 }
 
+/* ─── Role Default Profiles ─── */
+
+.role-defaults-section {
+  margin-top: 0.75em;
+  padding-top: 0.75em;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.role-defaults-header {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.25em;
+}
+
+.role-default-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.25em 0;
+}
+
+.role-default-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  width: 3.5em;
+  flex-shrink: 0;
+}
+
+.role-default-select {
+  flex: 1;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 0.25em 0.4em;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.role-default-select:focus {
+  outline: none;
+  border-color: #6a8aba;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Profile Quick Selector (main page)
    ───────────────────────────────────────────────────────────────────────────── */

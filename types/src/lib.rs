@@ -2302,6 +2302,11 @@ pub struct AppConfig {
     /// When false, live mode must be activated manually via the Live button.
     #[serde(default)]
     pub data_explorer_auto_live: bool,
+
+    /// Default profile name per role for auto-switching on discipline change.
+    /// Keys are role names: "Tank", "Healer", "Dps".
+    #[serde(default)]
+    pub default_profile_per_role: std::collections::HashMap<String, String>,
 }
 
 fn default_retention_days() -> u32 {
@@ -2341,6 +2346,7 @@ impl AppConfig {
             last_viewed_changelog_version: None,
             european_number_format: false,
             data_explorer_auto_live: false,
+            default_profile_per_role: std::collections::HashMap::new(),
         }
     }
 }

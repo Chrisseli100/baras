@@ -262,6 +262,8 @@ pub fn run() {
             commands::load_profile,
             commands::delete_profile,
             commands::rename_profile,
+            commands::get_default_profiles_per_role,
+            commands::set_default_profile_for_role,
             // Encounter editor commands
             commands::get_area_index,
             commands::fetch_area_bosses,

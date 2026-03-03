@@ -427,6 +427,42 @@ pub async fn rename_profile(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Role Default Profile Commands
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_default_profiles_per_role(
+    handle: State<'_, ServiceHandle>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let config = handle.config().await;
+    Ok(config.default_profile_per_role.clone())
+}
+
+#[tauri::command]
+pub async fn set_default_profile_for_role(
+    role: String,
+    profile_name: Option<String>,
+    handle: State<'_, ServiceHandle>,
+) -> Result<(), String> {
+    let mut config = handle.config().await;
+    match profile_name {
+        Some(name) => {
+            // Validate the profile exists
+            if !config.profiles.iter().any(|p| p.name == name) {
+                return Err("Profile not found".to_string());
+            }
+            config.default_profile_per_role.insert(role, name);
+        }
+        None => {
+            config.default_profile_per_role.remove(&role);
+        }
+    }
+    *handle.shared.config.write().await = config.clone();
+    config.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Changelog Commands
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -49,6 +49,12 @@ pub fn SettingsPanel(
     let mut metrics_global_open = use_signal(|| false);
     let mut toast = use_toast();
 
+    // Role default profile state
+    let mut role_defaults: Signal<HashMap<String, String>> = use_signal(HashMap::new);
+    use_future(move || async move {
+        role_defaults.set(api::get_default_profiles_per_role().await);
+    });
+
     let current_settings = draft_settings();
     let tab = selected_tab();
 
@@ -418,6 +424,54 @@ pub fn SettingsPanel(
                     }
                     if !profile_status().is_empty() {
                         p { class: "profile-status compact", "{profile_status}" }
+                    }
+
+                    // Role default profiles
+                    if !profile_names().is_empty() {
+                        div { class: "role-defaults-section",
+                            div { class: "role-defaults-header",
+                                "Role Defaults"
+                            }
+                            p { class: "hint compact", "Auto-switch profile when your role changes" }
+                            for (role, label) in [("Tank", "Tank"), ("Healer", "Healer"), ("Dps", "DPS")] {
+                                {
+                                    let current_default = role_defaults().get(role).cloned().unwrap_or_default();
+                                    let role_key = role.to_string();
+                                    rsx! {
+                                        div { class: "role-default-row",
+                                            label { class: "role-default-label", "{label}" }
+                                            select {
+                                                class: "role-default-select",
+                                                value: "{current_default}",
+                                                onchange: {
+                                                    let role_key = role_key.clone();
+                                                    move |e: Event<FormData>| {
+                                                        let selected = e.value();
+                                                        let role = role_key.clone();
+                                                        spawn(async move {
+                                                            let profile = if selected.is_empty() { None } else { Some(selected.as_str()) };
+                                                            if let Err(err) = api::set_default_profile_for_role(&role, profile).await {
+                                                                toast.show(format!("Failed to set default: {}", err), ToastSeverity::Normal);
+                                                            } else {
+                                                                role_defaults.set(api::get_default_profiles_per_role().await);
+                                                            }
+                                                        });
+                                                    }
+                                                },
+                                                option { value: "", "None" }
+                                                for pname in profile_names().iter() {
+                                                    option {
+                                                        value: "{pname}",
+                                                        selected: current_default == *pname,
+                                                        "{pname}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
