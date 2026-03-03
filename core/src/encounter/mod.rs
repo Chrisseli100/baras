@@ -13,6 +13,16 @@ pub use shielding::ShieldContext;
 
 use chrono::NaiveDateTime;
 
+use crate::dsl::HpMarker;
+
+/// Active shield state for overlay display
+#[derive(Debug, Clone)]
+pub struct ActiveShield {
+    pub label: String,
+    pub remaining: i64,
+    pub total: i64,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum EncounterState {
     #[default]
@@ -44,6 +54,12 @@ pub struct OverlayHealthEntry {
     /// Used for sorting by encounter order (not serialized)
     #[serde(skip)]
     pub first_seen_at: Option<NaiveDateTime>,
+    /// HP threshold markers from entity definition
+    #[serde(skip)]
+    pub hp_markers: Vec<HpMarker>,
+    /// Active shields on this entity
+    #[serde(skip)]
+    pub active_shields: Vec<ActiveShield>,
 }
 
 impl OverlayHealthEntry {

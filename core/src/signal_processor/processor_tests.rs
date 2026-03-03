@@ -916,6 +916,8 @@ fn test_counter_phase_entered_trigger() {
                 is_kill_target: true,
                 triggers_encounter: None,
                 show_on_hp_overlay: None,
+                hp_markers: vec![],
+                shields: vec![],
             },
             EntityDefinition {
                 name: "Add".to_string(),
@@ -924,6 +926,8 @@ fn test_counter_phase_entered_trigger() {
                 is_kill_target: false,
                 triggers_encounter: None,
                 show_on_hp_overlay: None,
+                hp_markers: vec![],
+                shields: vec![],
             },
         ],
         phases: vec![
@@ -1171,6 +1175,8 @@ fn test_phase_cascade_in_single_event() {
                 is_kill_target: true,
                 triggers_encounter: None,
                 show_on_hp_overlay: None,
+                hp_markers: vec![],
+                shields: vec![],
             },
             EntityDefinition {
                 name: "Add".to_string(),
@@ -1179,6 +1185,8 @@ fn test_phase_cascade_in_single_event() {
                 is_kill_target: false,
                 triggers_encounter: None,
                 show_on_hp_overlay: None,
+                hp_markers: vec![],
+                shields: vec![],
             },
         ],
         phases: vec![
@@ -1390,6 +1398,8 @@ fn test_counter_reaches_enables_phase() {
                 is_kill_target: true,
                 triggers_encounter: None,
                 show_on_hp_overlay: None,
+                hp_markers: vec![],
+                shields: vec![],
             },
             EntityDefinition {
                 name: "Add".to_string(),
@@ -1398,6 +1408,8 @@ fn test_counter_reaches_enables_phase() {
                 is_kill_target: false,
                 triggers_encounter: None,
                 show_on_hp_overlay: None,
+                hp_markers: vec![],
+                shields: vec![],
             },
         ],
         phases: vec![

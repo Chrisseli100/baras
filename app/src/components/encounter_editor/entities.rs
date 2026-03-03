@@ -9,7 +9,7 @@ use dioxus::prelude::*;
 use crate::api;
 use crate::types::{BossWithPath, EncounterItem, EntityDefinition};
 
-use super::{InlineNameCreator, NpcIdChipEditor};
+use super::{IdChipEditor, InlineNameCreator, NpcIdChipEditor};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Entities Tab
@@ -24,6 +24,8 @@ fn default_entity(name: String) -> EntityDefinition {
         triggers_encounter: None, // Uses is_boss default
         is_kill_target: false,
         show_on_hp_overlay: None, // Uses is_boss default
+        hp_markers: vec![],
+        shields: vec![],
     }
 }
 
@@ -378,6 +380,156 @@ fn EntityEditForm(
                 }
             }
 
+            // ─── HP Markers ───────────────────────────────────────────────────
+            div { class: "form-section",
+                div { class: "flex items-center justify-between mb-xs",
+                    div { class: "font-bold text-sm", "HP Markers" }
+                    button {
+                        class: "btn btn-sm",
+                        onclick: move |_| {
+                            let mut d = draft();
+                            d.hp_markers.push(crate::types::HpMarker {
+                                hp_percent: 50.0,
+                                label: String::new(),
+                            });
+                            draft.set(d);
+                        },
+                        "+ Add Marker"
+                    }
+                }
+                div { class: "text-xs text-muted mb-xs", "Visual indicators on the HP bar at key thresholds" }
+                for (i, marker) in draft().hp_markers.iter().cloned().enumerate() {
+                    div { class: "form-row-hz", style: "align-items: center;",
+                        input {
+                            class: "input-inline",
+                            style: "width: 60px;",
+                            r#type: "number",
+                            step: "1",
+                            min: "0",
+                            max: "100",
+                            value: "{marker.hp_percent}",
+                            oninput: move |e| {
+                                let mut d = draft();
+                                if let Ok(v) = e.value().parse::<f32>() {
+                                    d.hp_markers[i].hp_percent = v;
+                                    draft.set(d);
+                                }
+                            }
+                        }
+                        span { class: "text-xs text-muted", "%" }
+                        input {
+                            class: "input-inline",
+                            style: "width: 120px;",
+                            placeholder: "Label...",
+                            value: "{marker.label}",
+                            oninput: move |e| {
+                                let mut d = draft();
+                                d.hp_markers[i].label = e.value();
+                                draft.set(d);
+                            }
+                        }
+                        button {
+                            class: "btn btn-danger btn-xs",
+                            onclick: move |_| {
+                                let mut d = draft();
+                                d.hp_markers.remove(i);
+                                draft.set(d);
+                            },
+                            "×"
+                        }
+                    }
+                }
+            }
+
+            // ─── Shield Definitions ──────────────────────────────────────────
+            div { class: "form-section",
+                div { class: "flex items-center justify-between mb-xs",
+                    div { class: "font-bold text-sm", "Shields" }
+                    button {
+                        class: "btn btn-sm",
+                        onclick: move |_| {
+                            let mut d = draft();
+                            d.shields.push(crate::types::ShieldDefinition {
+                                label: String::new(),
+                                trigger_effect: 0,
+                                total: 0,
+                                end_trigger_effect: 0,
+                            });
+                            draft.set(d);
+                        },
+                        "+ Add Shield"
+                    }
+                }
+                div { class: "text-xs text-muted mb-xs", "Absorb shields shown on the HP bar overlay" }
+                for (i, shield) in draft().shields.iter().cloned().enumerate() {
+                    div { class: "form-section", style: "padding: 4px 8px; margin-bottom: 4px;",
+                        div { class: "form-row-hz",
+                            label { "Label" }
+                            input {
+                                class: "input-inline",
+                                style: "width: 140px;",
+                                placeholder: "Shield name...",
+                                value: "{shield.label}",
+                                oninput: move |e| {
+                                    let mut d = draft();
+                                    d.shields[i].label = e.value();
+                                    draft.set(d);
+                                }
+                            }
+                            button {
+                                class: "btn btn-danger btn-xs",
+                                onclick: move |_| {
+                                    let mut d = draft();
+                                    d.shields.remove(i);
+                                    draft.set(d);
+                                },
+                                "×"
+                            }
+                        }
+                        div { class: "form-row-hz", style: "align-items: flex-start;",
+                            label { style: "padding-top: 6px;", "Trigger" }
+                            IdChipEditor {
+                                ids: if shield.trigger_effect != 0 { vec![shield.trigger_effect] } else { vec![] },
+                                placeholder: "Effect ID (Enter)",
+                                on_change: move |ids: Vec<u64>| {
+                                    let mut d = draft();
+                                    d.shields[i].trigger_effect = ids.first().copied().unwrap_or(0);
+                                    draft.set(d);
+                                }
+                            }
+                        }
+                        div { class: "form-row-hz",
+                            label { "Total HP" }
+                            input {
+                                class: "input-inline text-mono",
+                                style: "width: 140px;",
+                                r#type: "number",
+                                value: "{shield.total}",
+                                oninput: move |e| {
+                                    let mut d = draft();
+                                    if let Ok(v) = e.value().parse::<i64>() {
+                                        d.shields[i].total = v;
+                                        draft.set(d);
+                                    }
+                                }
+                            }
+                        }
+                        div { class: "form-row-hz", style: "align-items: flex-start;",
+                            label { style: "padding-top: 6px;", "End" }
+                            IdChipEditor {
+                                ids: if shield.end_trigger_effect != 0 { vec![shield.end_trigger_effect] } else { vec![] },
+                                placeholder: "Effect ID (Enter)",
+                                on_change: move |ids: Vec<u64>| {
+                                    let mut d = draft();
+                                    d.shields[i].end_trigger_effect = ids.first().copied().unwrap_or(0);
+                                    draft.set(d);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ─── Actions ─────────────────────────────────────────────────────
             div { class: "form-actions",
                 button {
@@ -395,3 +547,4 @@ fn EntityEditForm(
         }
     }
 }
+

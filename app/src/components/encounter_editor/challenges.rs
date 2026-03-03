@@ -854,7 +854,7 @@ fn ChallengeConditionRow(
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[component]
-fn IdChipEditor(
+pub fn IdChipEditor(
     ids: Vec<u64>,
     placeholder: &'static str,
     on_change: EventHandler<Vec<u64>>,

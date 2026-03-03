@@ -90,6 +90,28 @@ pub struct BossConfig {
 // Entity Definition (NPCs in the encounter)
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// HP threshold marker for visual display on boss health bar
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HpMarker {
+    /// HP percentage where this marker appears (0.0-100.0)
+    pub hp_percent: f32,
+    /// Short label (e.g., "Burn", "Adds")
+    pub label: String,
+}
+
+/// Shield mechanic definition for a boss entity
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShieldDefinition {
+    /// Display label
+    pub label: String,
+    /// Effect ID that activates the shield (EffectApplied on this entity)
+    pub trigger_effect: u64,
+    /// Total shield HP value
+    pub total: i64,
+    /// Effect ID that deactivates the shield (EffectRemoved fallback)
+    pub end_trigger_effect: u64,
+}
+
 /// Definition of an NPC entity in the encounter (boss or add).
 /// Entities are defined once and referenced by name in triggers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +144,14 @@ pub struct EntityDefinition {
     /// Use to hide invincible boss phases or show important non-boss adds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_on_hp_overlay: Option<bool>,
+
+    /// HP threshold markers for visual display on the health bar
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hp_markers: Vec<HpMarker>,
+
+    /// Shield mechanic definitions
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shields: Vec<ShieldDefinition>,
 }
 
 impl EntityDefinition {

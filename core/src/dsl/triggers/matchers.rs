@@ -149,6 +149,8 @@ mod tests {
             triggers_encounter: None,
             is_kill_target: true,
             show_on_hp_overlay: None,
+            hp_markers: vec![],
+            shields: vec![],
         }];
 
         // "Boss" should match via roster (ID 1001)

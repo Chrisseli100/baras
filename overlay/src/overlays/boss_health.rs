@@ -1,9 +1,11 @@
 //! Boss Health Bar Overlay
 //!
 //! Displays real-time health bars for boss NPCs in the current encounter.
+//! Supports HP threshold markers (vertical lines at key HP%) and shield bars.
 
 use baras_core::OverlayHealthEntry;
 use baras_core::context::BossHealthConfig;
+use tiny_skia::Color;
 
 use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
@@ -32,6 +34,17 @@ const BASE_LABEL_BAR_GAP: f32 = 2.0;
 const BASE_PADDING: f32 = 8.0;
 const BASE_FONT_SIZE: f32 = 13.0;
 const BASE_LABEL_FONT_SIZE: f32 = 8.5;
+
+/// Shield bar height (thinner than HP bar)
+const BASE_SHIELD_BAR_HEIGHT: f32 = 12.0;
+
+fn shield_bar_color() -> Color {
+    Color::from_rgba8(100, 180, 255, 200)
+}
+
+fn marker_line_color() -> Color {
+    Color::from_rgba8(255, 255, 255, 180)
+}
 
 /// Maximum number of bosses we optimize scaling for
 const MAX_SUPPORTED_BOSSES: usize = 7;
@@ -93,40 +106,69 @@ impl BossHealthOverlay {
         (base_font_size * scale).max(min_font)
     }
 
+    /// Calculate per-entry height for a given entry (accounts for shields)
+    fn entry_height(
+        &self,
+        entry: &OverlayHealthEntry,
+        bar_height: f32,
+        label_height: f32,
+        label_bar_gap: f32,
+        label_font_size: f32,
+        shield_bar_height: f32,
+    ) -> f32 {
+        let mut h = label_height + label_bar_gap;
+
+        // Shield bar (between name and HP bar)
+        if !entry.active_shields.is_empty() {
+            h += shield_bar_height + label_bar_gap;
+        }
+
+        h += bar_height;
+
+        // Target line
+        if self.config.show_target && entry.target_name.is_some() {
+            let target_font_size = label_font_size * 0.85;
+            h += target_font_size + 2.0;
+        }
+
+        h
+    }
+
     /// Calculate compression factor to fit entries in available height
-    fn compression_factor(&self, entry_count: usize, has_targets: bool) -> f32 {
+    fn compression_factor(&self, entries: &[OverlayHealthEntry]) -> f32 {
         let height = self.frame.height() as f32;
         let padding = self.frame.scaled(BASE_PADDING);
-
-        // Calculate height of one entry at base scale
         let bar_height = self.frame.scaled(BASE_BAR_HEIGHT);
         let label_height = self.frame.scaled(BASE_LABEL_HEIGHT);
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING);
         let label_bar_gap = self.frame.scaled(BASE_LABEL_BAR_GAP);
         let label_font_size = self.frame.scaled(BASE_LABEL_FONT_SIZE);
+        let shield_bar_height = self.frame.scaled(BASE_SHIELD_BAR_HEIGHT);
 
-        // Per-entry height: label + gap + bar + spacing
-        let mut entry_height = label_height + label_bar_gap + bar_height + entry_spacing;
+        let total_needed: f32 = padding * 2.0
+            + entries
+                .iter()
+                .map(|e| {
+                    self.entry_height(
+                        e,
+                        bar_height,
+                        label_height,
+                        label_bar_gap,
+                        label_font_size,
+                        shield_bar_height,
+                    ) + entry_spacing
+                })
+                .sum::<f32>()
+            - entry_spacing;
 
-        // Add target line height if targets are shown
-        if has_targets {
-            let target_font_size = label_font_size * 0.85;
-            entry_height += target_font_size + 2.0;
-        }
-
-        // Total height needed for all entries
-        let total_needed = padding * 2.0 + entry_height * entry_count as f32 - entry_spacing;
-        let available = height;
-
-        if total_needed <= available {
+        if total_needed <= height {
             1.0
         } else {
-            (available / total_needed).max(MIN_COMPRESSION)
+            (height / total_needed).max(MIN_COMPRESSION)
         }
     }
 
     /// Pre-compute the total content height for all visible entries.
-    /// This allows drawing the background only to the content area.
     fn compute_content_height(&self, entries: &[OverlayHealthEntry], compression: f32) -> f32 {
         let padding = self.frame.scaled(BASE_PADDING);
         let bar_height = self.frame.scaled(BASE_BAR_HEIGHT) * compression;
@@ -135,19 +177,19 @@ impl BossHealthOverlay {
         let label_bar_gap = self.frame.scaled(BASE_LABEL_BAR_GAP) * compression;
         let label_font_size =
             self.frame.scaled(BASE_LABEL_FONT_SIZE) * compression * self.config.font_scale.clamp(1.0, 2.0);
+        let shield_bar_height = self.frame.scaled(BASE_SHIELD_BAR_HEIGHT) * compression;
 
         let mut y = padding;
 
         for entry in entries {
-            // Label + gap + bar
-            y += label_height + label_bar_gap + bar_height;
-
-            // Target line if shown
-            if self.config.show_target && entry.target_name.is_some() {
-                let target_font_size = label_font_size * 0.85;
-                y += target_font_size + 2.0;
-            }
-
+            y += self.entry_height(
+                entry,
+                bar_height,
+                label_height,
+                label_bar_gap,
+                label_font_size,
+                shield_bar_height,
+            );
             y += entry_spacing;
         }
 
@@ -157,6 +199,18 @@ impl BossHealthOverlay {
         }
 
         y
+    }
+
+    /// Find the next relevant HP marker: the highest hp_percent that is <= current HP%.
+    /// This is the next threshold the boss will cross as HP decreases.
+    fn next_marker(entry: &OverlayHealthEntry) -> Option<(f32, &str)> {
+        let current_pct = entry.percent();
+        entry
+            .hp_markers
+            .iter()
+            .filter(|m| m.hp_percent <= current_pct)
+            .max_by(|a, b| a.hp_percent.partial_cmp(&b.hp_percent).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|m| (m.hp_percent, m.label.as_str()))
     }
 
     /// Render the overlay
@@ -184,12 +238,8 @@ impl BossHealthOverlay {
             return;
         }
 
-        // Check if any entry has a target (for compression calculation)
-        let has_targets =
-            self.config.show_target && entries.iter().any(|e| e.target_name.is_some());
-
-        // Calculate compression factor based on entry count
-        let compression = self.compression_factor(entries.len(), has_targets);
+        // Calculate compression factor based on entries
+        let compression = self.compression_factor(&entries);
 
         // Pre-compute content height, then begin frame with content-aware background
         let content_height = self.compute_content_height(&entries, compression);
@@ -210,6 +260,7 @@ impl BossHealthOverlay {
         let label_bar_gap = self.frame.scaled(BASE_LABEL_BAR_GAP) * compression;
         let font_size = self.frame.scaled(BASE_FONT_SIZE) * compression * font_scale;
         let label_font_size = self.frame.scaled(BASE_LABEL_FONT_SIZE) * compression * font_scale;
+        let shield_bar_height = self.frame.scaled(BASE_SHIELD_BAR_HEIGHT) * compression;
 
         let bar_color = color_from_rgba(self.config.bar_color);
         let font_color = color_from_rgba(self.config.font_color);
@@ -222,28 +273,84 @@ impl BossHealthOverlay {
         for entry in &entries {
             let progress = entry.percent() / 100.0;
 
-            // Scale font to fit boss name if too wide
+            // ── Boss Name + Marker Label ────────────────────────────────
             let actual_font_size =
                 self.scaled_font_for_text(&entry.name, content_width, label_font_size);
 
-            // Draw boss name above bar (y is baseline, so offset by font size)
             let name_y = y + actual_font_size;
-            self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
+
+            // Find the next relevant HP marker
+            let marker = Self::next_marker(entry);
+
+            if let Some((hp_pct, label)) = marker {
+                // Draw name on the left, marker label on the right at marker x position
+                let marker_x = padding + (hp_pct / 100.0) * content_width;
+                self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
+
+                let marker_font_size = actual_font_size * 0.85;
+                let marker_label = format!("{}% {}", hp_pct as u32, label);
+                let (marker_text_w, _) = self.frame.measure_text(&marker_label, marker_font_size);
+                // Center on marker x, clamped to content bounds
+                let marker_label_x = (marker_x - marker_text_w / 2.0)
+                    .max(padding)
+                    .min(padding + content_width - marker_text_w);
+                self.frame.draw_text_glowed(
+                    &marker_label,
+                    marker_label_x,
+                    name_y,
+                    marker_font_size,
+                    marker_line_color(),
+                );
+            } else {
+                self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
+            }
 
             y += label_height + label_bar_gap;
 
-            // Format health text for inside bar: "(1.5M/2.0M)"
-            let health_text = formatting::format_compact(entry.current as i64, self.european_number_format);
+            // ── Shield Bar (above HP bar, only when shields active) ─────
+            if !entry.active_shields.is_empty() {
+                // Use the first active shield for display (most common: single shield)
+                let shield = &entry.active_shields[0];
+                let shield_progress = if shield.total > 0 {
+                    (shield.remaining as f32 / shield.total as f32).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let shield_label = format!(
+                    "{}: {}",
+                    shield.label,
+                    formatting::format_compact(shield.remaining, self.european_number_format)
+                );
+                let shield_font_size = font_size * 0.55;
+                let shield_radius = bar_radius * 0.6;
 
-            // Format percentage for right side
+                ProgressBar::new(&shield_label, shield_progress)
+                    .with_fill_color(shield_bar_color())
+                    .with_bg_color(colors::dps_bar_bg())
+                    .with_text_color(font_color)
+                    .render(
+                        &mut self.frame,
+                        padding,
+                        y,
+                        content_width,
+                        shield_bar_height,
+                        shield_font_size,
+                        shield_radius,
+                    );
+
+                y += shield_bar_height + label_bar_gap;
+            }
+
+            // ── HP Bar ──────────────────────────────────────────────────
+            let health_text = formatting::format_compact(entry.current as i64, self.european_number_format);
             let percent_text = if self.config.show_percent {
                 formatting::format_pct(entry.percent() as f64, self.european_number_format)
             } else {
                 String::new()
             };
 
-            // Draw bar with health on left, percentage on right (smaller font)
             let bar_font_size = font_size * 0.70;
+            let bar_y = y;
             ProgressBar::new(&health_text, progress)
                 .with_fill_color(bar_color)
                 .with_bg_color(colors::dps_bar_bg())
@@ -252,16 +359,29 @@ impl BossHealthOverlay {
                 .render(
                     &mut self.frame,
                     padding,
-                    y,
+                    bar_y,
                     content_width,
                     bar_height,
                     bar_font_size,
                     bar_radius,
                 );
 
+            // ── HP Marker Line (vertical line through the bar) ──────────
+            if let Some((hp_pct, _)) = marker {
+                let marker_x = padding + (hp_pct / 100.0) * content_width;
+                let line_width = (1.5 * self.frame.scale_factor()).max(1.0);
+                self.frame.fill_rect(
+                    marker_x - line_width / 2.0,
+                    bar_y,
+                    line_width,
+                    bar_height,
+                    marker_line_color(),
+                );
+            }
+
             y += bar_height;
 
-            // Draw target name below bar, right-aligned
+            // ── Target Name ─────────────────────────────────────────────
             if self.config.show_target
                 && let Some(ref target) = entry.target_name
             {

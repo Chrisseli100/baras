@@ -23,6 +23,8 @@ mod examples {
         TimerOverlayConfig,
     };
     use baras_core::OverlayHealthEntry;
+    use baras_core::dsl::HpMarker;
+    use baras_core::encounter::ActiveShield;
     use baras_overlay::{
         colors, BossHealthData, BossHealthOverlay, ChallengeData, ChallengeEntry, ChallengeOverlay,
         Color, InteractionMode, MetricEntry, MetricOverlay, Overlay, OverlayConfig,
@@ -1276,6 +1278,8 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Tanky McTank".to_string()),
+                hp_markers: vec![],
+                active_shields: vec![],
             },
             OverlayHealthEntry {
                 name: "Dread Master Styrak".to_string(),
@@ -1283,6 +1287,8 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("StabbySith".to_string()),
+                hp_markers: vec![],
+                active_shields: vec![],
             },
             OverlayHealthEntry {
                 name: "Dread Master Calphayus".to_string(),
@@ -1290,6 +1296,8 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: None,
+                hp_markers: vec![],
+                active_shields: vec![],
             },
         ];
 
@@ -1299,6 +1307,8 @@ mod examples {
             max: 12_000_000,
             first_seen_at: None,
             target_name: Some("Tanky McTank".to_string()),
+            hp_markers: vec![],
+            active_shields: vec![],
         }];
 
         let two_bosses = vec![
@@ -1308,6 +1318,8 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Shield Wall".to_string()),
+                hp_markers: vec![],
+                active_shields: vec![],
             },
             OverlayHealthEntry {
                 name: "Dread Master Bestia".to_string(),
@@ -1315,6 +1327,57 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Tanky McTank".to_string()),
+                hp_markers: vec![],
+                active_shields: vec![],
+            },
+        ];
+
+        // ── Markers + Shields demo data ──
+        let markers_and_shields = vec![
+            // Boss with HP markers at 75%, 50%, 25% (current HP is 60% → next marker is 50%)
+            OverlayHealthEntry {
+                name: "Brontes".to_string(),
+                current: 4_800_000,
+                max: 8_000_000,
+                first_seen_at: None,
+                target_name: Some("Tanky McTank".to_string()),
+                hp_markers: vec![
+                    HpMarker { hp_percent: 75.0, label: "Clones".to_string() },
+                    HpMarker { hp_percent: 50.0, label: "Burn".to_string() },
+                    HpMarker { hp_percent: 25.0, label: "Droid".to_string() },
+                ],
+                active_shields: vec![],
+            },
+            // Boss with active shield
+            OverlayHealthEntry {
+                name: "Styrak".to_string(),
+                current: 6_000_000,
+                max: 8_000_000,
+                first_seen_at: None,
+                target_name: None,
+                hp_markers: vec![],
+                active_shields: vec![ActiveShield {
+                    label: "Energy Shield".to_string(),
+                    remaining: 300_000,
+                    total: 500_000,
+                }],
+            },
+            // Boss with both markers and shield
+            OverlayHealthEntry {
+                name: "Calphayus".to_string(),
+                current: 5_500_000,
+                max: 8_000_000,
+                first_seen_at: None,
+                target_name: Some("HealBot".to_string()),
+                hp_markers: vec![
+                    HpMarker { hp_percent: 60.0, label: "Portal".to_string() },
+                    HpMarker { hp_percent: 30.0, label: "Enrage".to_string() },
+                ],
+                active_shields: vec![ActiveShield {
+                    label: "Shield".to_string(),
+                    remaining: 150_000,
+                    total: 400_000,
+                }],
             },
         ];
 
@@ -1388,6 +1451,36 @@ mod examples {
             }
         }
 
+        // ── Row 3: Markers + Shields demo ──
+        {
+            let boss_config = BossHealthConfig {
+                show_target: true,
+                dynamic_background: true,
+                ..Default::default()
+            };
+            let window_config = OverlayConfig {
+                x: 50,
+                y: 600,
+                width: 300,
+                height: 350,
+                namespace: "baras-boss-markers-shields".to_string(),
+                click_through: true,
+                target_monitor_id: None,
+            };
+            match BossHealthOverlay::new(window_config, boss_config, 180) {
+                Ok(mut overlay) => {
+                    overlay.set_data(BossHealthData {
+                        entries: markers_and_shields,
+                    });
+                    overlays.push(overlay);
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to create markers/shields overlay");
+                    return;
+                }
+            }
+        }
+
         let mut last_frame = Instant::now();
         let frame_duration = Duration::from_millis(100);
 
@@ -1397,6 +1490,7 @@ mod examples {
         println!("│  Row 1: Font scale 1.0x | 1.5x | 2.0x  (3 bosses, 280x200) │");
         println!("│  Row 2: Content-aware BG with 1 | 2 | 3 bosses (280x300)   │");
         println!("│         Background shrinks to fit content height!            │");
+        println!("│  Row 3: HP markers + shields (300x350)                      │");
         println!("├─────────────────────────────────────────────────────────────┤");
         println!("│  All overlays in click-through mode (no move borders)       │");
         println!("├─────────────────────────────────────────────────────────────┤");

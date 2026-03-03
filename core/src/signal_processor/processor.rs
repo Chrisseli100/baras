@@ -74,6 +74,9 @@ impl EventProcessor {
         // 1f. Boss HP tracking and phase transitions
         self.handle_boss_hp_and_phases(&event, cache, &mut signals);
 
+        // 1f'. Boss shield activation/deactivation/depletion
+        self.handle_boss_shields(&event, cache);
+
         // 1g. NPC Target Tracking
         self.handle_target_changed(&event, cache, &mut signals);
 
@@ -757,6 +760,85 @@ impl EventProcessor {
                     event.timestamp,
                 ));
             }
+        }
+    }
+
+    /// Handle boss shield activation, deactivation, and depletion from damage absorption.
+    fn handle_boss_shields(&self, event: &CombatEvent, cache: &mut SessionCache) {
+        // Early out: need active boss encounter
+        let (def_idx, effect_type) = {
+            let Some(enc) = cache.current_encounter() else {
+                return;
+            };
+            let Some(idx) = enc.active_boss_idx() else {
+                return;
+            };
+            (idx, event.effect.type_id)
+        };
+
+        match effect_type {
+            effect_type_id::APPLYEFFECT if event.effect.effect_id != effect_id::DAMAGE
+                && event.effect.effect_id != effect_id::HEAL =>
+            {
+                let target_class_id = event.target_entity.class_id;
+                if target_class_id == 0 || event.target_entity.entity_type != EntityType::Npc {
+                    return;
+                }
+                let eid = event.effect.effect_id;
+                // Collect shield activations (read-only borrow of definitions)
+                let activations: Vec<(usize, i64)> = cache
+                    .current_encounter()
+                    .and_then(|enc| enc.boss_definitions()[def_idx].entity_for_id(target_class_id))
+                    .map(|entity_def| {
+                        entity_def.shields.iter().enumerate()
+                            .filter(|(_, s)| s.trigger_effect == eid as u64)
+                            .map(|(idx, s)| (idx, s.total))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                // Apply activations (mutable borrow)
+                if let Some(enc) = cache.current_encounter_mut() {
+                    for (idx, total) in activations {
+                        enc.activate_shield(target_class_id, idx, total);
+                    }
+                }
+            }
+            effect_type_id::REMOVEEFFECT => {
+                let source_class_id = event.source_entity.class_id;
+                if source_class_id == 0 {
+                    return;
+                }
+                let eid = event.effect.effect_id;
+                let deactivations: Vec<usize> = cache
+                    .current_encounter()
+                    .and_then(|enc| enc.boss_definitions()[def_idx].entity_for_id(source_class_id))
+                    .map(|entity_def| {
+                        entity_def.shields.iter().enumerate()
+                            .filter(|(_, s)| s.end_trigger_effect == eid as u64)
+                            .map(|(idx, _)| idx)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if let Some(enc) = cache.current_encounter_mut() {
+                    for idx in deactivations {
+                        enc.deactivate_shield(source_class_id, idx);
+                    }
+                }
+            }
+            effect_type_id::APPLYEFFECT if event.effect.effect_id == effect_id::DAMAGE => {
+                let absorbed = event.details.dmg_absorbed;
+                if absorbed <= 0 {
+                    return;
+                }
+                let target_class_id = event.target_entity.class_id;
+                if target_class_id == 0 || event.target_entity.entity_type != EntityType::Npc {
+                    return;
+                }
+                if let Some(enc) = cache.current_encounter_mut() {
+                    enc.absorb_shield_damage(target_class_id, absorbed as i64);
+                }
+            }
+            _ => {}
         }
     }
 

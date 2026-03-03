@@ -523,6 +523,22 @@ pub struct ChallengeDefinition {
     pub columns: ChallengeColumns,
 }
 
+/// HP threshold marker for visual display on boss health bar
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HpMarker {
+    pub hp_percent: f32,
+    pub label: String,
+}
+
+/// Shield mechanic definition for a boss entity
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShieldDefinition {
+    pub label: String,
+    pub trigger_effect: u64,
+    pub total: i64,
+    pub end_trigger_effect: u64,
+}
+
 /// Entity definition (mirrors baras_core::dsl::EntityDefinition)
 /// NOTE: triggers_encounter and show_on_hp_overlay are Option<bool> to match backend
 /// - None means "use is_boss value as default"
@@ -542,6 +558,10 @@ pub struct EntityDefinition {
     /// Defaults to is_boss if None
     #[serde(default)]
     pub show_on_hp_overlay: Option<bool>,
+    #[serde(default)]
+    pub hp_markers: Vec<HpMarker>,
+    #[serde(default)]
+    pub shields: Vec<ShieldDefinition>,
 }
 
 /// Unified encounter item enum for CRUD operations (mirrors backend EncounterItem)

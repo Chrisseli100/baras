@@ -132,6 +132,10 @@ pub struct CombatEncounter {
     /// Local player revived out of combat (no battle rez) — triggers immediate combat end
     pub local_player_ooc_revive_time: Option<NaiveDateTime>,
 
+    // ─── Boss Shield State ────────────────────────────────────────────────
+    /// Active boss shield state: (npc_class_id, shield_def_index) → remaining HP
+    pub boss_shields: HashMap<(i64, usize), i64>,
+
     // ─── Effect Instances (for shield attribution) ──────────────────────────
     /// Active effects by target ID
     pub effects: HashMap<i64, Vec<EffectInstance>>,
@@ -198,6 +202,9 @@ impl CombatEncounter {
             local_player_revive_immunity_time: None,
             battle_rez_pending: false,
             local_player_ooc_revive_time: None,
+
+            // Boss shields
+            boss_shields: HashMap::new(),
 
             // Effects
             effects: HashMap::new(),
@@ -364,6 +371,40 @@ impl CombatEncounter {
         self.npcs.get(&npc_id).map(|n| n.hp_percent())
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Boss Shield Management
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Activate a boss shield with its full HP value
+    pub fn activate_shield(&mut self, npc_class_id: i64, shield_idx: usize, total: i64) {
+        self.boss_shields.insert((npc_class_id, shield_idx), total);
+    }
+
+    /// Deactivate a specific boss shield
+    pub fn deactivate_shield(&mut self, npc_class_id: i64, shield_idx: usize) {
+        self.boss_shields.remove(&(npc_class_id, shield_idx));
+    }
+
+    /// Absorb damage across all active shields for a given NPC class.
+    /// Decrements remaining HP and removes depleted shields.
+    pub fn absorb_shield_damage(&mut self, npc_class_id: i64, amount: i64) {
+        let keys: Vec<(i64, usize)> = self
+            .boss_shields
+            .keys()
+            .filter(|(id, _)| *id == npc_class_id)
+            .copied()
+            .collect();
+
+        for key in keys {
+            if let Some(remaining) = self.boss_shields.get_mut(&key) {
+                *remaining = (*remaining - amount).max(0);
+                if *remaining == 0 {
+                    self.boss_shields.remove(&key);
+                }
+            }
+        }
+    }
+
     /// Get boss health entries for overlay display
     pub fn get_boss_health(&self) -> Vec<OverlayHealthEntry> {
         let Some(def) = self.active_boss_definition() else {
@@ -383,15 +424,42 @@ impl CombatEncounter {
             // Only show NPCs that have taken damage (under 100% HP) to avoid
             // cluttering the overlay with spawned-but-inactive enemies
             .filter(|npc| entity_class_ids.contains(&npc.class_id) && npc.current_hp < npc.max_hp)
-            .map(|npc| OverlayHealthEntry {
-                name: crate::context::resolve(npc.name).to_string(),
-                target_name: self
-                    .players
-                    .get(&npc.current_target_id)
-                    .map(|p| crate::context::resolve(p.name).to_string()),
-                current: npc.current_hp,
-                max: npc.max_hp,
-                first_seen_at: npc.first_seen_at,
+            .map(|npc| {
+                // Look up entity definition for hp_markers and shields
+                let entity_def = def.entity_for_id(npc.class_id);
+                let hp_markers = entity_def
+                    .map(|e| e.hp_markers.clone())
+                    .unwrap_or_default();
+                let active_shields = entity_def
+                    .map(|e| {
+                        e.shields
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, shield_def)| {
+                                self.boss_shields
+                                    .get(&(npc.class_id, idx))
+                                    .map(|&remaining| super::ActiveShield {
+                                        label: shield_def.label.clone(),
+                                        remaining,
+                                        total: shield_def.total,
+                                    })
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                OverlayHealthEntry {
+                    name: crate::context::resolve(npc.name).to_string(),
+                    target_name: self
+                        .players
+                        .get(&npc.current_target_id)
+                        .map(|p| crate::context::resolve(p.name).to_string()),
+                    current: npc.current_hp,
+                    max: npc.max_hp,
+                    first_seen_at: npc.first_seen_at,
+                    hp_markers,
+                    active_shields,
+                }
             })
             .collect();
 
