@@ -44,6 +44,8 @@ pub fn SettingsPanel(
     // Profile UI state
     let mut new_profile_name = use_signal(String::new);
     let mut profile_status = use_signal(String::new);
+    let mut renaming_profile: Signal<Option<String>> = use_signal(|| None);
+    let mut rename_input = use_signal(String::new);
     let mut toast = use_toast();
 
     let current_settings = draft_settings();
@@ -132,6 +134,11 @@ pub fn SettingsPanel(
                     settings.set(config.overlay_settings.clone());
                     draft_settings.set(config.overlay_settings);
                     has_changes.set(false);
+                    // Save to the active profile so it stays in sync
+                    if let Some(ref profile_name) = active_profile() {
+                        let _ = api::save_profile(profile_name).await;
+                    }
+                    profile_dirty.set(false);
                     save_status.set("Settings saved!".to_string());
                     on_settings_saved.call(());
                 }
@@ -186,7 +193,7 @@ pub fn SettingsPanel(
             }
 
             // Profile unsaved changes indicator
-            if profile_dirty() && active_profile().is_some() {
+            if profile_dirty() {
                 div { class: "profile-unsaved-indicator",
                     i { class: "fa-solid fa-circle-exclamation" }
                     span { " Changes not saved to profile" }
@@ -200,23 +207,58 @@ pub fn SettingsPanel(
                 summary { class: "collapsible-summary",
                     i { class: "fa-solid fa-user-gear summary-icon" }
                     "Profiles"
-                    if let Some(ref name) = active_profile() {
-                        span { class: "profile-active-badge", "{name}" }
-                    }
+                    span { class: "profile-active-badge", "{active_profile().unwrap_or_default()}" }
                 }
                 div { class: "collapsible-content",
                     // Profile list
-                    if !profile_names().is_empty() {
-                        div { class: "profile-list compact",
+                    div { class: "profile-list compact",
                             for name in profile_names().iter() {
                                 {
                                     let profile_name = name.clone();
                                     let is_active = active_profile().as_ref() == Some(&profile_name);
+                                    let is_renaming = renaming_profile().as_ref() == Some(&profile_name);
                                     rsx! {
                                         div {
                                             key: "{profile_name}",
                                             class: if is_active { "profile-item active" } else { "profile-item" },
-                                            span { class: "profile-name", "{profile_name}" }
+                                            // Profile name: inline rename input or static text
+                                            if is_renaming {
+                                                input {
+                                                    class: "profile-rename-input",
+                                                    r#type: "text",
+                                                    maxlength: "32",
+                                                    value: rename_input,
+                                                    autofocus: true,
+                                                    oninput: move |e| rename_input.set(e.value()),
+                                                    onkeydown: {
+                                                        let old_name = profile_name.clone();
+                                                        move |e: KeyboardEvent| {
+                                                            if e.key() == Key::Enter {
+                                                                let new_name = rename_input().trim().to_string();
+                                                                let old = old_name.clone();
+                                                                if new_name.is_empty() || new_name == old {
+                                                                    renaming_profile.set(None);
+                                                                    return;
+                                                                }
+                                                                spawn(async move {
+                                                                    if let Err(err) = api::rename_profile(&old, &new_name).await {
+                                                                        toast.show(format!("Failed to rename: {}", err), ToastSeverity::Normal);
+                                                                    } else {
+                                                                        profile_names.set(api::get_profile_names().await);
+                                                                        active_profile.set(api::get_active_profile().await);
+                                                                        profile_status.set(format!("Renamed '{}' to '{}'", old, new_name));
+                                                                    }
+                                                                    renaming_profile.set(None);
+                                                                });
+                                                            } else if e.key() == Key::Escape {
+                                                                renaming_profile.set(None);
+                                                            }
+                                                        }
+                                                    },
+                                                }
+                                            } else {
+                                                span { class: "profile-name", "{profile_name}" }
+                                            }
                                             div { class: "profile-actions",
                                                 // Load button
                                                 button {
@@ -275,6 +317,19 @@ pub fn SettingsPanel(
                                                     },
                                                     "Save"
                                                 }
+                                                // Rename button
+                                                button {
+                                                    class: "btn btn-small btn-rename",
+                                                    title: "Rename profile",
+                                                    onclick: {
+                                                        let pname = profile_name.clone();
+                                                        move |_| {
+                                                            rename_input.set(pname.clone());
+                                                            renaming_profile.set(Some(pname.clone()));
+                                                        }
+                                                    },
+                                                    i { class: "fa-solid fa-pen" }
+                                                }
                                                 // Delete button
                                                 button {
                                                     class: "btn btn-small btn-delete",
@@ -301,37 +356,59 @@ pub fn SettingsPanel(
                                 }
                             }
                         }
-                    }
 
                     // Create new profile
-                    div { class: "profile-create",
-                        input {
-                            r#type: "text",
-                            class: "profile-name-input",
-                            placeholder: "New profile name...",
-                            maxlength: "32",
-                            value: new_profile_name,
-                            oninput: move |e| new_profile_name.set(e.value())
-                        }
-                        button {
-                            class: "btn btn-small btn-save",
-                            disabled: new_profile_name().trim().is_empty() || profile_names().len() >= MAX_PROFILES,
-                            onclick: move |_| {
-                                let name = new_profile_name().trim().to_string();
-                                if name.is_empty() { return; }
-                                spawn(async move {
-                                    if let Err(err) = api::save_profile(&name).await {
-                                        toast.show(format!("Failed to create profile: {}", err), ToastSeverity::Normal);
-                                    } else {
-                                        profile_names.set(api::get_profile_names().await);
-                                        active_profile.set(Some(name.clone()));
-                                        new_profile_name.set(String::new());
-                                        profile_dirty.set(false);
-                                        profile_status.set(format!("Created '{}'", name));
-                                    }
-                                });
-                            },
-                            "+ New"
+                    {
+                        let names = profile_names();
+                        let suggested_name = {
+                            let mut n = names.len() + 1;
+                            loop {
+                                let candidate = format!("Profile {n}");
+                                if !names.iter().any(|existing| existing == &candidate) {
+                                    break candidate;
+                                }
+                                n += 1;
+                            }
+                        };
+                        rsx! {
+                            div { class: "profile-create",
+                                input {
+                                    r#type: "text",
+                                    class: "profile-name-input",
+                                    placeholder: "{suggested_name}",
+                                    maxlength: "32",
+                                    value: new_profile_name,
+                                    oninput: move |e| new_profile_name.set(e.value()),
+                                    onfocus: {
+                                        let suggested = suggested_name.clone();
+                                        move |_| {
+                                            if new_profile_name().is_empty() {
+                                                new_profile_name.set(suggested.clone());
+                                            }
+                                        }
+                                    },
+                                }
+                                button {
+                                    class: "btn btn-small btn-save",
+                                    disabled: new_profile_name().trim().is_empty() || profile_names().len() >= MAX_PROFILES,
+                                    onclick: move |_| {
+                                        let name = new_profile_name().trim().to_string();
+                                        if name.is_empty() { return; }
+                                        spawn(async move {
+                                            if let Err(err) = api::save_profile(&name).await {
+                                                toast.show(format!("Failed to create profile: {}", err), ToastSeverity::Normal);
+                                            } else {
+                                                profile_names.set(api::get_profile_names().await);
+                                                active_profile.set(Some(name.clone()));
+                                                new_profile_name.set(String::new());
+                                                profile_dirty.set(false);
+                                                profile_status.set(format!("Created '{}'", name));
+                                            }
+                                        });
+                                    },
+                                    "+ New"
+                                }
+                            }
                         }
                     }
 
@@ -2555,10 +2632,10 @@ pub fn SettingsPanel(
             // ─────────────────────────────────────────────────────────────────
             div { class: "settings-footer",
                 button {
-                    class: if has_changes() { "btn btn-save btn-unsaved" } else { "btn btn-save" },
-                    disabled: !has_changes(),
+                    class: if has_changes() || profile_dirty() { "btn btn-save btn-unsaved" } else { "btn btn-save" },
+                    disabled: !has_changes() && !profile_dirty(),
                     onclick: save_to_backend,
-                    if has_changes() { "Save Changes *" } else { "Save" }
+                    if has_changes() || profile_dirty() { "Save *" } else { "Save" }
                 }
                 if !save_status().is_empty() {
                     span { class: "save-status", "{save_status()}" }

@@ -543,6 +543,32 @@ select optgroup {
   color: rgba(240, 173, 78, 0.7);
 }
 
+.header-unsaved-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.1em 0.5em;
+  margin-left: 0.25em;
+  background: rgba(240, 173, 78, 0.15);
+  border: 1px solid rgba(240, 173, 78, 0.35);
+  border-radius: var(--radius-sm);
+  color: rgba(240, 173, 78, 0.9);
+  font-size: 1em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.header-unsaved-save-btn:hover {
+  background: rgba(240, 173, 78, 0.25);
+  border-color: rgba(240, 173, 78, 0.5);
+  color: #f0c860;
+}
+
+.header-unsaved-save-btn i {
+  font-size: 0.85em;
+}
+
 /* Status dot (inside header-overlay-controls) */
 .header-overlay-controls .status-dot {
   width: 8px;
@@ -1356,46 +1382,6 @@ button:active {
 }
 
 /* Profile selector inside session dashboard bar */
-.dashboard-profile-group {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-}
-
-.dashboard-profile-label {
-  font-size: 0.8em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.dashboard-profile-default {
-  font-size: 0.8em;
-  color: var(--text-disabled);
-  font-style: italic;
-}
-
-.dashboard-profile-save-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-disabled);
-  font-size: 0.8em;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.dashboard-profile-save-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: var(--swtor-blue);
-}
-
 /* Settings row inside dashboard bar */
 .session-dashboard-bar .session-settings-row {
   padding: 0.4em 0 0.2em 0;
@@ -2764,6 +2750,36 @@ details[open] .collapsible-summary::before {
 
 .btn-delete:hover {
   background: var(--color-error-bg-hover);
+}
+
+.btn-rename {
+  background: rgba(106, 138, 186, 0.15);
+  border-color: rgba(106, 138, 186, 0.3);
+}
+
+.btn-rename:hover {
+  background: rgba(106, 138, 186, 0.25);
+}
+
+.btn-rename i {
+  font-size: 0.75em;
+}
+
+.profile-rename-input {
+  flex: 1;
+  padding: 0.3em 0.5em;
+  background: #2a2a2a;
+  border: 1px solid #6a8aba;
+  border-radius: var(--radius-md);
+  color: #f6f6f6;
+  font-size: 0.9em;
+  font-weight: 500;
+  outline: none;
+  min-width: 0;
+}
+
+.profile-rename-input:focus {
+  box-shadow: 0 0 4px rgba(106, 138, 186, 0.4);
 }
 
 .profile-create {

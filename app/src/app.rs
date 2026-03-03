@@ -164,6 +164,13 @@ pub fn App() -> Element {
             }
             profile_names.set(config.profiles.iter().map(|p| p.name.clone()).collect());
             active_profile.set(config.active_profile_name);
+            // Auto-create a "Default" profile for new users
+            if config.profiles.is_empty() {
+                if api::save_profile("Default").await.is_ok() {
+                    profile_names.set(vec!["Default".to_string()]);
+                    active_profile.set(Some("Default".to_string()));
+                }
+            }
             auto_delete_empty.set(config.auto_delete_empty_files);
             auto_delete_small.set(config.auto_delete_small_files);
             auto_delete_old.set(config.auto_delete_old_files);
@@ -739,6 +746,48 @@ pub fn App() -> Element {
                             i { class: "fa-solid fa-eraser" }
                         }
                         span { class: "header-controls-divider" }
+                        // Profile selector
+                        select {
+                            class: "header-profile-dropdown",
+                            title: "Switch overlay profile",
+                            value: active_profile().unwrap_or_default(),
+                            onchange: move |e| {
+                                let selected = e.value();
+                                if selected.is_empty() { return; }
+                                let previous = active_profile();
+                                active_profile.set(Some(selected.clone()));
+                                let mut toast = use_toast();
+                                spawn(async move {
+                                    if let Err(err) = api::load_profile(&selected).await {
+                                        active_profile.set(previous);
+                                        toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
+                                    } else {
+                                        if let Some(cfg) = api::get_config().await {
+                                            overlay_settings.set(cfg.overlay_settings);
+                                        }
+                                        profile_dirty.set(false);
+                                        api::refresh_overlay_settings().await;
+                                        if let Some(status) = api::get_overlay_status().await {
+                                            apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
+                                                &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
+                                                &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
+                                                &mut effects_a_enabled, &mut effects_b_enabled,
+                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
+                                                &mut combat_time_enabled, &mut operation_timer_enabled,
+                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
+                                        }
+                                    }
+                                });
+                            },
+                            for name in profile_names().iter() {
+                                option {
+                                    value: "{name}",
+                                    selected: active_profile().as_deref() == Some(name.as_str()),
+                                    "{name}"
+                                }
+                            }
+                        }
+                        span { class: "header-controls-divider" }
                         button {
                             class: "btn btn-header-overlay btn-header-customize",
                             title: "Customize overlay appearance",
@@ -768,11 +817,29 @@ pub fn App() -> Element {
                     }
 
                     // Profile unsaved changes hint (header)
-                    if profile_dirty() && active_profile().is_some() {
+                    if profile_dirty() {
                         span { class: "header-unsaved-hint",
-                            title: "Overlay profile has unsaved changes",
                             i { class: "fa-solid fa-circle-info" }
-                            " Changes not saved"
+                            " Unsaved"
+                            button {
+                                class: "header-unsaved-save-btn",
+                                title: "Save changes to active profile",
+                                onclick: move |_| {
+                                    if let Some(ref name) = active_profile() {
+                                        let n = name.clone();
+                                        let mut toast = use_toast();
+                                        spawn(async move {
+                                            if let Err(err) = api::save_profile(&n).await {
+                                                toast.show(format!("Failed to save profile: {}", err), ToastSeverity::Normal);
+                                            } else {
+                                                profile_dirty.set(false);
+                                            }
+                                        });
+                                    }
+                                },
+                                i { class: "fa-solid fa-floppy-disk" }
+                                " Save"
+                            }
                         }
                     }
 
@@ -1038,77 +1105,6 @@ pub fn App() -> Element {
 
                                 span { class: "session-settings-divider" }
 
-                                // Profile selector
-                                div { class: "dashboard-profile-group",
-                                    span { class: "dashboard-profile-label", "Profile" }
-                                    if !profile_names().is_empty() {
-                                        select {
-                                            class: "header-profile-dropdown",
-                                            title: "Switch overlay profile",
-                                            value: active_profile().unwrap_or_default(),
-                                            onchange: move |e| {
-                                                let selected = e.value();
-                                                if selected.is_empty() { return; }
-                                                let previous = active_profile();
-                                                active_profile.set(Some(selected.clone()));
-                                                let mut toast = use_toast();
-                                                spawn(async move {
-                                                    if let Err(err) = api::load_profile(&selected).await {
-                                                        active_profile.set(previous);
-                                                        toast.show(format!("Failed to load profile: {}", err), ToastSeverity::Normal);
-                                                    } else {
-                                                        if let Some(cfg) = api::get_config().await {
-                                                            overlay_settings.set(cfg.overlay_settings);
-                                                        }
-                                                        profile_dirty.set(false);
-                                                        api::refresh_overlay_settings().await;
-                                                        if let Some(status) = api::get_overlay_status().await {
-                                                            apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
-                                                                &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
-                                                                &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
-                                                                &mut effects_a_enabled, &mut effects_b_enabled,
-                                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
-                                                                &mut combat_time_enabled, &mut operation_timer_enabled,
-                                                                &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
-                                                        }
-                                                    }
-                                                });
-                                            },
-                                            for name in profile_names().iter() {
-                                                option {
-                                                    value: "{name}",
-                                                    selected: active_profile().as_deref() == Some(name.as_str()),
-                                                    "{name}"
-                                                }
-                                            }
-                                        }
-                                        if active_profile().is_some() {
-                                            button {
-                                                class: "dashboard-profile-save-btn",
-                                                title: "Save to profile",
-                                                onclick: move |_| {
-                                                    if let Some(ref name) = active_profile() {
-                                                        let n = name.clone();
-                                                        let mut toast = use_toast();
-                                                        spawn(async move {
-                                                            if let Err(err) = api::save_profile(&n).await {
-                                                                toast.show(format!("Failed to save profile: {}", err), ToastSeverity::Normal);
-                                                            } else {
-                                                                profile_dirty.set(false);
-                                                            }
-                                                        });
-                                                    }
-                                                },
-                                                i { class: "fa-solid fa-floppy-disk" }
-                                            }
-                                        }
-                                    } else {
-                                        span { class: "dashboard-profile-default", "Default" }
-                                    }
-                                }
-
-                                span { class: "session-settings-divider" }
-
                                 // Operation timer
                                 {
                                     let secs = op_timer_secs();
@@ -1285,13 +1281,6 @@ pub fn App() -> Element {
                 // ─────────────────────────────────────────────────────────────
                 if ui_state.read().active_tab == MainTab::Overlays {
                     section { class: "overlay-controls",
-                        // Profile unsaved changes indicator
-                        if profile_dirty() && active_profile().is_some() {
-                            div { class: "profile-unsaved-indicator",
-                                i { class: "fa-solid fa-circle-exclamation" }
-                                span { " Changes not saved to profile" }
-                            }
-                        }
                         // Controls
                         h4 { class: "subsection-title", "Controls" }
                         div { class: "settings-controls",
@@ -1624,7 +1613,7 @@ pub fn App() -> Element {
                             profile_dirty: profile_dirty,
                             on_close: move |_| settings_open.set(false),
                             on_header_mousedown: move |_| {},
-                            on_settings_saved: move |_| profile_dirty.set(true),
+                            on_settings_saved: move |_| {},
                         }
                     }
                 }

@@ -376,6 +376,15 @@ pub async fn delete_profile(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Rename a profile
+pub async fn rename_profile(old_name: &str, new_name: &str) -> Result<(), String> {
+    let obj = js_sys::Object::new();
+    js_set(&obj, "oldName", &JsValue::from_str(old_name));
+    js_set(&obj, "newName", &JsValue::from_str(new_name));
+    try_invoke("rename_profile", obj.into()).await?;
+    Ok(())
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Dialog Helpers
 // ─────────────────────────────────────────────────────────────────────────────
