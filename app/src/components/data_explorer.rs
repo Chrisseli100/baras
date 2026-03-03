@@ -1208,17 +1208,17 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
             .collect::<HashMap<String, String>>()
     });
 
-    // Memoized role icon lookup from overview data (player name -> role_icon)
-    let _role_icon_lookup = use_memo(move || {
+    // Memoized overview stats lookup (player name -> (dps, ehps, is_healer))
+    // Used by Rotation/Usage sidebar to show DPS for non-healers and EHPS for healers
+    let overview_stats_lookup = use_memo(move || {
         overview_data
             .read()
             .iter()
-            .filter_map(|row| {
-                row.role_icon
-                    .as_ref()
-                    .map(|icon| (row.name.clone(), icon.clone()))
+            .map(|row| {
+                let is_healer = row.role_icon.as_deref() == Some("icon_heal.png");
+                (row.name.clone(), (row.dps, row.ehps, is_healer))
             })
-            .collect::<HashMap<String, String>>()
+            .collect::<HashMap<String, (f64, f64, bool)>>()
     });
 
     // Group stats for hierarchical display
@@ -2324,6 +2324,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                         let duration = if duration > 0.0 { duration } else { 1.0 };
                                         let mode = view_mode();
                                         let show_values = !matches!(mode, ViewMode::Charts);
+                                        let overview_stats = overview_stats_lookup();
                                         rsx! {
                                         for entity in entity_list().iter() {
                                             {
@@ -2331,17 +2332,32 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                 let is_selected = selected_source.read().as_ref() == Some(&name);
                                                 let is_npc = entity.entity_type == "Npc";
                                                 let class_icon = class_icon_lookup().get(&name).cloned();
-                                                let per_sec = entity.total_value / duration;
-                                                // Color class for entity value based on tab
-                                                let value_class = match mode {
-                                                    ViewMode::Detailed(DataTab::Damage) => "entity-value value-damage",
-                                                    ViewMode::Detailed(DataTab::Healing | DataTab::HealingTaken) => "entity-value value-healing",
-                                                    ViewMode::Detailed(DataTab::DamageTaken) => "entity-value value-dtps",
+                                                // For Rotation/Usage: use overview DPS for non-healers, EHPS for healers
+                                                // For Detailed tabs: use entity total_value / duration as before
+                                                let (per_sec, value_class, rate_label) = match mode {
                                                     ViewMode::Rotation | ViewMode::Usage => {
-                                                        let dmg = entity_dmg_totals.read().get(&name).copied().unwrap_or(0.0);
-                                                        if dmg >= entity.total_value - dmg { "entity-value value-damage" } else { "entity-value value-healing" }
+                                                        let stats = overview_stats.get(&name);
+                                                        let is_healer = stats.map(|s| s.2).unwrap_or(false);
+                                                        if is_healer && !is_npc {
+                                                            let ehps = stats.map(|s| s.1).unwrap_or(0.0);
+                                                            (ehps, "entity-value value-healing", "EHPS")
+                                                        } else {
+                                                            let dps = stats.map(|s| s.0).unwrap_or(0.0);
+                                                            (dps, "entity-value value-damage", "DPS")
+                                                        }
                                                     }
-                                                    _ => "entity-value",
+                                                    ViewMode::Detailed(DataTab::Damage) => {
+                                                        (entity.total_value / duration, "entity-value value-damage", "DPS")
+                                                    }
+                                                    ViewMode::Detailed(DataTab::Healing | DataTab::HealingTaken) => {
+                                                        (entity.total_value / duration, "entity-value value-healing", "HPS")
+                                                    }
+                                                    ViewMode::Detailed(DataTab::DamageTaken) => {
+                                                        (entity.total_value / duration, "entity-value value-dtps", "DTPS")
+                                                    }
+                                                    _ => {
+                                                        (entity.total_value / duration, "entity-value", "")
+                                                    }
                                                 };
                                                 let icon_class = "entity-class-icon";
                                                 rsx! {
@@ -2364,7 +2380,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                             "{entity.source_name}"
                                                         }
                                                         if show_values {
-                                                            span { class: "{value_class}", "{format_number(per_sec)}/s" }
+                                                            span { class: "{value_class}", "{format_number(per_sec)} {rate_label}" }
                                                             span { class: "entity-abilities", "{entity.abilities_used} abilities" }
                                                         }
                                                     }
@@ -3351,7 +3367,8 @@ fn UsageTab(
         }
     };
 
-    // Build sorted rows
+    // Build sorted rows, stored in a signal so the chart effect can reactively track changes
+    let mut sorted_rows = use_signal(Vec::<AbilityUsageRow>::new);
     let usage_read = usage_data.read();
     let usage_loading = usage_read.is_none(); // None = resource still loading
     let rows: Vec<AbilityUsageRow> = match &*usage_read {
@@ -3362,6 +3379,10 @@ fn UsageTab(
         }
         _ => Vec::new(),
     };
+    // Update sorted_rows signal when rows change (drives chart effect reactively)
+    if *sorted_rows.peek() != rows {
+        sorted_rows.set(rows.clone());
+    }
 
     let current_selected = selected_abilities.read().clone();
 
@@ -3369,9 +3390,9 @@ fn UsageTab(
 
     // Update timeline chart when selections or data change.
     // All signal reads must be inside the closure so Dioxus tracks dependencies.
-    let chart_rows = rows.clone();
     use_effect(move || {
         let sel = selected_abilities.read().clone();
+        let rows_for_chart = sorted_rows.read().clone();
         // Read timeline duration inside the effect so it re-triggers when timeline loads
         let dur = {
             let tr = *time_range.read();
@@ -3381,9 +3402,8 @@ fn UsageTab(
                 timeline.read().as_ref().map(|t| t.duration_secs).unwrap_or(1.0)
             }
         };
-        let rows_for_chart = chart_rows.clone();
 
-        if sel.is_empty() {
+        if sel.is_empty() || rows_for_chart.is_empty() {
             return;
         }
 

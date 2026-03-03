@@ -186,6 +186,9 @@ pub fn RotationView(props: RotationViewProps) -> Element {
                                 key: "{i}",
                                 // Per-cycle stats
                                 div { class: "rotation-cycle-stats",
+                                    span { class: "cycle-stat cycle-duration",
+                                        "{formatting::format_decimal(cycle.duration_secs, 1, eu)}s"
+                                    }
                                     if cycle.total_damage > 0.0 && cycle.duration_secs > 0.0 {
                                         span { class: "cycle-stat dps",
                                             span { class: "cycle-stat-label", "DPS " }
@@ -203,9 +206,6 @@ pub fn RotationView(props: RotationViewProps) -> Element {
                                             span { class: "cycle-stat-label", "Crit " }
                                             "{format_pct(cycle.crit_count, cycle.hit_count)}"
                                         }
-                                    }
-                                    span { class: "cycle-stat duration",
-                                        "{formatting::format_decimal(cycle.duration_secs, 1, eu)}s"
                                     }
                                 }
                                 div { class: "rotation-slots",

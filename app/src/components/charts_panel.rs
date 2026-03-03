@@ -636,6 +636,12 @@ fn apply_brush_config(obj: &js_sys::Object) {
     js_set(&brush, "brushStyle", &brush_style);
 
     js_set(obj, "brush", &brush);
+
+    // Explicitly hide the top-level toolbox — ECharts auto-creates one when
+    // brush is configured, even if brush.toolbox is empty.
+    let toolbox = js_sys::Object::new();
+    js_set(&toolbox, "show", &JsValue::from_bool(false));
+    js_set(obj, "toolbox", &toolbox);
 }
 
 /// Activate the brush tool on a chart instance via dispatchAction.

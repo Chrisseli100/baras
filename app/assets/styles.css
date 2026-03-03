@@ -7498,6 +7498,11 @@ details[open] .collapsible-summary::before {
   border-radius: 2px;
 }
 
+.ability-icon-placeholder {
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
 .ability-table tbody tr:hover {
   background: var(--blue-alpha-5);
 }

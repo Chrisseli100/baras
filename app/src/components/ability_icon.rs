@@ -77,6 +77,12 @@ pub fn AbilityIcon(
                 title: "{fallback}",
                 "{fallback_initials(&fallback)}"
             }
+        } else if !loaded() {
+            // Reserve space while loading to prevent layout shift
+            div {
+                class: "ability-icon-placeholder",
+                style: "width: {size}px; height: {size}px;",
+            }
         }
     }
 }

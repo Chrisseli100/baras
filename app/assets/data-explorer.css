@@ -1223,7 +1223,9 @@
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 12px;
-  min-width: 140px;
+  width: 180px;
+  max-width: 180px;
+  text-overflow: ellipsis;
 }
 
 .log-filter-select:focus {
@@ -1255,6 +1257,8 @@
   color: var(--text-muted);
   font-size: 11px;
   margin-left: auto;
+  min-width: 8ch;
+  text-align: right;
 }
 
 /* Table container */
@@ -1751,9 +1755,10 @@
   color: #e8c84a;
 }
 
-.cycle-stat.duration {
-  color: var(--text-muted, #888);
-  margin-left: auto;
+.cycle-stat.cycle-duration {
+  color: #4a9eff;
+  font-weight: 700;
+  font-size: 1.3em;
 }
 
 .ability-icon-fallback {
@@ -1881,6 +1886,7 @@
 .usage-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .usage-table thead th {
@@ -1899,6 +1905,7 @@
 
 .usage-table thead th.num {
   text-align: right;
+  width: 95px;
 }
 
 .usage-table thead th.sortable {
@@ -1930,7 +1937,8 @@
 }
 
 .usage-table .ability-name-cell {
-  min-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .usage-table .ability-name-inner {
