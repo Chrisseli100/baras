@@ -47,11 +47,12 @@ impl EncounterQuery<'_> {
     /// Effects are classified as active (triggered by ability) or passive (proc/auto-applied).
     ///
     /// The algorithm:
-    /// 1. Collect all ApplyEffect events, using LEAD() to find the next re-application time
-    ///    for the same (effect_id, target_name). This handles buff refreshes correctly.
-    /// 2. For each apply, find the earliest RemoveEffect that occurs at or after the apply time
-    ///    (using a lateral/correlated approach via ROW_NUMBER on removes after the apply).
-    /// 3. Each window ends at MIN(next_apply, first_remove_after, encounter_end).
+    /// 1. Build ALL effect windows from every apply/remove pair across the encounter.
+    ///    Pre-combat events (combat_time_secs IS NULL) are included via COALESCE to 0.0,
+    ///    so effects applied before combat count from combat start.
+    /// 2. Each apply window ends at MIN(next_apply, first_remove_after, encounter_end).
+    /// 3. Filter to windows that overlap the target time range, clamping edges to the range.
+    ///    This generalises for full-combat, user-selected time ranges, and pre-combat effects.
     /// 4. Merge overlapping intervals per effect before summing, preventing >100% uptime.
     /// 5. Classify active vs passive by checking if there's an AbilityActivate event
     ///    at the same timestamp with matching ability_id OR matching ability_name = effect_name.
@@ -65,38 +66,37 @@ impl EncounterQuery<'_> {
         let target_filter = target_name
             .map(|n| format!("AND target_name = '{}'", sql_escape(n)))
             .unwrap_or_default();
-        let time_filter = time_range
-            .map(|tr| format!("AND {}", tr.sql_filter()))
-            .unwrap_or_default();
         let src_filter = source_filter_clause(source_filter, target_name);
         let duration = duration_secs.max(0.001);
+        let range_start = time_range.map(|tr| tr.start).unwrap_or(0.0);
+        let range_end = time_range.map(|tr| tr.end).unwrap_or(duration);
+        let range_duration = (range_end - range_start).max(0.001);
 
-        // Strategy: Use LEAD() to find next re-application time, and a subquery
-        // to find the first remove after each apply. The window end is the minimum
-        // of (next_apply, first_remove, encounter_duration). Then merge overlapping
-        // intervals per effect_name before computing uptime.
+        // Strategy: Build ALL effect windows from every apply/remove pair (including
+        // pre-combat events via COALESCE), then filter to windows overlapping the
+        // target range and clamp edges. This handles effects applied before combat
+        // or before a selected time range.
         let batches = self.sql(&format!(r#"
             WITH applies AS (
                 SELECT effect_id, effect_name, ability_name, target_name,
-                       combat_time_secs as apply_time, timestamp,
-                       LEAD(combat_time_secs) OVER (
+                       COALESCE(combat_time_secs, 0.0) as apply_time, timestamp,
+                       LEAD(COALESCE(combat_time_secs, 0.0)) OVER (
                            PARTITION BY effect_id, target_name
-                           ORDER BY combat_time_secs, line_number
+                           ORDER BY COALESCE(combat_time_secs, 0.0), line_number
                        ) as next_apply_time
                 FROM events
                 WHERE effect_type_id = {APPLY_EFFECT}
                   AND effect_id NOT IN ({DAMAGE_EFFECT}, {HEAL_EFFECT})
                   {target_filter}
                   {src_filter}
-                  {time_filter}
             ),
             removes AS (
-                SELECT effect_id, target_name, combat_time_secs as remove_time
+                SELECT effect_id, target_name,
+                       COALESCE(combat_time_secs, 0.0) as remove_time
                 FROM events
                 WHERE effect_type_id = {REMOVE_EFFECT}
                   AND effect_id NOT IN ({DAMAGE_EFFECT}, {HEAL_EFFECT})
                   {target_filter}
-                  {time_filter}
             ),
             apply_with_remove AS (
                 SELECT a.effect_id, a.effect_name, a.ability_name, a.apply_time, a.timestamp,
@@ -120,15 +120,22 @@ impl EncounterQuery<'_> {
                 FROM apply_with_remove
             ),
             valid_windows AS (
-                SELECT effect_id, effect_name, ability_name, apply_time, end_time, timestamp
-                FROM windows
-                WHERE end_time > apply_time
+                SELECT effect_id, effect_name, ability_name, clamped_start as apply_time,
+                       clamped_end as end_time, timestamp
+                FROM (
+                    SELECT effect_id, effect_name, ability_name,
+                           GREATEST(apply_time, {range_start}) as clamped_start,
+                           LEAST(end_time, {range_end}) as clamped_end,
+                           timestamp
+                    FROM windows
+                    WHERE apply_time < {range_end} AND end_time > {range_start}
+                ) clamped
+                WHERE clamped_end > clamped_start
             ),
             ability_activations AS (
                 SELECT DISTINCT timestamp as activation_ts, ability_id, ability_name as act_name
                 FROM events
                 WHERE effect_id = {ABILITY_ACTIVATE}
-                  {time_filter}
             ),
             classified AS (
                 SELECT w.effect_id, w.effect_name, w.apply_time, w.end_time,
@@ -200,7 +207,7 @@ impl EncounterQuery<'_> {
                 GROUP BY m.effect_name
             )
             SELECT effect_id, effect_name, ability_id, is_active, count, total_duration,
-                   LEAST(total_duration * 100.0 / {duration}, 100.0) as uptime_pct
+                   LEAST(total_duration * 100.0 / {range_duration}, 100.0) as uptime_pct
             FROM aggregated
             ORDER BY total_duration DESC
         "#)).await?;
@@ -250,9 +257,9 @@ impl EncounterQuery<'_> {
     }
 
     /// Query individual time windows for a specific effect (for chart highlighting).
-    /// Uses the same corrected pairing logic: each apply window ends at
-    /// MIN(next_apply, first_remove_after, encounter_duration).
-    /// Windows are then merged so overlapping intervals are consolidated.
+    /// Builds all windows from every apply/remove pair (including pre-combat via COALESCE),
+    /// filters to those overlapping the target range, clamps edges, then merges overlapping
+    /// intervals.
     pub async fn query_effect_windows(
         &self,
         effect_id: i64,
@@ -264,35 +271,32 @@ impl EncounterQuery<'_> {
         let target_filter = target_name
             .map(|n| format!("AND target_name = '{}'", sql_escape(n)))
             .unwrap_or_default();
-        let time_filter = time_range
-            .map(|tr| format!("AND {}", tr.sql_filter()))
-            .unwrap_or_default();
         let src_filter = source_filter_clause(source_filter, target_name);
         let duration = duration_secs.max(0.001);
+        let range_start = time_range.map(|tr| tr.start).unwrap_or(0.0);
+        let range_end = time_range.map(|tr| tr.end).unwrap_or(duration);
 
         let batches = self
             .sql(&format!(
                 r#"
             WITH applies AS (
-                SELECT combat_time_secs as apply_time, target_name,
-                       LEAD(combat_time_secs) OVER (
+                SELECT COALESCE(combat_time_secs, 0.0) as apply_time, target_name,
+                       LEAD(COALESCE(combat_time_secs, 0.0)) OVER (
                            PARTITION BY target_name
-                           ORDER BY combat_time_secs, line_number
+                           ORDER BY COALESCE(combat_time_secs, 0.0), line_number
                        ) as next_apply_time
                 FROM events
                 WHERE effect_type_id = {APPLY_EFFECT}
                   AND effect_id = {effect_id}
                   {target_filter}
                   {src_filter}
-                  {time_filter}
             ),
             removes AS (
-                SELECT combat_time_secs as remove_time, target_name
+                SELECT COALESCE(combat_time_secs, 0.0) as remove_time, target_name
                 FROM events
                 WHERE effect_type_id = {REMOVE_EFFECT}
                   AND effect_id = {effect_id}
                   {target_filter}
-                  {time_filter}
             ),
             apply_with_remove AS (
                 SELECT a.apply_time, a.next_apply_time,
@@ -304,23 +308,26 @@ impl EncounterQuery<'_> {
                 GROUP BY a.apply_time, a.next_apply_time
             ),
             windows AS (
-                SELECT apply_time as start_secs,
+                SELECT GREATEST(apply_time, {range_start}) as start_secs,
                        LEAST(
                            COALESCE(next_apply_time, {duration}),
                            COALESCE(first_remove_time, {duration}),
-                           {duration}
+                           {duration},
+                           {range_end}
                        ) as end_secs
                 FROM apply_with_remove
-                WHERE LEAST(
-                    COALESCE(next_apply_time, {duration}),
-                    COALESCE(first_remove_time, {duration}),
-                    {duration}
-                ) > apply_time
+                WHERE apply_time < {range_end}
+                  AND LEAST(
+                      COALESCE(next_apply_time, {duration}),
+                      COALESCE(first_remove_time, {duration}),
+                      {duration}
+                  ) > {range_start}
             ),
             ordered AS (
                 SELECT start_secs, end_secs,
                        ROW_NUMBER() OVER (ORDER BY start_secs, end_secs) as rn
                 FROM windows
+                WHERE end_secs > start_secs
             ),
             merge_pass AS (
                 SELECT start_secs, end_secs, rn,
