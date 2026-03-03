@@ -421,22 +421,24 @@ impl ChallengeTracker {
         target: &EntityInfo,
         ability_id: u64,
         damage: i64,
+        absorbed: i64,
         timestamp: chrono::NaiveDateTime,
     ) -> Vec<String> {
-        if !self.active || damage == 0 {
+        if !self.active || (damage == 0 && absorbed == 0) {
             return Vec::new();
         }
 
         let mut updated = Vec::new();
 
         for def in &self.definitions {
-            let (matches_metric, track_source) = match def.metric {
-                ChallengeMetric::Damage => (true, true),
-                ChallengeMetric::DamageTaken => (true, false),
-                _ => (false, false),
+            let (matches_metric, track_source, value) = match def.metric {
+                ChallengeMetric::Damage => (true, true, damage),
+                ChallengeMetric::DamageTaken => (true, false, damage),
+                ChallengeMetric::DamageAbsorbed => (true, true, absorbed),
+                _ => (false, false, 0),
             };
 
-            if !matches_metric {
+            if !matches_metric || value == 0 {
                 continue;
             }
 
@@ -456,9 +458,9 @@ impl ChallengeTracker {
                     if val.first_event_time.is_none() {
                         val.first_event_time = Some(timestamp);
                     }
-                    val.value += damage;
+                    val.value += value;
                     val.event_count += 1;
-                    *val.by_player.entry(entity.entity_id).or_insert(0) += damage;
+                    *val.by_player.entry(entity.entity_id).or_insert(0) += value;
                     updated.push(def.id.clone());
                 }
             }

@@ -840,6 +840,7 @@ pub enum ChallengeMetric {
     HealingTaken,
     AbilityCount,
     EffectCount,
+    DamageAbsorbed,
 }
 
 impl ChallengeMetric {
@@ -852,6 +853,7 @@ impl ChallengeMetric {
             Self::HealingTaken => "Healing Taken",
             Self::AbilityCount => "Ability Count",
             Self::EffectCount => "Effect Count",
+            Self::DamageAbsorbed => "Damage Absorbed",
         }
     }
 
@@ -864,6 +866,7 @@ impl ChallengeMetric {
             Self::HealingTaken,
             Self::AbilityCount,
             Self::EffectCount,
+            Self::DamageAbsorbed,
         ]
     }
 }

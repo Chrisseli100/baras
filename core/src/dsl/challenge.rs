@@ -89,6 +89,9 @@ pub enum ChallengeMetric {
 
     /// Count of effect applications
     EffectCount,
+
+    /// Total damage absorbed by target shields
+    DamageAbsorbed,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -763,12 +763,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .insert(target.npc_id.unwrap(), hp_pct);
             }
 
+            let absorbed = event.details.dmg_absorbed as i64;
             challenge_tracker.process_damage(
                 &challenge_ctx,
                 &source,
                 &target,
                 event.action.action_id as u64,
                 damage,
+                absorbed,
                 event.timestamp,
             );
         }
