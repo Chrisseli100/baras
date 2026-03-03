@@ -643,6 +643,18 @@ pub fn App() -> Element {
                                 a {
                                     class: "header-link",
                                     href: "#",
+                                    title: "GitHub — Source Code",
+                                    onclick: move |e| {
+                                        e.prevent_default();
+                                        spawn(async move {
+                                            api::open_url("https://github.com/baras-app/baras").await;
+                                        });
+                                    },
+                                    i { class: "fa-brands fa-github" }
+                                }
+                                a {
+                                    class: "header-link",
+                                    href: "#",
                                     title: "Documentation & Help",
                                     onclick: move |e| {
                                         e.prevent_default();
