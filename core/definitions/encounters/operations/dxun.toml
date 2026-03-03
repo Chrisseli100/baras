@@ -859,12 +859,43 @@ ids = [4282872668094464, 4350020186800128]
 is_boss = true
 is_kill_target = true
 
+[[boss.entities.shields]]
+label = "Voltinator"
+trigger_effect = 4310755595780426
+total = 1428519
+end_trigger_effect = 4310755595780426
+
+
 [[boss.entities]]
 name = "Power Transformer"
 ids = [4297557161279488]
 is_boss = false
 show_on_hp_overlay = false
 is_kill_target = false
+
+[[boss.counters]]
+id = "apex_voltinator_active"
+name = "Voltinator Active"
+increment_on = { type = "effect_applied", effects = [4310755595780426] }
+decrement_on = { type = "effect_removed", effects = [4310755595780426] }
+
+[[boss.challenges]]
+id = "apex_volt_dmg"
+name = "Voltinator Damage"
+metric = "damage_absorbed"
+enabled = true
+color = [255, 120, 0, 255]
+columns = "per_second_percent"
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "boss"
+
+[[boss.challenges.conditions]]
+type = "counter"
+counter_id = "apex_voltinator_active"
+operator = "eq"
+value = 1
 
 [[boss.phases]]
 id = "apex_start"
