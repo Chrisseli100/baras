@@ -52,6 +52,7 @@ fn default_timer(name: String) -> BossTimerDefinition {
         show_at_secs: 0.0,
         display_target: TimerDisplayTarget::TimersA,
         audio: AudioConfig::default(),
+        roles: vec!["Tank".into(), "Healer".into(), "Dps".into()],
     }
 }
 
@@ -198,10 +199,22 @@ fn TimerRow(
     );
     let timer_for_enable = timer.clone();
     let timer_for_audio = timer.clone();
+    let timer_for_tank = timer.clone();
+    let timer_for_healer = timer.clone();
+    let timer_for_dps = timer.clone();
     let timers_for_enable = all_timers.clone();
     let timers_for_audio = all_timers.clone();
+    let timers_for_tank = all_timers.clone();
+    let timers_for_healer = all_timers.clone();
+    let timers_for_dps = all_timers.clone();
     let bwp_for_enable = boss_with_path.clone();
     let bwp_for_audio = boss_with_path.clone();
+    let bwp_for_tank = boss_with_path.clone();
+    let bwp_for_healer = boss_with_path.clone();
+    let bwp_for_dps = boss_with_path.clone();
+    let has_tank = timer.roles.contains(&"Tank".to_string());
+    let has_healer = timer.roles.contains(&"Healer".to_string());
+    let has_dps = timer.roles.contains(&"Dps".to_string());
 
     rsx! {
         div { class: "list-item",
@@ -318,6 +331,13 @@ fn TimerRow(
                             if timer.audio.enabled { "🔊" } else { "🔇" }
                         }
                     }
+
+                    // Role toggles [T] [H] [D]
+                    div { class: "flex items-center role-toggle-group",
+                        {role_toggle("T", "Tank", has_tank, timer_for_tank, timers_for_tank, bwp_for_tank, on_change, on_refetch)}
+                        {role_toggle("H", "Healer", has_healer, timer_for_healer, timers_for_healer, bwp_for_healer, on_change, on_refetch)}
+                        {role_toggle("D", "Dps", has_dps, timer_for_dps, timers_for_dps, bwp_for_dps, on_change, on_refetch)}
+                    }
                 }
             }
 
@@ -336,6 +356,61 @@ fn TimerRow(
                     on_collapse: on_collapse,
                     on_dirty: move |dirty: bool| is_dirty.set(dirty),
                 }
+            }
+        }
+    }
+}
+
+/// Render a single role toggle button [T], [H], or [D]
+fn role_toggle(
+    label: &str,
+    role_name: &str,
+    active: bool,
+    timer: BossTimerDefinition,
+    all_timers: Vec<BossTimerDefinition>,
+    bwp: BossWithPath,
+    on_change: EventHandler<Vec<BossTimerDefinition>>,
+    on_refetch: EventHandler<()>,
+) -> Element {
+    let role_name = role_name.to_string();
+    let css_class = match label {
+        "T" => if active { "role-toggle role-toggle-tank active" } else { "role-toggle" },
+        "H" => if active { "role-toggle role-toggle-healer active" } else { "role-toggle" },
+        _ => if active { "role-toggle role-toggle-dps active" } else { "role-toggle" },
+    };
+    let title = if active {
+        format!("Hide for {}", match label { "T" => "Tanks", "H" => "Healers", _ => "DPS" })
+    } else {
+        format!("Show for {}", match label { "T" => "Tanks", "H" => "Healers", _ => "DPS" })
+    };
+    rsx! {
+        span {
+            class: css_class,
+            title: title,
+            onclick: move |e| {
+                e.stop_propagation();
+                let mut updated = timer.clone();
+                if active {
+                    updated.roles.retain(|r| r != &role_name);
+                } else {
+                    updated.roles.push(role_name.clone());
+                }
+                let mut current = all_timers.clone();
+                if let Some(idx) = current.iter().position(|t| t.id == updated.id) {
+                    current[idx] = updated.clone();
+                    on_change.call(current);
+                }
+                let boss_id = bwp.boss.id.clone();
+                let file_path = bwp.file_path.clone();
+                let item = EncounterItem::Timer(updated);
+                spawn(async move {
+                    let _ = api::update_encounter_item(&boss_id, &file_path, &item, None).await;
+                    on_refetch.call(());
+                });
+            },
+            span {
+                class: if active { "" } else { "text-muted" },
+                "{label}"
             }
         }
     }

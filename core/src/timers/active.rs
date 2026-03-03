@@ -102,6 +102,10 @@ pub struct ActiveTimer {
 
     /// Which overlay should display this timer
     pub display_target: crate::timers::TimerDisplayTarget,
+
+    /// Whether this timer is hidden due to role filtering
+    /// (still ticks/chains/expires, but produces no visual or audio output)
+    pub role_hidden: bool,
 }
 
 impl ActiveTimer {
@@ -122,6 +126,7 @@ impl ActiveTimer {
         display_target: crate::timers::TimerDisplayTarget,
         alert_on_expire: bool,
         alert_text: Option<String>,
+        role_hidden: bool,
     ) -> Self {
         // Calculate lag compensation: how far behind was the game event from system time?
         // This accounts for file I/O delay, processing time, etc.
@@ -167,6 +172,7 @@ impl ActiveTimer {
             audio_offset: audio.offset,
             audio_offset_fired: false,
             display_target,
+            role_hidden,
         }
     }
 

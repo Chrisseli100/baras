@@ -353,6 +353,7 @@ fn convert_to_boss_timer(xml: &XmlConfigTimer) -> BossTimerDefinition {
         display_target: Default::default(),
         audio: convert_audio(xml),
         per_target: false,
+        roles: Vec::new(),
     }
 }
 

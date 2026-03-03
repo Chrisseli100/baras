@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::game_data::Role;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Preference Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -66,6 +68,11 @@ pub struct TimerPreference {
     /// Override display color [R, G, B, A]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<[u8; 4]>,
+
+    /// Role filter: which roles should see this timer
+    /// None = all roles (default), Some([Tank]) = tank-only, etc.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roles: Option<Vec<Role>>,
 }
 
 impl TimerPreference {
@@ -75,6 +82,7 @@ impl TimerPreference {
             && self.audio_enabled.is_none()
             && self.audio_file.is_none()
             && self.color.is_none()
+            && self.roles.is_none()
     }
 }
 
@@ -169,6 +177,12 @@ impl TimerPreferences {
     pub fn update_color(&mut self, key: &str, color: [u8; 4]) {
         let pref = self.timers.entry(key.to_string()).or_default();
         pref.color = Some(color);
+    }
+
+    /// Update role filter for a timer (None = all roles)
+    pub fn update_roles(&mut self, key: &str, roles: Option<Vec<Role>>) {
+        let pref = self.timers.entry(key.to_string()).or_default();
+        pref.roles = roles;
     }
 
     /// Remove all overrides for a timer (reset to defaults)
@@ -324,6 +338,20 @@ impl TimerPreferences {
             .get(&key)
             .and_then(|p| p.audio_file.clone())
             .or_else(|| def.audio.file.clone())
+    }
+
+    /// Check if timer should be visible for the given role.
+    /// None current_role = unknown role, shows all timers.
+    /// None roles pref = all roles, always visible.
+    pub fn is_role_visible(&self, def: &TimerDefinition, current_role: Option<Role>) -> bool {
+        let Some(role) = current_role else {
+            return true;
+        };
+        let key = Self::key_for_definition(def);
+        match self.timers.get(&key).and_then(|p| p.roles.as_ref()) {
+            None => true,
+            Some(roles) => roles.contains(&role),
+        }
     }
 }
 

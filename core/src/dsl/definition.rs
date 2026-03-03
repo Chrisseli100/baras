@@ -370,6 +370,10 @@ pub struct BossTimerDefinition {
     /// only one instance can be active at a time regardless of target.
     #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub per_target: bool,
+
+    /// Role filter for API responses (populated from preferences, not saved to TOML)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
 }
 
 impl BossTimerDefinition {

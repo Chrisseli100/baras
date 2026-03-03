@@ -6322,6 +6322,49 @@ details[open] .collapsible-summary::before {
   border-color: var(--border-medium);
 }
 
+/* Role toggle group (separated from enable/audio toggles) */
+.role-toggle-group {
+  margin-left: 4px;
+  gap: 2px;
+}
+
+/* Role toggle buttons [T] [H] [D] */
+.role-toggle {
+  cursor: pointer;
+  padding: 3px 7px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+  color: var(--text-muted);
+}
+
+.role-toggle:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-medium);
+}
+
+.role-toggle-tank.active {
+  color: #4a90d9;
+  border-color: #4a90d9;
+}
+
+.role-toggle-healer.active {
+  color: #4caf50;
+  border-color: #4caf50;
+}
+
+.role-toggle-dps.active {
+  color: #e57373;
+  border-color: #e57373;
+}
+
 /* ─── Width Utilities ────────────────────────────────────────────────────────── */
 .w-full {
   width: 100%;

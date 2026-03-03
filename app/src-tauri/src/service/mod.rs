@@ -2807,6 +2807,11 @@ async fn build_timer_data_with_audio(
             continue;
         }
 
+        // Skip timers hidden by role filtering
+        if timer.role_hidden {
+            continue;
+        }
+
         // Skip timers hidden by show_at_secs threshold
         if !timer.is_visible() {
             continue;

@@ -196,6 +196,27 @@ fn get_custom_path_if_bundled(file_path: &Path, app_handle: &AppHandle) -> Optio
     }
 }
 
+/// Convert frontend role strings to preference format.
+/// All 3 roles present → None (all roles, no preference override).
+/// Subset → Some(vec of matched roles).
+fn roles_from_strings(roles: &[String]) -> Option<Vec<baras_core::game_data::Role>> {
+    use baras_core::game_data::Role;
+    let parsed: Vec<Role> = roles
+        .iter()
+        .filter_map(|s| match s.as_str() {
+            "Tank" => Some(Role::Tank),
+            "Healer" => Some(Role::Healer),
+            "Dps" => Some(Role::Dps),
+            _ => None,
+        })
+        .collect();
+    if parsed.len() >= 3 {
+        None // All roles = no override
+    } else {
+        Some(parsed)
+    }
+}
+
 fn generate_dsl_id(boss_id: &str, name: &str) -> String {
     let name_part: String = name
         .to_lowercase()
@@ -437,6 +458,9 @@ pub async fn fetch_area_bosses(
                 if let Some(ref v) = p.audio_file {
                     timer.audio.file = Some(v.clone());
                 }
+                if let Some(ref roles) = p.roles {
+                    timer.roles = roles.iter().map(|r| format!("{r:?}")).collect();
+                }
             }
         }
         for phase in &mut bwp.boss.phases {
@@ -460,7 +484,7 @@ pub async fn fetch_area_bosses(
     // Classify each item: built-in (unchanged), modified (built-in but edited), or custom (new)
     Ok(bosses
         .into_iter()
-        .map(|bwp| {
+        .map(|mut bwp| {
             let mut builtin_timer_ids = Vec::new();
             let mut modified_timer_ids = Vec::new();
             let mut builtin_phase_ids = Vec::new();
@@ -501,6 +525,13 @@ pub async fn fetch_area_bosses(
                             modified_counter_ids.push(counter.id.clone());
                         }
                     }
+                }
+            }
+
+            // Populate roles for frontend (after comparison so it doesn't affect modified detection)
+            for timer in &mut bwp.boss.timers {
+                if timer.roles.is_empty() {
+                    timer.roles = vec!["Tank".into(), "Healer".into(), "Dps".into()];
                 }
             }
 
@@ -635,6 +666,9 @@ pub async fn update_encounter_item(
             prefs.update_color(&key, t.color);
             prefs.update_audio_enabled(&key, t.audio.enabled);
             prefs.update_audio_file(&key, t.audio.file.clone());
+            // Convert roles: all 3 present → None (default), otherwise Some(filtered)
+            let roles_option = roles_from_strings(&t.roles);
+            prefs.update_roles(&key, roles_option);
             save_timer_preferences(&prefs)?;
 
             // Update live session

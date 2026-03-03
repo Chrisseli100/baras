@@ -14,6 +14,7 @@ use chrono::{Local, NaiveDateTime};
 use crate::combat_log::EntityType;
 use crate::context::{IStr, resolve};
 use crate::dsl::{BossEncounterDefinition, EntityDefinition};
+use crate::game_data::{Discipline, Role};
 use crate::signal_processor::{GameSignal, SignalHandler};
 
 use super::matching::{is_definition_active, matches_source_target_filters};
@@ -97,6 +98,9 @@ pub struct TimerManager {
     /// Local player's current target entity ID (for CurrentTarget filter)
     pub(super) current_target_id: Option<i64>,
 
+    /// Local player's current role (for role-scoped timer filtering)
+    current_role: Option<Role>,
+
     /// Boss entity IDs currently in combat (for Boss filter)
     /// These are runtime entity IDs (log_id), not NPC class IDs
     pub(super) boss_entity_ids: HashSet<i64>,
@@ -145,6 +149,7 @@ impl TimerManager {
             last_timestamp: None,
             local_player_id: None,
             current_target_id: None,
+            current_role: None,
             boss_entity_ids: HashSet::new(),
             boss_npc_class_ids: HashSet::new(),
             combat_time_started: HashSet::new(),
@@ -514,7 +519,7 @@ impl TimerManager {
     pub fn check_all_countdowns(&mut self) -> Vec<(String, u8, String)> {
         self.active_timers
             .values_mut()
-            .filter(|timer| timer.audio_enabled)
+            .filter(|timer| !timer.role_hidden && timer.audio_enabled)
             .filter_map(|timer| {
                 timer
                     .check_countdown()
@@ -536,7 +541,7 @@ impl TimerManager {
             .active_timers
             .values_mut()
             .filter_map(|timer| {
-                if timer.audio_enabled && timer.check_audio_offset() {
+                if !timer.role_hidden && timer.audio_enabled && timer.check_audio_offset() {
                     Some((
                         timer.definition_id.clone(),
                         timer.name.clone(),
@@ -637,10 +642,11 @@ impl TimerManager {
         let color = self.preferences.get_color(def);
         let audio_enabled = self.preferences.is_audio_enabled(def);
         let audio_file = self.preferences.get_audio_file(def);
+        let role_hidden = !self.preferences.is_role_visible(def, self.current_role);
 
         // Determine if we should fire an alert on start
-        let should_alert_on_start = def.is_alert
-            || matches!(def.alert_on, baras_types::AlertTrigger::OnApply);
+        let should_alert_on_start = !role_hidden
+            && (def.is_alert || matches!(def.alert_on, baras_types::AlertTrigger::OnApply));
 
         // Fire start alert if needed (instant alerts always fire, or alert_on == OnApply)
         if should_alert_on_start {
@@ -715,6 +721,7 @@ impl TimerManager {
             def.display_target,
             alert_on_expire,
             def.alert_text.clone(),
+            role_hidden,
         );
         self.active_timers.insert(key, timer);
 
@@ -842,8 +849,8 @@ impl TimerManager {
                 // 1. Audio is configured with offset=0 (play sound on expire), OR
                 // 2. alert_on_expire is true (alert text notification on expire)
                 let has_chain = timer.triggers_timer.is_some();
-                let should_fire_audio = timer.audio_enabled && timer.audio_file.is_some() && timer.audio_offset == 0;
-                let should_fire_expire_alert = timer.alert_on_expire;
+                let should_fire_audio = !timer.role_hidden && timer.audio_enabled && timer.audio_file.is_some() && timer.audio_offset == 0;
+                let should_fire_expire_alert = !timer.role_hidden && timer.alert_on_expire;
 
                 if should_fire_audio || should_fire_expire_alert {
                     let raw_text = timer.alert_text.as_deref().unwrap_or(&timer.name);
@@ -1026,6 +1033,17 @@ impl SignalHandler for TimerManager {
         match signal {
             GameSignal::PlayerInitialized { entity_id, .. } => {
                 self.local_player_id = Some(*entity_id);
+                return;
+            }
+            GameSignal::DisciplineChanged {
+                entity_id,
+                discipline_id,
+                ..
+            } => {
+                if self.local_player_id == Some(*entity_id) {
+                    self.current_role =
+                        Discipline::from_guid(*discipline_id).map(|d| d.role());
+                }
                 return;
             }
             // AreaEntered: Context is now read from CombatEncounter directly
