@@ -125,10 +125,10 @@ impl BossHealthOverlay {
 
         h += bar_height;
 
-        // Target line
-        if self.config.show_target && entry.target_name.is_some() {
-            let target_font_size = label_font_size * 0.85;
-            h += target_font_size + 2.0;
+        // Marker label below bar
+        if Self::next_marker(entry).is_some() {
+            let marker_font_size = label_font_size * 0.85;
+            h += marker_font_size + 2.0;
         }
 
         h
@@ -273,36 +273,26 @@ impl BossHealthOverlay {
         for entry in &entries {
             let progress = entry.percent() / 100.0;
 
-            // ── Boss Name + Marker Label ────────────────────────────────
+            // ── Boss Name + Target Name ────────────────────────────────
             let actual_font_size =
                 self.scaled_font_for_text(&entry.name, content_width, label_font_size);
 
             let name_y = y + actual_font_size;
 
-            // Find the next relevant HP marker
+            // Find the next relevant HP marker (used for line + label below bar)
             let marker = Self::next_marker(entry);
 
-            if let Some((hp_pct, label)) = marker {
-                // Draw name on the left, marker label on the right at marker x position
-                let marker_x = padding + (hp_pct / 100.0) * content_width;
-                self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
+            self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
 
-                let marker_font_size = actual_font_size * 0.85;
-                let marker_label = format!("{}% {}", hp_pct as u32, label);
-                let (marker_text_w, _) = self.frame.measure_text(&marker_label, marker_font_size);
-                // Center on marker x, clamped to content bounds
-                let marker_label_x = (marker_x - marker_text_w / 2.0)
-                    .max(padding)
-                    .min(padding + content_width - marker_text_w);
-                self.frame.draw_text_glowed(
-                    &marker_label,
-                    marker_label_x,
-                    name_y,
-                    marker_font_size,
-                    marker_line_color(),
-                );
-            } else {
-                self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
+            // Target name on the right (same line as boss name)
+            if self.config.show_target
+                && let Some(ref target) = entry.target_name
+            {
+                let target_font_size = actual_font_size * 0.85;
+                let target_text = format!("⌖ {}", target);
+                let (text_width, _) = self.frame.measure_text(&target_text, target_font_size);
+                let target_x = padding + content_width - text_width;
+                self.frame.draw_text_glowed(&target_text, target_x, name_y, target_font_size, font_color);
             }
 
             y += label_height + label_bar_gap;
@@ -369,7 +359,7 @@ impl BossHealthOverlay {
             // ── HP Marker Line (vertical line through the bar) ──────────
             if let Some((hp_pct, _)) = marker {
                 let marker_x = padding + (hp_pct / 100.0) * content_width;
-                let line_width = (1.5 * self.frame.scale_factor()).max(1.0);
+                let line_width = 1.2_f32;
                 self.frame.fill_rect(
                     marker_x - line_width / 2.0,
                     bar_y,
@@ -381,17 +371,24 @@ impl BossHealthOverlay {
 
             y += bar_height;
 
-            // ── Target Name ─────────────────────────────────────────────
-            if self.config.show_target
-                && let Some(ref target) = entry.target_name
-            {
-                let target_font_size = label_font_size * 0.85;
-                let target_text = format!("⌖ {}", target);
-                let (text_width, _) = self.frame.measure_text(&target_text, target_font_size);
-                let target_x = padding + content_width - text_width;
-                let target_y = y + target_font_size + 1.0;
-                self.frame.draw_text_glowed(&target_text, target_x, target_y, target_font_size, font_color);
-                y += target_font_size + 2.0;
+            // ── Marker Label (below bar) ────────────────────────────────
+            if let Some((hp_pct, label)) = marker {
+                let marker_font_size = label_font_size * 0.85;
+                let marker_label = format!("{}% {}", hp_pct as u32, label);
+                let marker_x = padding + (hp_pct / 100.0) * content_width;
+                let (marker_text_w, _) = self.frame.measure_text(&marker_label, marker_font_size);
+                let marker_label_x = (marker_x - marker_text_w / 2.0)
+                    .max(padding)
+                    .min(padding + content_width - marker_text_w);
+                let marker_label_y = y + marker_font_size + 1.0;
+                self.frame.draw_text_glowed(
+                    &marker_label,
+                    marker_label_x,
+                    marker_label_y,
+                    marker_font_size,
+                    marker_line_color(),
+                );
+                y += marker_font_size + 2.0;
             }
 
             y += entry_spacing;
