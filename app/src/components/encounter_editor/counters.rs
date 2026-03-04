@@ -498,7 +498,8 @@ fn CounterEditForm(
                                     let mut d = draft();
                                     d.increment_on = t;
                                     draft.set(d);
-                                }
+                                },
+                                hide_timer_only: true,
                             }
                         }
 
@@ -541,7 +542,8 @@ fn CounterEditForm(
                                             let mut d = draft();
                                             d.decrement_on = Some(t);
                                             draft.set(d);
-                                        }
+                                        },
+                                        hide_timer_only: true,
                                     }
                                 }
                             }
@@ -564,7 +566,8 @@ fn CounterEditForm(
                                     let mut d = draft();
                                     d.reset_on = t;
                                     draft.set(d);
-                                }
+                                },
+                                hide_timer_only: true,
                             }
                         }
                     }

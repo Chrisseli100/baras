@@ -524,7 +524,8 @@ fn PhaseEditForm(
                                             let mut d = draft();
                                             d.start_trigger = t;
                                             draft.set(d);
-                                        }
+                                        },
+                                        hide_timer_only: true,
                                     }
                                 }
                             }
@@ -542,7 +543,8 @@ fn PhaseEditForm(
                                                     let mut d = draft();
                                                     d.end_trigger = Some(t);
                                                     draft.set(d);
-                                                }
+                                                },
+                                                hide_timer_only: true,
                                             }
                                             button {
                                                 class: "btn btn-sm",
