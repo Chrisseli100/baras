@@ -370,7 +370,11 @@ fn save_item_to_custom_file(
         ..Default::default()
     };
     match item {
-        EncounterItem::Timer(t) => temp.timers.push(t.clone()),
+        EncounterItem::Timer(t) => {
+            let mut t_for_save = t.clone();
+            t_for_save.roles = vec![]; // roles are stored in preferences, not definitions
+            temp.timers.push(t_for_save);
+        }
         EncounterItem::Phase(p) => temp.phases.push(p.clone()),
         EncounterItem::Counter(c) => temp.counters.push(c.clone()),
         EncounterItem::Challenge(c) => temp.challenges.push(c.clone()),
@@ -451,7 +455,11 @@ pub async fn fetch_area_bosses(
 
     let prefs = load_timer_preferences();
 
-    // Merge user preferences into timers, phases, and counters
+    // Merge user preferences into timers, phases, and counters.
+    // Track timer IDs that have an explicit roles preference so we don't
+    // overwrite an intentional "hidden for all roles" (empty vec) with the
+    // default "all roles visible" normalization later.
+    let mut has_roles_pref: std::collections::HashSet<String> = std::collections::HashSet::new();
     for bwp in &mut bosses {
         for timer in &mut bwp.boss.timers {
             let key = boss_timer_key(&bwp.boss.area_name, &bwp.boss.name, &timer.id);
@@ -470,6 +478,7 @@ pub async fn fetch_area_bosses(
                 }
                 if let Some(ref roles) = p.roles {
                     timer.roles = roles.iter().map(|r| format!("{r:?}")).collect();
+                    has_roles_pref.insert(timer.id.clone());
                 }
             }
         }
@@ -553,8 +562,10 @@ pub async fn fetch_area_bosses(
             }
 
             // Populate roles for frontend (after comparison so it doesn't affect modified detection)
+            // Only default to all roles when the user has NOT set an explicit role preference.
+            // An explicit empty roles preference means "hidden for all roles".
             for timer in &mut bwp.boss.timers {
-                if timer.roles.is_empty() {
+                if timer.roles.is_empty() && !has_roles_pref.contains(&timer.id) {
                     timer.roles = vec!["Tank".into(), "Healer".into(), "Dps".into()];
                 }
             }
@@ -743,7 +754,9 @@ pub async fn update_encounter_item(
         match &item {
             EncounterItem::Timer(t) => {
                 if let Some(existing) = boss.boss.timers.iter_mut().find(|x| x.id == item_id) {
-                    *existing = t.clone();
+                    let mut t_for_save = t.clone();
+                    t_for_save.roles = vec![]; // roles are stored in preferences, not definitions
+                    *existing = t_for_save;
                 }
             }
             EncounterItem::Phase(p) => {

@@ -441,13 +441,9 @@ pub struct BossTimerDefinition {
     pub display_target: TimerDisplayTarget,
     #[serde(default)]
     pub audio: AudioConfig,
-    /// Role filter: which roles should see this timer (empty vec means default/all)
-    #[serde(default = "default_all_roles")]
+    /// Role filter: which roles should see this timer (empty vec = hidden for all roles)
+    #[serde(default)]
     pub roles: Vec<String>,
-}
-
-fn default_all_roles() -> Vec<String> {
-    vec!["Tank".into(), "Healer".into(), "Dps".into()]
 }
 
 fn default_timer_color() -> [u8; 4] {

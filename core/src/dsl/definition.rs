@@ -402,7 +402,7 @@ pub struct BossTimerDefinition {
     pub per_target: bool,
 
     /// Role filter for API responses (populated from preferences, not saved to TOML)
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub roles: Vec<String>,
 }
 

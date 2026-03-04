@@ -197,17 +197,17 @@ fn TimerRow(
         "#{:02x}{:02x}{:02x}",
         timer.color[0], timer.color[1], timer.color[2]
     );
-    let timer_for_enable = timer.clone();
+    let timer_for_visibility = timer.clone();
     let timer_for_audio = timer.clone();
     let timer_for_tank = timer.clone();
     let timer_for_healer = timer.clone();
     let timer_for_dps = timer.clone();
-    let timers_for_enable = all_timers.clone();
+    let timers_for_visibility = all_timers.clone();
     let timers_for_audio = all_timers.clone();
     let timers_for_tank = all_timers.clone();
     let timers_for_healer = all_timers.clone();
     let timers_for_dps = all_timers.clone();
-    let bwp_for_enable = boss_with_path.clone();
+    let bwp_for_visibility = boss_with_path.clone();
     let bwp_for_audio = boss_with_path.clone();
     let bwp_for_tank = boss_with_path.clone();
     let bwp_for_healer = boss_with_path.clone();
@@ -215,6 +215,7 @@ fn TimerRow(
     let has_tank = timer.roles.contains(&"Tank".to_string());
     let has_healer = timer.roles.contains(&"Healer".to_string());
     let has_dps = timer.roles.contains(&"Dps".to_string());
+    let is_role_visible = !timer.roles.is_empty();
 
     rsx! {
         div { class: "list-item",
@@ -278,30 +279,33 @@ fn TimerRow(
 
                 // Right side - fixed toggle buttons
                 div { class: "flex items-center gap-xs", style: "flex-shrink: 0;",
-                    // Enabled toggle (clickable without expanding)
+                    // Visibility toggle (clickable without expanding)
                     span {
                         class: "row-toggle",
-                        title: if timer.enabled { "Disable timer" } else { "Enable timer" },
+                        title: if is_role_visible { "Hide for all roles" } else { "Show for all roles" },
                         onclick: move |e| {
                             e.stop_propagation();
-                            let mut updated = timer_for_enable.clone();
-                            updated.enabled = !updated.enabled;
-                            let mut current = timers_for_enable.clone();
+                            let mut updated = timer_for_visibility.clone();
+                            if !updated.roles.is_empty() {
+                                updated.roles = vec![];
+                            } else {
+                                updated.roles = vec!["Tank".into(), "Healer".into(), "Dps".into()];
+                            }
+                            let mut current = timers_for_visibility.clone();
                             if let Some(idx) = current.iter().position(|t| t.id == updated.id) {
                                 current[idx] = updated.clone();
                                 on_change.call(current);
                             }
-                            let boss_id = bwp_for_enable.boss.id.clone();
-                            let file_path = bwp_for_enable.file_path.clone();
+                            let boss_id = bwp_for_visibility.boss.id.clone();
+                            let file_path = bwp_for_visibility.file_path.clone();
                             let item = EncounterItem::Timer(updated);
                             spawn(async move {
                                 let _ = api::update_encounter_item(&boss_id, &file_path, &item, None).await;
                                 on_refetch.call(());
                             });
                         },
-                        span {
-                            class: if timer.enabled { "text-success" } else { "text-muted" },
-                            if timer.enabled { "✓" } else { "○" }
+                        i {
+                            class: if is_role_visible { "fa-solid fa-eye text-success" } else { "fa-solid fa-eye-slash text-muted" },
                         }
                     }
 
