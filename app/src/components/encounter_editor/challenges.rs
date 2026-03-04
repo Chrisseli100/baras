@@ -140,7 +140,9 @@ fn ChallengeRow(
 
     // Origin classification
     let is_builtin = boss_with_path.builtin_challenge_ids.contains(&challenge.id);
-    let is_modified = boss_with_path.modified_challenge_ids.contains(&challenge.id);
+    let is_modified = boss_with_path
+        .modified_challenge_ids
+        .contains(&challenge.id);
 
     // Clones for enable toggle closure
     let challenge_for_enable = challenge.clone();
@@ -707,14 +709,7 @@ fn ChallengeConditionRow(
                             let has_counter = !counter_id.is_empty();
                             let current_op = *operator;
                             let current_val = *value;
-                            let op_value = match operator {
-                                ComparisonOp::Eq => "eq",
-                                ComparisonOp::Lt => "lt",
-                                ComparisonOp::Gt => "gt",
-                                ComparisonOp::Lte => "lte",
-                                ComparisonOp::Gte => "gte",
-                                ComparisonOp::Ne => "ne",
-                            };
+                            let op_value = operator.as_str();
                             rsx! {
                                 span { class: "condition-label", "Counter" }
                                 select {
@@ -745,28 +740,16 @@ fn ChallengeConditionRow(
                                         onchange: {
                                             let cid = counter_id_for_op.clone();
                                             move |e| {
-                                                let op = match e.value().as_str() {
-                                                    "eq" => ComparisonOp::Eq,
-                                                    "lt" => ComparisonOp::Lt,
-                                                    "gt" => ComparisonOp::Gt,
-                                                    "lte" => ComparisonOp::Lte,
-                                                    "gte" => ComparisonOp::Gte,
-                                                    "ne" => ComparisonOp::Ne,
-                                                    _ => ComparisonOp::Eq,
-                                                };
                                                 on_change.call(ChallengeCondition::Counter {
                                                     counter_id: cid.clone(),
-                                                    operator: op,
+                                                    operator: ComparisonOp::from_str_or(&e.value(), ComparisonOp::Eq),
                                                     value: current_val,
                                                 });
                                             }
                                         },
-                                        option { value: "eq", selected: op_value == "eq", "=" }
-                                        option { value: "lt", selected: op_value == "lt", "<" }
-                                        option { value: "gt", selected: op_value == "gt", ">" }
-                                        option { value: "lte", selected: op_value == "lte", "\u{2264}" }
-                                        option { value: "gte", selected: op_value == "gte", "\u{2265}" }
-                                        option { value: "ne", selected: op_value == "ne", "\u{2260}" }
+                                        for op in ComparisonOp::all() {
+                                            option { value: "{op.as_str()}", selected: op_value == op.as_str(), "{op.label()}" }
+                                        }
                                     }
                                     input {
                                         r#type: "number",

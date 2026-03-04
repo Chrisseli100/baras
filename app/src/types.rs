@@ -52,10 +52,8 @@ pub use baras_types::{
     MAX_PROFILES,
 };
 
-// Type aliases for context-specific trigger usage
+// Type alias for context-specific trigger usage
 pub type TimerTrigger = Trigger;
-pub type PhaseTrigger = Trigger;
-pub type CounterTrigger = Trigger;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Frontend-Only Types (mirror backend structures)
@@ -757,14 +755,41 @@ pub enum ComparisonOp {
 }
 
 impl ComparisonOp {
+    /// Display symbol for use in UI labels (e.g. option text).
     pub fn label(&self) -> &'static str {
         match self {
             Self::Eq => "=",
             Self::Lt => "<",
             Self::Gt => ">",
-            Self::Lte => "<=",
-            Self::Gte => ">=",
-            Self::Ne => "!=",
+            Self::Lte => "\u{2264}",
+            Self::Gte => "\u{2265}",
+            Self::Ne => "\u{2260}",
+        }
+    }
+
+    /// Stable string key for use in `<select>` values and serialisation round-trips.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Eq => "eq",
+            Self::Lt => "lt",
+            Self::Gt => "gt",
+            Self::Lte => "lte",
+            Self::Gte => "gte",
+            Self::Ne => "ne",
+        }
+    }
+
+    /// Parse from a string key produced by [`as_str`](Self::as_str).
+    /// Falls back to `fallback` for unrecognised values.
+    pub fn from_str_or(s: &str, fallback: Self) -> Self {
+        match s {
+            "eq" => Self::Eq,
+            "lt" => Self::Lt,
+            "gt" => Self::Gt,
+            "lte" => Self::Lte,
+            "gte" => Self::Gte,
+            "ne" => Self::Ne,
+            _ => fallback,
         }
     }
 

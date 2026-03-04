@@ -411,16 +411,6 @@ pub async fn set_default_profile_for_role(role: &str, profile_name: Option<&str>
 // Dialog Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Open a directory picker dialog
-pub async fn pick_directory(title: &str) -> Option<String> {
-    let options = js_sys::Object::new();
-    js_set(&options, "directory", &JsValue::TRUE);
-    js_set(&options, "title", &JsValue::from_str(title));
-
-    let result = open_dialog(options.into()).await;
-    result.as_string()
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // App Info
 // ─────────────────────────────────────────────────────────────────────────────

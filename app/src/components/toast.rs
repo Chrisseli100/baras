@@ -122,26 +122,6 @@ impl ToastManager {
         });
     }
 
-    pub fn show_persistent(&mut self, message: impl Into<String>, severity: ToastSeverity) {
-        let id = *self.next_id.peek();
-        *self.next_id.write() += 1;
-
-        let toast = Toast {
-            id,
-            message: message.into(),
-            severity,
-            link: None,
-        };
-
-        // Add toast, cap at 5 max (remove oldest if exceeded)
-        let mut toasts = self.toasts.write();
-        if toasts.len() >= 5 {
-            toasts.remove(0);
-        }
-        toasts.push(toast);
-        // No auto-dismiss timer - persistent until manually closed
-    }
-
     /// Manually dismiss a toast by ID.
     pub fn dismiss(&mut self, id: u32) {
         self.toasts.write().retain(|t| t.id != id);

@@ -29,14 +29,7 @@ pub fn CounterConditionEditor(
         value: 1,
     });
 
-    let op_value = match cond.operator {
-        ComparisonOp::Eq => "eq",
-        ComparisonOp::Lt => "lt",
-        ComparisonOp::Gt => "gt",
-        ComparisonOp::Lte => "lte",
-        ComparisonOp::Gte => "gte",
-        ComparisonOp::Ne => "ne",
-    };
+    let op_value = cond.operator.as_str();
 
     let selected_value = if cond.counter_id.is_empty() {
         "__none__".to_string()
@@ -85,28 +78,16 @@ pub fn CounterConditionEditor(
                     onchange: {
                         let cond_clone = cond.clone();
                         move |e| {
-                            let op = match e.value().as_str() {
-                                "eq" => ComparisonOp::Eq,
-                                "lt" => ComparisonOp::Lt,
-                                "gt" => ComparisonOp::Gt,
-                                "lte" => ComparisonOp::Lte,
-                                "gte" => ComparisonOp::Gte,
-                                "ne" => ComparisonOp::Ne,
-                                _ => ComparisonOp::Eq,
-                            };
                             on_change.call(Some(CounterCondition {
                                 counter_id: cond_clone.counter_id.clone(),
-                                operator: op,
+                                operator: ComparisonOp::from_str_or(&e.value(), ComparisonOp::Eq),
                                 value: cond_clone.value,
                             }));
                         }
                     },
-                    option { value: "eq", selected: op_value == "eq", "=" }
-                    option { value: "lt", selected: op_value == "lt", "<" }
-                    option { value: "gt", selected: op_value == "gt", ">" }
-                    option { value: "lte", selected: op_value == "lte", "≤" }
-                    option { value: "gte", selected: op_value == "gte", "≥" }
-                    option { value: "ne", selected: op_value == "ne", "≠" }
+                    for op in ComparisonOp::all() {
+                        option { value: "{op.as_str()}", selected: op_value == op.as_str(), "{op.label()}" }
+                    }
                 }
 
                 input {
@@ -441,18 +422,6 @@ fn NotConditionEditor(
 // Simple Condition Editor (leaf nodes)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Returns the type name string for a condition (for the dropdown value).
-fn condition_type_name(condition: &Condition) -> &'static str {
-    match condition {
-        Condition::PhaseActive { .. } => "phase_active",
-        Condition::CounterCompare { .. } => "counter_compare",
-        Condition::TimerTimeRemaining { .. } => "timer_time_remaining",
-        Condition::AllOf { .. } => "all_of",
-        Condition::AnyOf { .. } => "any_of",
-        Condition::Not { .. } => "not",
-    }
-}
-
 /// Create a default condition for a given type name.
 fn default_condition_for_type(type_name: &str, current: &Condition) -> Condition {
     match type_name {
@@ -487,7 +456,7 @@ fn SimpleConditionEditor(
     encounter_data: EncounterData,
     on_change: EventHandler<Condition>,
 ) -> Element {
-    let type_name = condition_type_name(&condition);
+    let type_name = condition.type_name();
 
     rsx! {
         div { class: "condition-simple",
@@ -581,14 +550,7 @@ fn CounterCompareEditor(
     encounter_data: EncounterData,
     on_change: EventHandler<Condition>,
 ) -> Element {
-    let op_value = match operator {
-        ComparisonOp::Eq => "eq",
-        ComparisonOp::Lt => "lt",
-        ComparisonOp::Gt => "gt",
-        ComparisonOp::Lte => "lte",
-        ComparisonOp::Gte => "gte",
-        ComparisonOp::Ne => "ne",
-    };
+    let op_value = operator.as_str();
 
     let selected_counter = if counter_id.is_empty() {
         "__none__".to_string()
@@ -633,28 +595,16 @@ fn CounterCompareEditor(
                     onchange: {
                         let cid = counter_id_for_op.clone();
                         move |e| {
-                            let op = match e.value().as_str() {
-                                "eq" => ComparisonOp::Eq,
-                                "lt" => ComparisonOp::Lt,
-                                "gt" => ComparisonOp::Gt,
-                                "lte" => ComparisonOp::Lte,
-                                "gte" => ComparisonOp::Gte,
-                                "ne" => ComparisonOp::Ne,
-                                _ => ComparisonOp::Eq,
-                            };
                             on_change.call(Condition::CounterCompare {
                                 counter_id: cid.clone(),
-                                operator: op,
+                                operator: ComparisonOp::from_str_or(&e.value(), ComparisonOp::Eq),
                                 value,
                             });
                         }
                     },
-                    option { value: "eq", selected: op_value == "eq", "=" }
-                    option { value: "lt", selected: op_value == "lt", "<" }
-                    option { value: "gt", selected: op_value == "gt", ">" }
-                    option { value: "lte", selected: op_value == "lte", "\u{2264}" }
-                    option { value: "gte", selected: op_value == "gte", "\u{2265}" }
-                    option { value: "ne", selected: op_value == "ne", "\u{2260}" }
+                    for op in ComparisonOp::all() {
+                        option { value: "{op.as_str()}", selected: op_value == op.as_str(), "{op.label()}" }
+                    }
                 }
 
                 input {
@@ -690,15 +640,12 @@ fn TimerTimeRemainingEditor(
     encounter_data: EncounterData,
     on_change: EventHandler<Condition>,
 ) -> Element {
-    let op_value = match operator {
-        ComparisonOp::Gte => "gte",
-        ComparisonOp::Lte => "lte",
-        // Fallback display for hand-edited TOML with other ops
-        ComparisonOp::Gt => "gte",
-        ComparisonOp::Lt => "lte",
-        ComparisonOp::Eq => "gte",
-        ComparisonOp::Ne => "gte",
+    // Coerce unsupported operators (from hand-edited TOML) into gte/lte
+    let effective_op = match operator {
+        ComparisonOp::Lte | ComparisonOp::Lt => ComparisonOp::Lte,
+        _ => ComparisonOp::Gte,
     };
+    let op_value = effective_op.as_str();
 
     let selected_timer = if timer_id.is_empty() {
         "__none__".to_string()
@@ -743,20 +690,16 @@ fn TimerTimeRemainingEditor(
                     onchange: {
                         let tid = timer_id_for_op.clone();
                         move |e| {
-                            let op = match e.value().as_str() {
-                                "gte" => ComparisonOp::Gte,
-                                "lte" => ComparisonOp::Lte,
-                                _ => ComparisonOp::Gte,
-                            };
                             on_change.call(Condition::TimerTimeRemaining {
                                 timer_id: tid.clone(),
-                                operator: op,
+                                operator: ComparisonOp::from_str_or(&e.value(), ComparisonOp::Gte),
                                 value,
                             });
                         }
                     },
-                    option { value: "gte", selected: op_value == "gte", "\u{2265}" }
-                    option { value: "lte", selected: op_value == "lte", "\u{2264}" }
+                    for op in [ComparisonOp::Gte, ComparisonOp::Lte] {
+                        option { value: "{op.as_str()}", selected: op_value == op.as_str(), "{op.label()}" }
+                    }
                 }
 
                 input {
