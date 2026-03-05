@@ -379,22 +379,24 @@ impl CooldownOverlay {
 
                 // Countdown below
                 let time_text = entry.format_time(self.european_number_format);
+                let time_font_size = font_size * 0.9;
                 let time_y = name_y + font_size + 2.0;
                 self.frame.draw_text_glowed(
                     &time_text,
                     text_x,
                     time_y,
-                    font_size * 0.9,
+                    time_font_size,
                     ready_text_color,
                 );
 
-                // Source name below countdown (per-effect toggle)
+                // Source name inline to the right of countdown
                 if entry.display_source && !entry.source_name.is_empty() {
                     let source_font_size = font_size * 0.8;
+                    let time_width = self.frame.measure_text(&time_text, time_font_size).0;
                     self.frame.draw_text_glowed(
                         &entry.source_name,
-                        text_x,
-                        time_y + font_size * 0.9 + 2.0,
+                        text_x + time_width + padding,
+                        time_y,
                         source_font_size,
                         colors::white(),
                     );
@@ -407,21 +409,18 @@ impl CooldownOverlay {
                 } else {
                     colors::white()
                 };
-                self.frame.draw_text_glowed(
-                    &time_text,
-                    text_x,
-                    text_y + font_size / 3.0,
-                    font_size,
-                    time_color,
-                );
+                let time_y = text_y + font_size / 3.0;
+                self.frame
+                    .draw_text_glowed(&time_text, text_x, time_y, font_size, time_color);
 
-                // Source name below countdown (per-effect toggle)
+                // Source name inline to the right of countdown
                 if entry.display_source && !entry.source_name.is_empty() {
                     let source_font_size = font_size * 0.8;
+                    let time_width = self.frame.measure_text(&time_text, font_size).0;
                     self.frame.draw_text_glowed(
                         &entry.source_name,
-                        text_x,
-                        text_y + font_size / 3.0 + font_size + 2.0,
+                        text_x + time_width + padding,
+                        time_y,
                         source_font_size,
                         colors::white(),
                     );
