@@ -6910,9 +6910,7 @@ details[open] .collapsible-summary::before {
   margin-bottom: var(--space-xs);
 }
 
-.form-actions {
-  display: flex;
-  gap: var(--space-sm);
+.modal-content .form-actions {
   justify-content: flex-end;
 }
 
