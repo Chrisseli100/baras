@@ -371,6 +371,13 @@ impl CombatEncounter {
         self.npcs.get(&npc_id).map(|n| n.hp_percent())
     }
 
+    /// Check if an NPC already has a recorded HP value (max_hp > 0).
+    /// Used to decide whether to accept source-entity HP snapshots:
+    /// only accept them for first-sighting fallback when no prior HP exists.
+    pub fn npc_has_hp(&self, log_id: i64) -> bool {
+        self.npcs.get(&log_id).is_some_and(|n| n.max_hp > 0)
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Boss Shield Management
     // ═══════════════════════════════════════════════════════════════════════

@@ -716,8 +716,10 @@ impl EventProcessor {
             return;
         };
 
-        // Update HP for entities that are boss NPCs
-        for entity in [&event.source_entity, &event.target_entity] {
+        // Update HP for entities that are boss NPCs.
+        // Prefer the target entity's HP snapshot (more accurate for the entity being acted upon).
+        // Only fall back to source entity HP if the NPC has no prior HP recorded (first sighting).
+        for (entity, is_target) in [(&event.target_entity, true), (&event.source_entity, false)] {
             if entity.entity_type != EntityType::Npc || entity.class_id == 0 {
                 continue;
             }
@@ -729,6 +731,12 @@ impl EventProcessor {
             };
             let def = &enc.boss_definitions()[def_idx];
             if !def.matches_npc_id(entity.class_id) {
+                continue;
+            }
+
+            // Source entity HP is only used as a fallback when the NPC has no prior HP.
+            // Once we have a target-derived HP reading, ignore source snapshots (often stale).
+            if !is_target && enc.npc_has_hp(entity.log_id) {
                 continue;
             }
 
