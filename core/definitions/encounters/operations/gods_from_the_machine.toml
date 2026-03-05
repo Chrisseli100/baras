@@ -1007,9 +1007,7 @@ id = "scyva_omega"
 name = "Omega"
 
 [boss.phases.start_trigger]
-type = "target_set"
-selector = [4126527268585472]
-target = "any"
+type = "combat_start"
 
 [boss.phases.end_trigger]
 type = "entity_death"
@@ -1032,7 +1030,6 @@ target = "any"
 [[boss.phases]]
 id = "scyva_scyva"
 name = "SCYVA 1"
-resets_counters = []
 
 [boss.phases.start_trigger]
 type = "phase_ended"
@@ -1046,7 +1043,6 @@ phase_id = "scyva_burn"
 id = "scyva_ignite_core"
 name = "Ignite Core"
 display_text = "Ignite Core"
-resets_counters = []
 
 [boss.phases.start_trigger]
 type = "any_of"
@@ -1056,12 +1052,6 @@ type = "ability_cast"
 abilities = [4131981877051392]
 source = "boss"
 target = "any"
-
-[[boss.phases.start_trigger.conditions]]
-type = "effect_applied"
-effects = []
-source = "any"
-target = "boss"
 
 [boss.phases.end_trigger]
 type = "effect_removed"
@@ -1108,10 +1098,6 @@ display_target = "timers_a"
 [boss.timer.trigger]
 type = "combat_start"
 
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_p1_beams_1st"
-
 [[boss.timer]]
 id = "scyva_beams"
 name = "Beams"
@@ -1127,10 +1113,6 @@ display_target = "timers_a"
 type = "timer_expires"
 timer_id = "scyva_p1_beams_1st"
 
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_beams"
-
 [[boss.timer]]
 id = "scyva_p1_beams"
 name = "P1 Beams"
@@ -1145,11 +1127,6 @@ display_target = "timers_a"
 type = "timer_expires"
 timer_id = "scyva_beams"
 
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_beams"
-
-
 [[boss.timer]]
 id = "scyva_red_catalyst_1st"
 name = "Red Catalyst 1st"
@@ -1163,10 +1140,6 @@ enabled = true
 display_target = "timers_a"
 
 [boss.timer.trigger]
-type = "timer_expires"
-timer_id = "scyva_1st_beam"
-
-[boss.timer.cancel_trigger]
 type = "timer_expires"
 timer_id = "scyva_1st_beam"
 
@@ -1201,10 +1174,6 @@ display_target = "timers_a"
 type = "timer_expires"
 timer_id = "scyva_red_catalyst_1st"
 
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_double_catalyst_1st"
-
 [[boss.timer]]
 id = "scyva_red_catalyst_2nd"
 name = "Red Catalyst 2nd"
@@ -1219,10 +1188,6 @@ display_target = "timers_a"
 [boss.timer.trigger]
 type = "timer_expires"
 timer_id = "scyva_double_catalyst_1st"
-
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_red_catalyst_2nd"
 
 [[boss.timer]]
 id = "scyva_double_catalyst_2nd"
@@ -1259,10 +1224,6 @@ display_target = "timers_a"
 [boss.timer.trigger]
 type = "timer_expires"
 timer_id = "scyva_red_catalyst_2nd"
-
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_5th_beam"
 
 [[boss.timer]]
 id = "scyva_7th_beam"
@@ -1304,10 +1265,6 @@ display_target = "timers_a"
 [boss.timer.trigger]
 type = "timer_expires"
 timer_id = "scyva_7th_beam"
-
-[boss.timer.cancel_trigger]
-type = "timer_expires"
-timer_id = "scyva_scyva"
 
 [[boss.timer]]
 id = "scyva_iginte_core"
@@ -1463,10 +1420,6 @@ type = "ability_cast"
 abilities = [4163764635042092]
 source = "any_npc"
 target = "boss"
-
-[boss.phases.end_trigger]
-type = "time_elapsed"
-secs = 149.0
 
 [[boss.phases]]
 id = "izax_burn"
