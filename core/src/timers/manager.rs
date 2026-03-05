@@ -1361,17 +1361,15 @@ impl SignalHandler for TimerManager {
                 ..
             } => {
                 // Check for HP threshold timer triggers (using pre-computed percentages from signal)
-                if (*old_hp_percent - *new_hp_percent).abs() > 0.01 {
-                    signal_handlers::handle_boss_hp_change(
-                        self,
-                        encounter,
-                        *npc_id,
-                        entity_name,
-                        *old_hp_percent,
-                        *new_hp_percent,
-                        *timestamp,
-                    );
-                }
+                signal_handlers::handle_boss_hp_change(
+                    self,
+                    encounter,
+                    *npc_id,
+                    entity_name,
+                    *old_hp_percent,
+                    *new_hp_percent,
+                    *timestamp,
+                );
             }
 
             GameSignal::PhaseChanged {

@@ -359,7 +359,7 @@ impl CombatEncounter {
         npc.max_hp = max;
 
         let new_pct = npc.hp_percent();
-        if (old_percent - new_pct).abs() > 0.01 {
+        if old_percent != new_pct {
             Some((old_percent, new_pct))
         } else {
             None
