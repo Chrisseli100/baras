@@ -771,7 +771,7 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                 input {
                     class: "log-search",
                     r#type: "text",
-                    placeholder: "Filter... (use OR)",
+                    placeholder: "Filter... (use OR, NOT)",
                     value: "{search_text}",
                     oninput: move |e| search_text.set(e.value()),
                 }

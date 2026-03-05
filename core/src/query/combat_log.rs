@@ -4,28 +4,52 @@ use super::*;
 use crate::game_data::{effect_id, effect_type_id};
 use baras_types::{CombatLogSortColumn, SortDirection};
 
-/// Build search clause supporting case-insensitive search and OR logic.
+/// Build search clause supporting case-insensitive search with OR and NOT logic.
 /// Search terms separated by " OR " are combined with OR logic.
+/// Terms prefixed with "NOT " are excluded (combined with AND NOT).
 fn build_search_clause(search: &str) -> String {
     let terms: Vec<&str> = search.split(" OR ").map(|s| s.trim()).collect();
 
-    let term_clauses: Vec<String> = terms
-        .iter()
-        .filter(|t| !t.is_empty())
-        .map(|term| {
-            let escaped = sql_escape(term).to_lowercase();
-            format!(
-                "(LOWER(source_name) LIKE '%{0}%' OR LOWER(target_name) LIKE '%{0}%' OR LOWER(ability_name) LIKE '%{0}%' OR LOWER(effect_name) LIKE '%{0}%' OR CAST(ability_id AS VARCHAR) LIKE '%{0}%' OR CAST(effect_id AS VARCHAR) LIKE '%{0}%')",
-                escaped
-            )
-        })
-        .collect();
+    let mut positive_clauses = Vec::new();
+    let mut negative_clauses = Vec::new();
 
-    if term_clauses.is_empty() {
-        return "1=1".to_string();
+    for term in &terms {
+        if term.is_empty() {
+            continue;
+        }
+        let (negated, clean_term) = if let Some(stripped) = term.strip_prefix("NOT ") {
+            (true, stripped.trim())
+        } else {
+            (false, *term)
+        };
+        if clean_term.is_empty() {
+            continue;
+        }
+        let escaped = sql_escape(clean_term).to_lowercase();
+        let clause = format!(
+            "(LOWER(source_name) LIKE '%{0}%' OR LOWER(target_name) LIKE '%{0}%' OR LOWER(ability_name) LIKE '%{0}%' OR LOWER(effect_name) LIKE '%{0}%' OR CAST(ability_id AS VARCHAR) LIKE '%{0}%' OR CAST(effect_id AS VARCHAR) LIKE '%{0}%')",
+            escaped
+        );
+        if negated {
+            negative_clauses.push(format!("NOT {}", clause));
+        } else {
+            positive_clauses.push(clause);
+        }
     }
 
-    format!("({})", term_clauses.join(" OR "))
+    let mut parts = Vec::new();
+    if !positive_clauses.is_empty() {
+        parts.push(format!("({})", positive_clauses.join(" OR ")));
+    }
+    for neg in &negative_clauses {
+        parts.push(neg.clone());
+    }
+
+    if parts.is_empty() {
+        "1=1".to_string()
+    } else {
+        format!("({})", parts.join(" AND "))
+    }
 }
 
 /// Build event type filter clause based on CombatLogFilters.
