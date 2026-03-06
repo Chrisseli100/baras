@@ -3,17 +3,17 @@
 //! Displays real-time health bars for boss NPCs in the current encounter.
 //! Supports HP threshold markers (vertical lines at key HP%) and shield bars.
 
-use baras_core::OverlayHealthEntry;
 use baras_core::context::BossHealthConfig;
+use baras_core::OverlayHealthEntry;
 use tiny_skia::Color;
 
 use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
-use baras_types::formatting;
 use crate::utils::color_from_rgba;
-use crate::widgets::ProgressBar;
 use crate::widgets::colors;
+use crate::widgets::ProgressBar;
+use baras_types::formatting;
 
 /// Data sent from service to boss health overlay
 #[derive(Debug, Clone, Default)]
@@ -175,8 +175,9 @@ impl BossHealthOverlay {
         let label_height = self.frame.scaled(BASE_LABEL_HEIGHT) * compression;
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING) * compression;
         let label_bar_gap = self.frame.scaled(BASE_LABEL_BAR_GAP) * compression;
-        let label_font_size =
-            self.frame.scaled(BASE_LABEL_FONT_SIZE) * compression * self.config.font_scale.clamp(1.0, 2.0);
+        let label_font_size = self.frame.scaled(BASE_LABEL_FONT_SIZE)
+            * compression
+            * self.config.font_scale.clamp(1.0, 2.0);
         let shield_bar_height = self.frame.scaled(BASE_SHIELD_BAR_HEIGHT) * compression;
 
         let mut y = padding;
@@ -209,7 +210,11 @@ impl BossHealthOverlay {
             .hp_markers
             .iter()
             .filter(|m| m.hp_percent <= current_pct)
-            .max_by(|a, b| a.hp_percent.partial_cmp(&b.hp_percent).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.hp_percent
+                    .partial_cmp(&b.hp_percent)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|m| (m.hp_percent, m.label.as_str()))
     }
 
@@ -274,25 +279,63 @@ impl BossHealthOverlay {
             let progress = entry.percent() / 100.0;
 
             // ── Boss Name + Target Name ────────────────────────────────
-            let actual_font_size =
-                self.scaled_font_for_text(&entry.name, content_width, label_font_size);
+            // Measure both texts at base sizes, then scale down as needed to
+            // prevent the boss name and target from clipping into each other.
+            let gap = label_font_size * 0.5;
+
+            let target_info = if self.config.show_target {
+                if let Some(ref target) = entry.target_name {
+                    let text = format!("⌖ {}", target);
+                    Some(text)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            // Compute boss name font size, reserving space for target if present
+            let (actual_font_size, target_font_size) = if let Some(ref target_text) = target_info {
+                let base_target_font = label_font_size * 0.85;
+                let (target_w, _) = self.frame.measure_text(target_text, base_target_font);
+                let reserved = target_w + gap;
+
+                let name_max_width = (content_width - reserved).max(content_width * 0.3);
+                let name_font =
+                    self.scaled_font_for_text(&entry.name, name_max_width, label_font_size);
+
+                // Scale target text to fit its allocated space too
+                let (name_w, _) = self.frame.measure_text(&entry.name, name_font);
+                let target_max_width = (content_width - name_w - gap).max(content_width * 0.2);
+                let target_font =
+                    self.scaled_font_for_text(target_text, target_max_width, base_target_font);
+
+                (name_font, target_font)
+            } else {
+                let name_font =
+                    self.scaled_font_for_text(&entry.name, content_width, label_font_size);
+                (name_font, 0.0)
+            };
 
             let name_y = y + actual_font_size;
 
             // Find the next relevant HP marker (used for line + label below bar)
             let marker = Self::next_marker(entry);
 
-            self.frame.draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
+            self.frame
+                .draw_text_glowed(&entry.name, padding, name_y, actual_font_size, font_color);
 
             // Target name on the right (same line as boss name)
-            if self.config.show_target
-                && let Some(ref target) = entry.target_name
-            {
-                let target_font_size = actual_font_size * 0.85;
-                let target_text = format!("⌖ {}", target);
-                let (text_width, _) = self.frame.measure_text(&target_text, target_font_size);
+            if let Some(ref target_text) = target_info {
+                let (text_width, _) = self.frame.measure_text(target_text, target_font_size);
                 let target_x = padding + content_width - text_width;
-                self.frame.draw_text_glowed(&target_text, target_x, name_y, target_font_size, font_color);
+                self.frame.draw_text_glowed(
+                    target_text,
+                    target_x,
+                    name_y,
+                    target_font_size,
+                    font_color,
+                );
             }
 
             y += label_height + label_bar_gap;
@@ -332,7 +375,8 @@ impl BossHealthOverlay {
             }
 
             // ── HP Bar ──────────────────────────────────────────────────
-            let health_text = formatting::format_compact(entry.current as i64, self.european_number_format);
+            let health_text =
+                formatting::format_compact(entry.current as i64, self.european_number_format);
             let percent_text = if self.config.show_percent {
                 formatting::format_pct(entry.percent() as f64, self.european_number_format)
             } else {
