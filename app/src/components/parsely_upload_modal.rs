@@ -121,9 +121,7 @@ pub fn ParselyUploadModal() -> Element {
         div {
             class: "modal-backdrop",
             onclick: move |_| {
-                if !is_uploading() {
-                    manager.close();
-                }
+                manager.close();
             },
             div {
                 class: "parsely-upload-modal",
@@ -132,12 +130,10 @@ pub fn ParselyUploadModal() -> Element {
                 // Header
                 div { class: "modal-header",
                     h3 { "Parsely Upload" }
-                    if !is_uploading() {
-                        button {
-                            class: "btn btn-close",
-                            onclick: move |_| manager.close(),
-                            "X"
-                        }
+                    button {
+                        class: "btn btn-close",
+                        onclick: move |_| manager.close(),
+                        "X"
                     }
                 }
 
@@ -213,7 +209,6 @@ pub fn ParselyUploadModal() -> Element {
                 div { class: "modal-footer",
                     button {
                         class: "btn btn-secondary",
-                        disabled: is_uploading(),
                         onclick: move |_| manager.close(),
                         "Cancel"
                     }
