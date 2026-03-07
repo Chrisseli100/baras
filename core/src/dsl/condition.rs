@@ -50,6 +50,17 @@ pub enum Condition {
         value: u32,
     },
 
+    /// True when one counter's value satisfies the comparison against another counter's value.
+    CounterCompareCounter {
+        /// Counter to check (left side)
+        counter_id: String,
+        /// Comparison operator
+        #[serde(default)]
+        operator: ComparisonOp,
+        /// Counter to compare against (right side)
+        other_counter_id: String,
+    },
+
     /// True when a timer's remaining time satisfies the comparison.
     /// Inactive timers are treated as having 0.0 seconds remaining.
     /// Use `operator = "gte", value = 0.01` to check if a timer is active,
@@ -81,6 +92,7 @@ impl Condition {
         match self {
             Self::PhaseActive { .. } => "Phase Active",
             Self::CounterCompare { .. } => "Counter Compare",
+            Self::CounterCompareCounter { .. } => "Counter vs Counter",
             Self::TimerTimeRemaining { .. } => "Timer Time Remaining",
             Self::AllOf { .. } => "All Of (AND)",
             Self::AnyOf { .. } => "Any Of (OR)",
@@ -93,6 +105,7 @@ impl Condition {
         match self {
             Self::PhaseActive { .. } => "phase_active",
             Self::CounterCompare { .. } => "counter_compare",
+            Self::CounterCompareCounter { .. } => "counter_compare_counter",
             Self::TimerTimeRemaining { .. } => "timer_time_remaining",
             Self::AllOf { .. } => "all_of",
             Self::AnyOf { .. } => "any_of",

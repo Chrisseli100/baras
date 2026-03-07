@@ -974,6 +974,7 @@ fn test_counter_phase_entered_trigger() {
                 initial_value: 0,
                 decrement: false,
                 set_value: None,
+                track_effect_stacks: None,
             },
             CounterDefinition {
                 id: "phase_end_ct".to_string(),
@@ -988,6 +989,7 @@ fn test_counter_phase_entered_trigger() {
                 initial_value: 0,
                 decrement: false,
                 set_value: None,
+                track_effect_stacks: None,
             },
         ],
         ..Default::default()
@@ -1247,6 +1249,7 @@ fn test_phase_cascade_in_single_event() {
             initial_value: 0,
             decrement: false,
             set_value: None,
+            track_effect_stacks: None,
         }],
         ..Default::default()
     };
@@ -1457,6 +1460,7 @@ fn test_counter_reaches_enables_phase() {
             initial_value: 0,
             decrement: false,
             set_value: None,
+            track_effect_stacks: None,
         }],
         ..Default::default()
     };

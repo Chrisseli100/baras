@@ -167,6 +167,14 @@ pub fn check_signal_trigger(
             }
         }),
 
+        Trigger::CounterChanges { .. } => signals.iter().any(|s| {
+            if let GameSignal::CounterChanged { counter_id, .. } = s {
+                trigger.matches_counter_changes(counter_id)
+            } else {
+                false
+            }
+        }),
+
         // ─── Damage/Healing (signal-based with source/target filters) ──────
         Trigger::DamageTaken { .. } => signals.iter().any(|s| {
             if let GameSignal::DamageTaken {

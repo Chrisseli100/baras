@@ -6,10 +6,13 @@
 use dioxus::prelude::*;
 
 use crate::api;
-use crate::types::{BossWithPath, CounterDefinition, EncounterItem, EntityFilter, Trigger};
+use crate::types::{
+    BossWithPath, CounterDefinition, EffectSelector, EffectStackConfig, EncounterItem,
+    EntityFilter, StackAggregation, Trigger,
+};
 
 use super::tabs::EncounterData;
-use super::triggers::ComposableTriggerEditor;
+use super::triggers::{ComposableTriggerEditor, EffectSelectorEditor, EntityFilterDropdown};
 use super::InlineNameCreator;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,6 +36,7 @@ fn default_counter(name: String) -> CounterDefinition {
         initial_value: 0,
         decrement: false,
         set_value: None,
+        track_effect_stacks: None,
     }
 }
 
@@ -172,7 +176,11 @@ fn CounterRow(
     on_collapse: EventHandler<()>,
 ) -> Element {
     let mut is_dirty = use_signal(|| false);
-    let trigger_label = counter.increment_on.label();
+    let trigger_label = if counter.track_effect_stacks.is_some() {
+        "Effect Stacks"
+    } else {
+        counter.increment_on.label()
+    };
 
     rsx! {
         div { class: "list-item",
@@ -474,100 +482,244 @@ fn CounterEditForm(
                     }
                 }
 
-                // ═══ RIGHT: Trigger Card ═════════════════════════════════════
+                // ═══ RIGHT: Mode + Config Card ═══════════════════════════════
                 div { class: "form-card",
                     div { class: "form-card-header",
                         i { class: "fa-solid fa-bolt" }
-                        span { "Trigger" }
+                        span { "Counter Mode" }
                     }
                     div { class: "form-card-content",
-                        // Increment Trigger
-                        div { class: "form-row-hz", style: "align-items: flex-start;",
-                            label { class: "flex items-center", style: "padding-top: 6px;",
-                                "Increment On"
+                        // Mode selector
+                        div { class: "form-row-hz",
+                            label { class: "flex items-center",
+                                "Mode"
                                 span {
                                     class: "help-icon",
-                                    title: "The game event that increments (or sets) this counter",
+                                    title: "Manual: triggers increment/decrement the counter. Effect Stacks: automatically tracks stack count of a game effect.",
                                     "?"
                                 }
                             }
-                            ComposableTriggerEditor {
-                                trigger: draft().increment_on,
-                                encounter_data: encounter_data.clone(),
-                                on_change: move |t| {
+                            select {
+                                class: "select",
+                                style: "width: 180px;",
+                                value: if draft().track_effect_stacks.is_some() { "effect_stacks" } else { "manual" },
+                                onchange: move |e| {
                                     let mut d = draft();
-                                    d.increment_on = t;
-                                    draft.set(d);
-                                },
-                                hide_timer_only: true,
-                            }
-                        }
-
-                        // Decrement Trigger (optional)
-                        div { class: "form-row-hz", style: "align-items: flex-start;",
-                            label { class: "flex items-center", style: "padding-top: 6px;",
-                                "Decrement On"
-                                span {
-                                    class: "help-icon",
-                                    title: "Optional separate trigger that decrements the counter",
-                                    "?"
-                                }
-                            }
-                            div { class: "flex-col gap-xs",
-                                div { class: "flex items-center gap-xs",
-                                    input {
-                                        r#type: "checkbox",
-                                        checked: draft().decrement_on.is_some(),
-                                        onchange: move |_| {
-                                            let mut d = draft();
-                                            d.decrement_on = if d.decrement_on.is_some() {
-                                                None
-                                            } else {
-                                                Some(Trigger::AbilityCast {
-                                                    abilities: vec![],
-                                                    source: EntityFilter::default(),
-                                                    target: EntityFilter::default(),
-                                                })
-                                            };
-                                            draft.set(d);
+                                    match e.value().as_str() {
+                                        "effect_stacks" => {
+                                            d.track_effect_stacks = Some(EffectStackConfig {
+                                                effects: vec![],
+                                                target: EntityFilter::Any,
+                                                aggregation: StackAggregation::Max,
+                                            });
+                                        }
+                                        _ => {
+                                            d.track_effect_stacks = None;
                                         }
                                     }
-                                    span { class: "text-xs text-muted", "(enable separate decrement trigger)" }
-                                }
-                                if let Some(ref decrement_trigger) = draft().decrement_on {
-                                    ComposableTriggerEditor {
-                                        trigger: decrement_trigger.clone(),
-                                        encounter_data: encounter_data.clone(),
-                                        on_change: move |t| {
-                                            let mut d = draft();
-                                            d.decrement_on = Some(t);
-                                            draft.set(d);
-                                        },
-                                        hide_timer_only: true,
-                                    }
-                                }
+                                    draft.set(d);
+                                },
+                                option { value: "manual", "Manual Triggers" }
+                                option { value: "effect_stacks", "Track Effect Stacks" }
                             }
                         }
 
-                        // Reset Trigger
-                        div { class: "form-row-hz", style: "align-items: flex-start;",
-                            label { class: "flex items-center", style: "padding-top: 6px;",
-                                "Reset On"
-                                span {
-                                    class: "help-icon",
-                                    title: "The game event that resets this counter to its initial value",
-                                    "?"
+                        if let Some(ref config) = draft().track_effect_stacks {
+                            // ─── Effect Stack Mode ─────────────────────────────────
+                            {
+                                rsx! {
+                                    div { class: "form-row-hz", style: "align-items: flex-start;",
+                                        label { class: "flex items-center", style: "padding-top: 6px;",
+                                            "Effects"
+                                            span {
+                                                class: "help-icon",
+                                                title: "Which game effects to track stacks for (by ID or name)",
+                                                "?"
+                                            }
+                                        }
+                                        EffectSelectorEditor {
+                                            label: "Effects",
+                                            selectors: config.effects.clone(),
+                                            on_change: move |sels: Vec<EffectSelector>| {
+                                                let mut d = draft();
+                                                if let Some(ref mut cfg) = d.track_effect_stacks {
+                                                    cfg.effects = sels;
+                                                }
+                                                draft.set(d);
+                                            }
+                                        }
+                                    }
+
+                                    div { class: "form-row-hz",
+                                        label { class: "flex items-center",
+                                            "Target"
+                                            span {
+                                                class: "help-icon",
+                                                title: "Which entities' stacks to track (e.g., local player, any player, a specific boss)",
+                                                "?"
+                                            }
+                                        }
+                                        EntityFilterDropdown {
+                                            label: "Target",
+                                            value: config.target.clone(),
+                                            options: EntityFilter::target_options(),
+                                            on_change: move |f: EntityFilter| {
+                                                let mut d = draft();
+                                                if let Some(ref mut cfg) = d.track_effect_stacks {
+                                                    cfg.target = f;
+                                                }
+                                                draft.set(d);
+                                            }
+                                        }
+                                    }
+
+                                    div { class: "form-row-hz",
+                                        label { class: "flex items-center",
+                                            "Aggregation"
+                                            span {
+                                                class: "help-icon",
+                                                title: "How to combine stacks when multiple entities match: Max (highest), Sum (total), Min (lowest)",
+                                                "?"
+                                            }
+                                        }
+                                        select {
+                                            class: "select",
+                                            style: "width: 120px;",
+                                            value: match config.aggregation {
+                                                StackAggregation::Max => "max",
+                                                StackAggregation::Sum => "sum",
+                                                StackAggregation::Min => "min",
+                                            },
+                                            onchange: move |e| {
+                                                let mut d = draft();
+                                                if let Some(ref mut cfg) = d.track_effect_stacks {
+                                                    cfg.aggregation = match e.value().as_str() {
+                                                        "sum" => StackAggregation::Sum,
+                                                        "min" => StackAggregation::Min,
+                                                        _ => StackAggregation::Max,
+                                                    };
+                                                }
+                                                draft.set(d);
+                                            },
+                                            option { value: "max", "Max" }
+                                            option { value: "sum", "Sum" }
+                                            option { value: "min", "Min" }
+                                        }
+                                    }
+
+                                    // Reset trigger still applies in effect stack mode
+                                    div { class: "form-row-hz", style: "align-items: flex-start;",
+                                        label { class: "flex items-center", style: "padding-top: 6px;",
+                                            "Reset On"
+                                            span {
+                                                class: "help-icon",
+                                                title: "When to reset the counter value (effect stack state is preserved)",
+                                                "?"
+                                            }
+                                        }
+                                        ComposableTriggerEditor {
+                                            trigger: draft().reset_on,
+                                            encounter_data: encounter_data.clone(),
+                                            on_change: move |t| {
+                                                let mut d = draft();
+                                                d.reset_on = t;
+                                                draft.set(d);
+                                            },
+                                            hide_timer_only: true,
+                                        }
+                                    }
                                 }
                             }
-                            ComposableTriggerEditor {
-                                trigger: draft().reset_on,
-                                encounter_data: encounter_data.clone(),
-                                on_change: move |t| {
-                                    let mut d = draft();
-                                    d.reset_on = t;
-                                    draft.set(d);
-                                },
-                                hide_timer_only: true,
+                        } else {
+                            // ─── Manual Triggers Mode ──────────────────────────────
+                            // Increment Trigger
+                            div { class: "form-row-hz", style: "align-items: flex-start;",
+                                label { class: "flex items-center", style: "padding-top: 6px;",
+                                    "Increment On"
+                                    span {
+                                        class: "help-icon",
+                                        title: "The game event that increments (or sets) this counter",
+                                        "?"
+                                    }
+                                }
+                                ComposableTriggerEditor {
+                                    trigger: draft().increment_on,
+                                    encounter_data: encounter_data.clone(),
+                                    on_change: move |t| {
+                                        let mut d = draft();
+                                        d.increment_on = t;
+                                        draft.set(d);
+                                    },
+                                    hide_timer_only: true,
+                                }
+                            }
+
+                            // Decrement Trigger (optional)
+                            div { class: "form-row-hz", style: "align-items: flex-start;",
+                                label { class: "flex items-center", style: "padding-top: 6px;",
+                                    "Decrement On"
+                                    span {
+                                        class: "help-icon",
+                                        title: "Optional separate trigger that decrements the counter",
+                                        "?"
+                                    }
+                                }
+                                div { class: "flex-col gap-xs",
+                                    div { class: "flex items-center gap-xs",
+                                        input {
+                                            r#type: "checkbox",
+                                            checked: draft().decrement_on.is_some(),
+                                            onchange: move |_| {
+                                                let mut d = draft();
+                                                d.decrement_on = if d.decrement_on.is_some() {
+                                                    None
+                                                } else {
+                                                    Some(Trigger::AbilityCast {
+                                                        abilities: vec![],
+                                                        source: EntityFilter::default(),
+                                                        target: EntityFilter::default(),
+                                                    })
+                                                };
+                                                draft.set(d);
+                                            }
+                                        }
+                                        span { class: "text-xs text-muted", "(enable separate decrement trigger)" }
+                                    }
+                                    if let Some(ref decrement_trigger) = draft().decrement_on {
+                                        ComposableTriggerEditor {
+                                            trigger: decrement_trigger.clone(),
+                                            encounter_data: encounter_data.clone(),
+                                            on_change: move |t| {
+                                                let mut d = draft();
+                                                d.decrement_on = Some(t);
+                                                draft.set(d);
+                                            },
+                                            hide_timer_only: true,
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Reset Trigger
+                            div { class: "form-row-hz", style: "align-items: flex-start;",
+                                label { class: "flex items-center", style: "padding-top: 6px;",
+                                    "Reset On"
+                                    span {
+                                        class: "help-icon",
+                                        title: "The game event that resets this counter to its initial value",
+                                        "?"
+                                    }
+                                }
+                                ComposableTriggerEditor {
+                                    trigger: draft().reset_on,
+                                    encounter_data: encounter_data.clone(),
+                                    on_change: move |t| {
+                                        let mut d = draft();
+                                        d.reset_on = t;
+                                        draft.set(d);
+                                    },
+                                    hide_timer_only: true,
+                                }
                             }
                         }
                     }

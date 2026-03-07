@@ -297,7 +297,7 @@ pub(super) fn handle_any_phase_change(
     manager.cancel_timers_matching(|t| t.is_any_phase_change());
 }
 
-/// Handle counter change - check for CounterReaches triggers
+/// Handle counter change - check for CounterReaches and CounterChanges triggers
 pub(super) fn handle_counter_change(
     manager: &mut TimerManager,
     encounter: Option<&CombatEncounter>,
@@ -306,6 +306,7 @@ pub(super) fn handle_counter_change(
     new_value: u32,
     timestamp: NaiveDateTime,
 ) {
+    // CounterReaches: threshold-crossing detection
     let matching: Vec<_> = manager
         .definitions_for_kind(TriggerKind::CounterReaches)
         .iter()
@@ -320,8 +321,23 @@ pub(super) fn handle_counter_change(
         manager.start_timer(&def, timestamp, None);
     }
 
+    // CounterChanges: any change to the specified counter
+    let matching_changes: Vec<_> = manager
+        .definitions_for_kind(TriggerKind::CounterChanges)
+        .iter()
+        .filter(|d| {
+            d.matches_counter_changes(counter_id) && manager.is_definition_active(d, encounter)
+        })
+        .cloned()
+        .collect();
+
+    for def in matching_changes {
+        manager.start_timer(&def, timestamp, None);
+    }
+
     // Check for cancel triggers on counter change
     manager.cancel_timers_matching(|t| t.matches_counter_reaches(counter_id, old_value, new_value));
+    manager.cancel_timers_matching(|t| t.matches_counter_changes(counter_id));
 }
 
 /// Handle NPC first seen - check for NpcAppears triggers

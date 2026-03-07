@@ -2062,10 +2062,10 @@ impl SignalHandler for EffectTracker {
                 action_id,
                 action_name,
                 source_id,
-                source_entity_type: _,
                 target_id,
                 timestamp,
                 charges,
+                ..
             } => {
                 self.handle_charges_changed(
                     *effect_id,

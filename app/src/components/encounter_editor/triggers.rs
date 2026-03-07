@@ -400,6 +400,7 @@ pub fn SimpleTriggerEditor(
                         "any_phase_change" => TimerTrigger::AnyPhaseChange,
                         "boss_hp_below" => TimerTrigger::BossHpBelow { hp_percent: 50.0, selector: vec![] },
                         "counter_reaches" => TimerTrigger::CounterReaches { counter_id: String::new(), value: 1 },
+                        "counter_changes" => TimerTrigger::CounterChanges { counter_id: String::new() },
                         "npc_appears" => TimerTrigger::NpcAppears { selector: vec![] },
                         "entity_death" => TimerTrigger::EntityDeath { selector: vec![] },
                         "target_set" => TimerTrigger::TargetSet { selector: vec![], target: EntityFilter::default() },
@@ -425,6 +426,7 @@ pub fn SimpleTriggerEditor(
                 option { value: "any_phase_change", "Any Phase Change" }
                 option { value: "boss_hp_below", "Boss HP Below" }
                 option { value: "counter_reaches", "Counter Reaches" }
+                option { value: "counter_changes", "Counter Changes" }
                 option { value: "npc_appears", "NPC Appears" }
                 option { value: "entity_death", "Entity Death" }
                 // Timer-only options (hidden for phases/counters)
@@ -766,6 +768,19 @@ pub fn SimpleTriggerEditor(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    },
+                    TimerTrigger::CounterChanges { counter_id } => {
+                        let available_counters = encounter_data.counter_ids();
+                        rsx! {
+                            IdSelector {
+                                label: "Counter",
+                                value: counter_id,
+                                available: available_counters,
+                                on_change: move |id| on_change.call(TimerTrigger::CounterChanges {
+                                    counter_id: id,
+                                })
                             }
                         }
                     },

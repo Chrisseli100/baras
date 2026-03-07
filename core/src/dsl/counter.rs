@@ -1,10 +1,12 @@
 //! Counter definitions for boss encounters
 //!
 //! Counters track occurrences during a fight (e.g., add spawns, ability casts).
+//! Counters can also automatically track effect stacks on entities.
 
 use serde::{Deserialize, Serialize};
 
 use super::triggers::Trigger;
+pub use baras_types::{EffectStackConfig, StackAggregation};
 
 // Re-export Trigger as CounterTrigger for backward compatibility during migration
 pub use super::triggers::Trigger as CounterTrigger;
@@ -50,6 +52,12 @@ pub struct CounterDefinition {
     /// Optional: set to specific value instead of increment/decrement
     #[serde(default)]
     pub set_value: Option<u32>,
+
+    /// If set, this counter automatically tracks the stack count of the
+    /// specified effect instead of using increment_on/decrement_on triggers.
+    /// The counter value reflects the current (aggregated) stack count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track_effect_stacks: Option<EffectStackConfig>,
 }
 
 fn default_reset_trigger() -> Trigger {

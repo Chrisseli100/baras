@@ -27,6 +27,7 @@ pub use baras_types::{
     DataTab,
     DotTrackerConfig,
     EffectSelector,
+    EffectStackConfig,
     EffectsAConfig,
     EffectsBConfig,
     EffectsEditorState,
@@ -43,6 +44,7 @@ pub use baras_types::{
     RefreshAbility,
     SortColumn,
     SortDirection,
+    StackAggregation,
     TimerOverlayConfig,
     // Trigger type (shared across timers, phases, counters)
     Trigger,
@@ -491,6 +493,10 @@ pub struct CounterDefinition {
     pub decrement: bool,
     #[serde(default)]
     pub set_value: Option<u32>,
+    /// If set, this counter automatically tracks effect stacks instead
+    /// of using increment_on/decrement_on triggers.
+    #[serde(default)]
+    pub track_effect_stacks: Option<EffectStackConfig>,
 }
 
 fn default_reset_trigger() -> Trigger {
@@ -828,6 +834,13 @@ pub enum Condition {
         operator: ComparisonOp,
         value: u32,
     },
+    /// True when one counter's value satisfies the comparison against another counter's value.
+    CounterCompareCounter {
+        counter_id: String,
+        #[serde(default)]
+        operator: ComparisonOp,
+        other_counter_id: String,
+    },
     /// True when a timer's remaining time satisfies the comparison.
     /// Inactive timers are treated as having 0.0 seconds remaining.
     TimerTimeRemaining {
@@ -850,6 +863,7 @@ impl Condition {
         match self {
             Self::PhaseActive { .. } => "Phase Active",
             Self::CounterCompare { .. } => "Counter Compare",
+            Self::CounterCompareCounter { .. } => "Counter vs Counter",
             Self::TimerTimeRemaining { .. } => "Timer Time Remaining",
             Self::AllOf { .. } => "All Of (AND)",
             Self::AnyOf { .. } => "Any Of (OR)",
@@ -862,6 +876,7 @@ impl Condition {
         match self {
             Self::PhaseActive { .. } => "phase_active",
             Self::CounterCompare { .. } => "counter_compare",
+            Self::CounterCompareCounter { .. } => "counter_compare_counter",
             Self::TimerTimeRemaining { .. } => "timer_time_remaining",
             Self::AllOf { .. } => "all_of",
             Self::AnyOf { .. } => "any_of",

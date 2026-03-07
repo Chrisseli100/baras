@@ -136,6 +136,11 @@ pub struct CombatEncounter {
     /// Active boss shield state: (npc_class_id, shield_def_index) → remaining HP
     pub boss_shields: HashMap<(i64, usize), i64>,
 
+    // ─── Effect Stack Tracking (for effect stack counters) ────────────────
+    /// Per-entity effect stack counts: effect_id → (entity_id → stack_count)
+    /// Used by counters with `track_effect_stacks` config.
+    pub effect_stacks: HashMap<i64, HashMap<i64, u8>>,
+
     // ─── Effect Instances (for shield attribution) ──────────────────────────
     /// Active effects by target ID
     pub effects: HashMap<i64, Vec<EffectInstance>>,
@@ -205,6 +210,9 @@ impl CombatEncounter {
 
             // Boss shields
             boss_shields: HashMap::new(),
+
+            // Effect stack tracking
+            effect_stacks: HashMap::new(),
 
             // Effects
             effects: HashMap::new(),
@@ -583,6 +591,38 @@ impl CombatEncounter {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // Effect Stack Tracking
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Update the stack count for an effect on a specific entity.
+    pub fn update_effect_stacks(&mut self, effect_id: i64, entity_id: i64, stacks: u8) {
+        self.effect_stacks
+            .entry(effect_id)
+            .or_default()
+            .insert(entity_id, stacks);
+    }
+
+    /// Remove the stack entry for an effect on a specific entity (effect was removed).
+    pub fn remove_effect_stacks(&mut self, effect_id: i64, entity_id: i64) {
+        if let Some(entities) = self.effect_stacks.get_mut(&effect_id) {
+            entities.remove(&entity_id);
+            if entities.is_empty() {
+                self.effect_stacks.remove(&effect_id);
+            }
+        }
+    }
+
+    /// Get all entities' stack counts for a specific effect.
+    pub fn get_effect_stacks(&self, effect_id: i64) -> Option<&HashMap<i64, u8>> {
+        self.effect_stacks.get(&effect_id)
+    }
+
+    /// Clear all effect stack state (on combat end).
+    pub fn clear_effect_stacks(&mut self) {
+        self.effect_stacks.clear();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Timer Snapshot (for timer_time_remaining conditions)
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -609,6 +649,16 @@ impl CombatEncounter {
             } => {
                 let current = self.get_counter(counter_id);
                 operator.evaluate(current, *value)
+            }
+
+            Condition::CounterCompareCounter {
+                counter_id,
+                operator,
+                other_counter_id,
+            } => {
+                let left = self.get_counter(counter_id);
+                let right = self.get_counter(other_counter_id);
+                operator.evaluate(left, right)
             }
 
             Condition::TimerTimeRemaining {

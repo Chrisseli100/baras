@@ -692,6 +692,42 @@ impl EntityMatcher {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Effect Stack Tracking (for counter-based effect stack monitoring)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Configuration for automatic effect stack tracking on a counter.
+///
+/// When a counter has this config, it bypasses normal increment/decrement
+/// triggers and instead automatically updates based on game effect events
+/// (ApplyEffect, ModifyCharges, RemoveEffect).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EffectStackConfig {
+    /// Which effects to track (by ID or name)
+    pub effects: Vec<EffectSelector>,
+
+    /// Who has the effect (required — determines which entities' stacks to track)
+    #[serde(default = "EntityFilter::default_any")]
+    pub target: EntityFilter,
+
+    /// How to aggregate when multiple entities match the target filter
+    #[serde(default)]
+    pub aggregation: StackAggregation,
+}
+
+/// How to aggregate stack counts across multiple entities
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StackAggregation {
+    /// Maximum stacks on any matching entity (most common — "someone has N stacks")
+    #[default]
+    Max,
+    /// Sum of stacks across all matching entities
+    Sum,
+    /// Minimum stacks on any matching entity (0 if no entity has the effect)
+    Min,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Trigger Types (shared across timers, phases, counters)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -814,6 +850,9 @@ pub enum Trigger {
     /// Counter reaches a specific value. [TP]
     CounterReaches { counter_id: String, value: u32 },
 
+    /// Counter value changes (any change, not just threshold crossing). [TPC]
+    CounterChanges { counter_id: String },
+
     // ─── Timer Events [T only] ─────────────────────────────────────────────
     /// Another timer expires (chaining). [T only]
     TimerExpires { timer_id: String },
@@ -860,6 +899,7 @@ impl Trigger {
             Self::PhaseEnded { .. } => "Phase Ended",
             Self::AnyPhaseChange => "Any Phase Change",
             Self::CounterReaches { .. } => "Counter Reaches",
+            Self::CounterChanges { .. } => "Counter Changes",
             Self::TimerExpires { .. } => "Timer Expires",
             Self::TimerStarted { .. } => "Timer Started",
             Self::TimerCanceled { .. } => "Timer Canceled",
@@ -889,6 +929,7 @@ impl Trigger {
             Self::PhaseEnded { .. } => "phase_ended",
             Self::AnyPhaseChange => "any_phase_change",
             Self::CounterReaches { .. } => "counter_reaches",
+            Self::CounterChanges { .. } => "counter_changes",
             Self::TimerExpires { .. } => "timer_expires",
             Self::TimerStarted { .. } => "timer_started",
             Self::TimerCanceled { .. } => "timer_canceled",

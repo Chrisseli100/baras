@@ -378,7 +378,12 @@ fn charges_changed_signal(
         action_name: empty_istr(),
         source_id,
         source_entity_type: EntityType::Player,
+        source_name: empty_istr(),
+        source_npc_id: 0,
         target_id,
+        target_entity_type: EntityType::Player,
+        target_name: empty_istr(),
+        target_npc_id: 0,
         timestamp,
         charges,
     }

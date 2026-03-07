@@ -244,6 +244,12 @@ impl TimerDefinition {
             .matches_counter_reaches(counter_id, old_value, new_value)
     }
 
+    /// Check if this timer triggers when a counter value changes (any change).
+    /// Delegates to unified `Trigger::matches_counter_changes`.
+    pub fn matches_counter_changes(&self, counter_id: &str) -> bool {
+        self.trigger.matches_counter_changes(counter_id)
+    }
+
     /// Check if this timer triggers when an NPC first appears.
     /// Delegates to unified `Trigger::matches_npc_appears`.
     pub fn matches_npc_appears(

@@ -431,6 +431,11 @@ fn default_condition_for_type(type_name: &str, current: &Condition) -> Condition
             operator: ComparisonOp::Gte,
             value: 1,
         },
+        "counter_compare_counter" => Condition::CounterCompareCounter {
+            counter_id: String::new(),
+            operator: ComparisonOp::Eq,
+            other_counter_id: String::new(),
+        },
         "timer_time_remaining" => Condition::TimerTimeRemaining {
             timer_id: String::new(),
             operator: ComparisonOp::Gte,
@@ -474,6 +479,7 @@ fn SimpleConditionEditor(
                     },
                     option { value: "phase_active", selected: type_name == "phase_active", "Phase Active" }
                     option { value: "counter_compare", selected: type_name == "counter_compare", "Counter Compare" }
+                    option { value: "counter_compare_counter", selected: type_name == "counter_compare_counter", "Counter vs Counter" }
                     option { value: "timer_time_remaining", selected: type_name == "timer_time_remaining", "Timer Time Remaining" }
                     // Composite wrappers
                     option { value: "all_of", selected: type_name == "all_of", "All Of (AND)" }
@@ -497,6 +503,15 @@ fn SimpleConditionEditor(
                             counter_id: counter_id.clone(),
                             operator: *operator,
                             value: *value,
+                            encounter_data: encounter_data.clone(),
+                            on_change: on_change,
+                        }
+                    },
+                    Condition::CounterCompareCounter { counter_id, operator, other_counter_id } => rsx! {
+                        CounterCompareCounterEditor {
+                            counter_id: counter_id.clone(),
+                            operator: *operator,
+                            other_counter_id: other_counter_id.clone(),
                             encounter_data: encounter_data.clone(),
                             on_change: on_change,
                         }
@@ -624,6 +639,116 @@ fn CounterCompareEditor(
                                 });
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Counter vs Counter condition: counter dropdown + operator + counter dropdown
+#[component]
+fn CounterCompareCounterEditor(
+    counter_id: String,
+    operator: ComparisonOp,
+    other_counter_id: String,
+    encounter_data: EncounterData,
+    on_change: EventHandler<Condition>,
+) -> Element {
+    let op_value = operator.as_str();
+
+    let selected_left = if counter_id.is_empty() {
+        "__none__".to_string()
+    } else {
+        counter_id.clone()
+    };
+
+    let selected_right = if other_counter_id.is_empty() {
+        "__none__".to_string()
+    } else {
+        other_counter_id.clone()
+    };
+
+    let counters = encounter_data.counter_ids();
+    let counters_for_right = counters.clone();
+    let counter_id_for_op = counter_id.clone();
+    let other_id_for_op = other_counter_id.clone();
+    let counter_id_for_right = counter_id.clone();
+    let has_left = !counter_id.is_empty();
+
+    rsx! {
+        div { class: "flex items-center gap-xs",
+            // Left counter
+            select {
+                class: "select",
+                style: "width: 140px;",
+                value: "{selected_left}",
+                onchange: {
+                    let other_id = other_counter_id.clone();
+                    move |e| {
+                        let new_id = if e.value() == "__none__" {
+                            String::new()
+                        } else {
+                            e.value()
+                        };
+                        on_change.call(Condition::CounterCompareCounter {
+                            counter_id: new_id,
+                            operator,
+                            other_counter_id: other_id.clone(),
+                        });
+                    }
+                },
+                option { value: "__none__", selected: selected_left == "__none__", "(select counter)" }
+                for cid in &counters {
+                    option { value: "{cid}", selected: *cid == selected_left, "{cid}" }
+                }
+            }
+
+            if has_left {
+                // Operator
+                select {
+                    class: "select",
+                    style: "width: 55px;",
+                    value: "{op_value}",
+                    onchange: {
+                        let cid = counter_id_for_op.clone();
+                        let oid = other_id_for_op.clone();
+                        move |e| {
+                            on_change.call(Condition::CounterCompareCounter {
+                                counter_id: cid.clone(),
+                                operator: ComparisonOp::from_str_or(&e.value(), ComparisonOp::Eq),
+                                other_counter_id: oid.clone(),
+                            });
+                        }
+                    },
+                    for op in ComparisonOp::all() {
+                        option { value: "{op.as_str()}", selected: op_value == op.as_str(), "{op.label()}" }
+                    }
+                }
+
+                // Right counter
+                select {
+                    class: "select",
+                    style: "width: 140px;",
+                    value: "{selected_right}",
+                    onchange: {
+                        let cid = counter_id_for_right.clone();
+                        move |e| {
+                            let new_id = if e.value() == "__none__" {
+                                String::new()
+                            } else {
+                                e.value()
+                            };
+                            on_change.call(Condition::CounterCompareCounter {
+                                counter_id: cid.clone(),
+                                operator,
+                                other_counter_id: new_id,
+                            });
+                        }
+                    },
+                    option { value: "__none__", selected: selected_right == "__none__", "(select counter)" }
+                    for cid in &counters_for_right {
+                        option { value: "{cid}", selected: *cid == selected_right, "{cid}" }
                     }
                 }
             }

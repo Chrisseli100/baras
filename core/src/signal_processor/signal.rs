@@ -88,7 +88,14 @@ pub enum GameSignal {
         action_name: IStr,
         source_id: i64,
         source_entity_type: EntityType,
+        source_name: IStr,
+        /// NPC class/template ID of source (0 for players/companions)
+        source_npc_id: i64,
         target_id: i64,
+        target_entity_type: EntityType,
+        target_name: IStr,
+        /// NPC class/template ID of target (0 for players/companions)
+        target_npc_id: i64,
         timestamp: NaiveDateTime,
         /// New charge count
         charges: u8,

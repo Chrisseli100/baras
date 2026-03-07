@@ -42,6 +42,7 @@ pub enum TriggerKind {
     PhaseEnded,
     AnyPhaseChange,
     CounterReaches,
+    CounterChanges,
     TimerExpires,
     TimerStarted,
     TimerCanceled,
@@ -188,6 +189,9 @@ pub enum Trigger {
     /// Counter reaches a specific value.
     CounterReaches { counter_id: String, value: u32 },
 
+    /// Counter value changes (any change, not just threshold crossing).
+    CounterChanges { counter_id: String },
+
     // ─── Timer Events ───────────────────────────────────────────────────────
     /// Another timer expires
     TimerExpires { timer_id: String },
@@ -237,6 +241,7 @@ impl Trigger {
             Self::PhaseEnded { .. } => out.push(TriggerKind::PhaseEnded),
             Self::AnyPhaseChange => out.push(TriggerKind::AnyPhaseChange),
             Self::CounterReaches { .. } => out.push(TriggerKind::CounterReaches),
+            Self::CounterChanges { .. } => out.push(TriggerKind::CounterChanges),
             Self::TimerExpires { .. } => out.push(TriggerKind::TimerExpires),
             Self::TimerStarted { .. } => out.push(TriggerKind::TimerStarted),
             Self::TimerCanceled { .. } => out.push(TriggerKind::TimerCanceled),
@@ -577,6 +582,19 @@ impl Trigger {
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .any(|c| c.matches_counter_reaches(counter_id, old_value, new_value)),
+            _ => false,
+        }
+    }
+
+    /// Check if trigger matches a counter value changing (any change).
+    pub fn matches_counter_changes(&self, counter_id: &str) -> bool {
+        match self {
+            Self::CounterChanges {
+                counter_id: trigger_counter,
+            } => trigger_counter == counter_id,
+            Self::AnyOf { conditions } => conditions
+                .iter()
+                .any(|c| c.matches_counter_changes(counter_id)),
             _ => false,
         }
     }
