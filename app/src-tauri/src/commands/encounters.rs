@@ -139,14 +139,47 @@ fn load_all_bosses(app_handle: &AppHandle) -> Result<Vec<BossWithPath>, String> 
     // Load bundled with custom overlays merged (uses loader.rs)
     let mut results = load_bosses_with_paths(&bundled_dir)?;
 
-    // Merge custom overlays into bundled bosses
+    // Pass 1: Merge custom overlays into existing bundled bosses.
+    // Also discover which custom overlay files exist (deduplicated) and remember
+    // the bundled file_path + category so we can attribute new bosses correctly.
+    let mut custom_overlay_sources: Vec<(PathBuf, PathBuf, String)> = Vec::new(); // (custom_path, bundled_path, category)
+    let mut seen_custom_files = std::collections::HashSet::new();
+
     for bwp in &mut results {
         if let Some(custom_path) = find_custom_file(&bwp.file_path, &user_dir) {
+            if seen_custom_files.insert(custom_path.clone()) {
+                custom_overlay_sources.push((
+                    custom_path.clone(),
+                    bwp.file_path.clone(),
+                    bwp.category.clone(),
+                ));
+            }
+
             if let Ok(custom_bosses) = load_bosses_from_file(&custom_path) {
                 for custom in custom_bosses {
                     if custom.id == bwp.boss.id {
                         merge_boss_definition(&mut bwp.boss, custom);
                     }
+                }
+            }
+        }
+    }
+
+    // Pass 2: Append new bosses from custom overlay files that don't exist in bundled.
+    // Use the bundled file_path so get_custom_path_if_bundled correctly routes saves
+    // back to the _custom.toml overlay.
+    let bundled_ids: std::collections::HashSet<String> =
+        results.iter().map(|b| b.boss.id.clone()).collect();
+
+    for (custom_path, bundled_path, category) in &custom_overlay_sources {
+        if let Ok(custom_bosses) = load_bosses_from_file(custom_path) {
+            for boss in custom_bosses {
+                if !bundled_ids.contains(&boss.id) {
+                    results.push(BossWithPath {
+                        boss,
+                        file_path: bundled_path.clone(),
+                        category: category.clone(),
+                    });
                 }
             }
         }
