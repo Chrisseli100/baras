@@ -299,7 +299,6 @@ selector = ["Dread Master Calphayus (Future)"]
 [[boss.phases]]
 id = "calphayus_portals"
 name = "Portals"
-resets_counters = []
 
 [boss.phases.start_trigger]
 type = "ability_cast"
@@ -310,10 +309,9 @@ target = "any"
 [[boss.phases]]
 id = "calphayus_holocrons_burns"
 name = "Holocrons+Burns"
-resets_counters = []
 
 [boss.phases.start_trigger]
-type = "ability_cast"
+type = "effect_applied"
 abilities = [3305260802113536]
 source = "boss"
 target = "boss"

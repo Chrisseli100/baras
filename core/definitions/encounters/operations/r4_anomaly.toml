@@ -42,6 +42,12 @@ name = "Bombs"
 start_trigger = { type = "phase_ended", phase_id = "ip_main" }
 end_trigger = { type = "effect_removed", effects = [4471627890819336] }
 
+[[boss.phases.conditions]]
+type = "counter_compare"
+counter_id = "ip_cpt_bomb_phases"
+operator = "lt"
+value = 2
+
 [[boss.phases]]
 id = "burn"
 name = "Burn"
@@ -81,6 +87,20 @@ type = "effect_applied"
 effects = [4471271408533778]
 source = "any"
 target = "any"
+
+[[boss.counters]]
+id = "ip_cpt_bomb_phases"
+name = "Bomb Phases"
+enabled = true
+initial_value = 0
+decrement = false
+
+[boss.counters.increment_on]
+type = "phase_entered"
+phase_id = "ip_bombs"
+
+[boss.counters.reset_on]
+type = "combat_end"
 
 
 # [[boss.timer]]
@@ -297,7 +317,9 @@ trigger = { type = "ability_cast", abilities = [4472216301338624] }
 duration_secs = 7.0
 color = [219, 28, 29, 255]
 difficulties = ["veteran", "master"]
-conditions = [{ type = "counter_compare", counter_id = "wd_deguass_counter", operator = "eq", value = 2 }]
+conditions = [
+  { type = "counter_compare", counter_id = "wd_deguass_counter", operator = "eq", value = 2 },
+]
 
 [[boss.timer]]
 id = "watchdog_degauss_1st"
@@ -343,7 +365,9 @@ trigger = { type = "any_of", conditions = [
 duration_secs = 7.0
 color = [135, 163, 66, 255]
 difficulties = ["veteran"]
-conditions = [{ type = "counter_compare", counter_id = "wd_deguass_counter", operator = "eq", value = 0 }]
+conditions = [
+  { type = "counter_compare", counter_id = "wd_deguass_counter", operator = "eq", value = 0 },
+]
 
 [[boss.timer]]
 id = "watchdog_invert"
@@ -360,7 +384,9 @@ trigger = { type = "ability_cast", abilities = [4471709495197696] }
 duration_secs = 12.0
 color = [224, 129, 29, 255]
 difficulties = ["veteran", "master"]
-conditions = [{ type = "counter_compare", counter_id = "wd_beam_counter", operator = "lt", value = 3 }]
+conditions = [
+  { type = "counter_compare", counter_id = "wd_beam_counter", operator = "lt", value = 3 },
+]
 
 [[boss.timer]]
 id = "watchdog_polarized_beam"
@@ -369,7 +395,9 @@ trigger = { type = "ability_cast", abilities = [4468595643908096] }
 duration_secs = 11.0
 color = [43, 29, 224, 255]
 difficulties = ["veteran", "master"]
-conditions = [{ type = "counter_compare", counter_id = "wd_beam_counter", operator = "eq", value = 4 }]
+conditions = [
+  { type = "counter_compare", counter_id = "wd_beam_counter", operator = "eq", value = 4 },
+]
 
 [[boss.timer]]
 id = "watchdog_polarized_beam_p2_1st"
@@ -486,7 +514,9 @@ start_trigger = { type = "any_of", conditions = [
     "Attractors",
   ] },
 ] }
-conditions = [{ type = "counter_compare", counter_id = "dom_attractor_appearance", operator = "lt", value = 2 }]
+conditions = [
+  { type = "counter_compare", counter_id = "dom_attractor_appearance", operator = "lt", value = 2 },
+]
 
 [[boss.counters]]
 id = "dom_attractor_appearance"
@@ -509,7 +539,12 @@ name = "Orange circle"
 is_alert = true
 alert_text = "You have orange circle"
 color = [224, 112, 0, 255]
-conditions = [{ type = "phase_active", phase_ids = ["dominique_dom", "dominique_dom_generators"] }]
+conditions = [
+  { type = "phase_active", phase_ids = [
+    "dominique_dom",
+    "dominique_dom_generators",
+  ] },
+]
 difficulties = ["story", "veteran"]
 enabled = true
 display_target = "timers_a"
