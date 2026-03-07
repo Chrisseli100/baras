@@ -107,6 +107,19 @@ impl OverlayFrame {
     /// In move mode, the background always covers the full window so the user
     /// can see the true window bounds for dragging/resizing.
     pub fn begin_frame_with_content_height(&mut self, content_height: f32) {
+        self.begin_frame_with_content_rect(0.0, content_height);
+    }
+
+    /// Begin a new frame with the background positioned at a specific Y offset
+    /// and sized to the given content height.
+    ///
+    /// This is useful when content is rendered at a non-zero Y position (e.g.
+    /// "stack from bottom" in the metrics overlay) and the dynamic background
+    /// needs to align with where the content actually appears.
+    ///
+    /// In move mode, the background always covers the full window so the user
+    /// can see the true window bounds for dragging/resizing.
+    pub fn begin_frame_with_content_rect(&mut self, content_y: f32, content_height: f32) {
         let width = self.window.width() as f32;
         let height = self.window.height() as f32;
         let corner_radius = self.scaled(6.0);
@@ -125,16 +138,16 @@ impl OverlayFrame {
 
         // Draw background if there's any alpha to show
         // In move mode: always fill the full window so the user can see the bounds
-        // In normal mode: only fill to the content height
+        // In normal mode: only fill to the content height at the content position
         if alpha > 0 {
             let bg_color = Color::from_rgba8(30, 30, 30, alpha);
-            let bg_height = if in_move_mode {
-                height
+            let (bg_y, bg_height) = if in_move_mode {
+                (0.0, height)
             } else {
-                content_height.min(height)
+                (content_y, content_height.min(height - content_y))
             };
             self.window
-                .fill_rounded_rect(0.0, 0.0, width, bg_height, corner_radius, bg_color);
+                .fill_rounded_rect(0.0, bg_y, width, bg_height, corner_radius, bg_color);
         }
 
         // Draw border only in move mode (interactive AND drag enabled)

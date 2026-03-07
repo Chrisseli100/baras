@@ -315,17 +315,8 @@ impl MetricOverlay {
             padding * 2.0 + header_space + total_bars_height + footer_space
         };
 
-        // Begin frame (clear, background, border)
-        if self.dynamic_background {
-            self.frame.begin_frame_with_content_height(content_height);
-        } else {
-            self.frame.begin_frame();
-        }
-
-        let content_width = width - padding * 2.0;
-        let bar_radius = 4.0 * self.frame.scale_factor();
-
         // Calculate bar start position based on stack direction
+        // (computed before begin_frame so we can position the dynamic background)
         let bars_start_y = if self.stack_from_bottom {
             // Stack from bottom: position bars at bottom of available space
             padding + header_space + available_for_bars - total_bars_height
@@ -333,6 +324,24 @@ impl MetricOverlay {
             // Stack from top: bars start after header
             padding + header_space
         };
+
+        // Begin frame (clear, background, border)
+        if self.dynamic_background {
+            if self.stack_from_bottom {
+                // When stacking from bottom, the content starts higher up from
+                // bars_start_y by the header and padding, so align the background there
+                let content_y = bars_start_y - header_space - padding;
+                self.frame
+                    .begin_frame_with_content_rect(content_y, content_height);
+            } else {
+                self.frame.begin_frame_with_content_height(content_height);
+            }
+        } else {
+            self.frame.begin_frame();
+        }
+
+        let content_width = width - padding * 2.0;
+        let bar_radius = 4.0 * self.frame.scale_factor();
 
         // Draw header just above the first bar (uses base_font_size, not bar_font_size)
         let mut y = if self.appearance.show_header {
