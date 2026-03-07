@@ -567,7 +567,11 @@ impl Trigger {
         }
     }
 
-    /// Check if trigger matches a counter reaching a value.
+    /// Check if trigger matches a counter reaching a specific value.
+    ///
+    /// Fires when `new_value` equals the target value and `old_value` was
+    /// different — i.e., the counter just arrived at that value, regardless
+    /// of whether it got there via increment or decrement.
     pub fn matches_counter_reaches(
         &self,
         counter_id: &str,
@@ -578,7 +582,7 @@ impl Trigger {
             Self::CounterReaches {
                 counter_id: trigger_counter,
                 value,
-            } => trigger_counter == counter_id && old_value < *value && new_value >= *value,
+            } => trigger_counter == counter_id && new_value == *value && old_value != *value,
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .any(|c| c.matches_counter_reaches(counter_id, old_value, new_value)),
