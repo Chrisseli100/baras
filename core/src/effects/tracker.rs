@@ -366,6 +366,19 @@ struct PendingAoeRefresh {
     primary_target: i64,
 }
 
+/// Pending single-target DotTracker refresh waiting for damage confirmation.
+/// Set when AbilityActivated fires for a refresh ability on a non-AoE DotTracker effect.
+/// Consumed by the next DamageTaken event from the same ability.
+#[derive(Debug, Clone)]
+struct PendingDotRefresh {
+    /// The ability that was activated
+    ability_id: i64,
+    /// Who cast the ability
+    source_id: i64,
+    /// When the ability was activated
+    timestamp: NaiveDateTime,
+}
+
 /// State for collecting AoE damage targets after finding anchor
 #[derive(Debug, Clone)]
 struct AoeRefreshCollecting {
@@ -428,6 +441,10 @@ pub struct EffectTracker {
     /// collecting other targets hit within ±10ms.
     aoe_collecting: Option<AoeRefreshCollecting>,
 
+    /// Pending single-target DotTracker refresh waiting for next damage event.
+    /// Set when AbilityActivated fires for a non-AoE DotTracker refresh ability.
+    pending_dot_refresh: Option<PendingDotRefresh>,
+
     /// Alerts fired by effect start/end triggers
     fired_alerts: Vec<FiredAlert>,
 
@@ -437,10 +454,6 @@ pub struct EffectTracker {
     /// Current target for each entity (source_id -> (target_id, target_name, entity_type))
     /// Used as fallback when encounter doesn't have target info (e.g., outside combat)
     current_targets: HashMap<i64, (i64, IStr, EntityType)>,
-
-    /// Recent ability casts by local player: (ability_id, target_id) -> timestamp
-    /// Used to validate DotTracker ApplyEffect signals and reject lingering effects
-    recent_casts: HashMap<(u64, i64), NaiveDateTime>,
 }
 
 impl Default for EffectTracker {
@@ -464,10 +477,10 @@ impl EffectTracker {
             new_targets: Vec::new(),
             pending_aoe_refresh: None,
             aoe_collecting: None,
+            pending_dot_refresh: None,
             fired_alerts: Vec::new(),
             ticking_count: 0,
             current_targets: HashMap::new(),
-            recent_casts: HashMap::new(),
         }
     }
 
@@ -536,44 +549,6 @@ impl EffectTracker {
             // Add cooldown_ready_secs to extend the total duration for the ready state
             let total = with_latency + def.cooldown_ready_secs;
             Duration::from_secs_f32(total)
-        })
-    }
-
-    /// Check if any of the definition's refresh abilities were recently cast.
-    ///
-    /// For AoE definitions (`is_aoe_refresh`), checks if the ability was cast
-    /// at ANY target recently (since we only track the primary target).
-    /// For single-target abilities, checks the specific target.
-    fn has_recent_refresh_cast(
-        &self,
-        def: &super::EffectDefinition,
-        target_id: i64,
-        timestamp: NaiveDateTime,
-    ) -> bool {
-        const RECENT_CAST_WINDOW_MS: i64 = 1500;
-
-        def.refresh_abilities.iter().any(|refresh| {
-            if let baras_types::AbilitySelector::Id(ability_id) = refresh.ability() {
-                if def.is_aoe_refresh {
-                    // AoE: check if ability was cast at ANY target recently
-                    self.recent_casts.iter().any(|(&(aid, _), &ts)| {
-                        aid == *ability_id && {
-                            let elapsed = (timestamp - ts).num_milliseconds();
-                            elapsed >= 0 && elapsed <= RECENT_CAST_WINDOW_MS
-                        }
-                    })
-                } else {
-                    // Single-target: check specific target
-                    self.recent_casts
-                        .get(&(*ability_id, target_id))
-                        .is_some_and(|&ts| {
-                            let elapsed = (timestamp - ts).num_milliseconds();
-                            elapsed >= 0 && elapsed <= RECENT_CAST_WINDOW_MS
-                        })
-                }
-            } else {
-                false
-            }
         })
     }
 
@@ -863,10 +838,6 @@ impl EffectTracker {
         // Remove effects that have been marked removed (immediate, no fade delay)
         self.active_effects
             .retain(|_, effect| effect.removed_at.is_none());
-
-        // Clean up old recent_casts entries (older than 5 seconds)
-        self.recent_casts
-            .retain(|_, ts| (current_time - *ts).num_milliseconds() < 5000);
     }
 
     /// Handle effect application signal
@@ -975,23 +946,22 @@ impl EffectTracker {
                 }
             }
 
-            // Pre-compute DotTracker validation before mutable borrow of active_effects
-            let dot_tracker_valid = def.display_target != DisplayTarget::DotTracker
-                || self.has_recent_refresh_cast(def, target_id, timestamp);
-
             if let Some(existing) = self.active_effects.get_mut(&key) {
-                // Skip duplicate log lines (same timestamp) to avoid corrupting timing
-                if existing.last_refreshed_at == timestamp {
+                // DotTracker effects are never refreshed via EffectApplied.
+                // All refreshes go through damage-confirmed refresh (handle_damage_for_dot_refresh).
+                // EffectApplied only creates new DotTracker effects (initial application).
+                if def.display_target == DisplayTarget::DotTracker {
                     if let Some(c) = charges {
                         existing.set_stacks(c);
                     }
                     continue;
                 }
 
-                // For DotTracker, validate that a refresh_ability was cast within the
-                // recent window. This prevents lingering effects (which reapply with the
-                // same effect_id ~5 seconds after DOT expires) from incorrectly refreshing.
-                if !dot_tracker_valid {
+                // Skip duplicate log lines (same timestamp) to avoid corrupting timing
+                if existing.last_refreshed_at == timestamp {
+                    if let Some(c) = charges {
+                        existing.set_stacks(c);
+                    }
                     continue;
                 }
 
@@ -1212,6 +1182,22 @@ impl EffectTracker {
             .collect();
 
         for def in refreshable_defs {
+            // DotTracker effects (non-AoE) defer refresh to the next DamageTaken event.
+            // Instead of refreshing immediately on AbilityActivated, set pending state
+            // that will be consumed when damage from this ability lands on a target.
+            // AoE refresh abilities are handled separately by the existing AoE damage
+            // correlation path (setup_pending_aoe_refresh / handle_damage_for_aoe_refresh).
+            if def.display_target == DisplayTarget::DotTracker
+                && trigger_type == RefreshTrigger::Activation
+            {
+                self.pending_dot_refresh = Some(PendingDotRefresh {
+                    ability_id: action_id,
+                    source_id,
+                    timestamp,
+                });
+                continue;
+            }
+
             let key = EffectKey::new(&def.id, source_id, target_id);
             // Fallback: if the resolved target is an NPC, also try source_id as target.
             // Handles self-cast abilities (e.g. Dark Ward) where target resolution
@@ -1408,6 +1394,58 @@ impl EffectTracker {
                 let key = EffectKey::new(def_id, collecting.source_id, target_id);
                 if let Some(effect) = self.active_effects.get_mut(&key) {
                     effect.refresh(collecting.anchor_timestamp, *duration);
+                }
+            }
+        }
+    }
+
+    /// Handle damage event for single-target DotTracker refresh confirmation.
+    ///
+    /// When a refresh ability is cast for a DotTracker effect, the refresh is deferred
+    /// until the next damage event from that ability lands. This confirms which target
+    /// was actually hit and refreshes the DOT on that specific target only.
+    fn handle_damage_for_dot_refresh(
+        &mut self,
+        ability_id: i64,
+        target_id: i64,
+        timestamp: NaiveDateTime,
+    ) {
+        const PENDING_TIMEOUT_MS: i64 = 2000;
+
+        let Some(ref pending) = self.pending_dot_refresh else {
+            return;
+        };
+
+        if pending.ability_id != ability_id {
+            return;
+        }
+
+        // Check if pending has timed out
+        let elapsed_ms = (timestamp - pending.timestamp).num_milliseconds();
+        if elapsed_ms > PENDING_TIMEOUT_MS {
+            self.pending_dot_refresh = None;
+            return;
+        }
+
+        let source_id = pending.source_id;
+        // Consume pending state — only the first damage event triggers the refresh
+        self.pending_dot_refresh = None;
+
+        // Find all DotTracker definitions refreshable by this ability and refresh
+        // the effect on the damaged target
+        let refreshable_def_ids: Vec<_> = self
+            .definitions
+            .find_refreshable_by(ability_id as u64, None)
+            .into_iter()
+            .filter(|def| def.display_target == DisplayTarget::DotTracker)
+            .map(|def| (def.id.clone(), self.effective_duration(def)))
+            .collect();
+
+        for (def_id, duration) in &refreshable_def_ids {
+            let key = EffectKey::new(def_id, source_id, target_id);
+            if let Some(effect) = self.active_effects.get_mut(&key) {
+                if effect.removed_at.is_none() {
+                    effect.refresh(timestamp, *duration);
                 }
             }
         }
@@ -1901,9 +1939,10 @@ impl EffectTracker {
 
     /// Handle combat end - optionally clear combat-only effects
     fn handle_combat_ended(&mut self) {
-        // Clear pending AoE refresh state
+        // Clear pending refresh state
         self.pending_aoe_refresh = None;
         self.aoe_collecting = None;
+        self.pending_dot_refresh = None;
 
         // Mark effects that don't track outside combat as removed
         let outside_combat_ids: HashSet<&str> = self
@@ -1924,9 +1963,10 @@ impl EffectTracker {
 
     /// Handle area change (zone transition) - clear all active effects
     fn handle_area_change(&mut self) {
-        // Clear pending AoE refresh state
+        // Clear pending refresh state
         self.pending_aoe_refresh = None;
         self.aoe_collecting = None;
+        self.pending_dot_refresh = None;
 
         for (_key, effect) in self.active_effects.iter_mut() {
             if effect.mark_removed() && !effect.timer_expired {
@@ -2171,10 +2211,6 @@ impl SignalHandler for EffectTracker {
                     encounter,
                 );
 
-                // Record cast for DotTracker validation (prevents lingering effect issues)
-                self.recent_casts
-                    .insert((*ability_id as u64, resolved_target), *timestamp);
-
                 self.refresh_effects_by_action(
                     *ability_id,
                     *ability_name,
@@ -2207,6 +2243,8 @@ impl SignalHandler for EffectTracker {
             } => {
                 // AoE refresh damage correlation
                 self.handle_damage_for_aoe_refresh(*ability_id, *target_id, *timestamp);
+                // Single-target DotTracker refresh damage confirmation
+                self.handle_damage_for_dot_refresh(*ability_id, *target_id, *timestamp);
                 // DamageTaken trigger matching for effects tracker
                 self.handle_ability_event_trigger(
                     *ability_id,
