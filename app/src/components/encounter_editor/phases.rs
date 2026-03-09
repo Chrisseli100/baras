@@ -172,7 +172,7 @@ fn PhaseRow(
     let trigger_label = phase.start_trigger.label();
 
     rsx! {
-        div { class: "list-item",
+        div { class: if phase.enabled { "list-item" } else { "list-item item-disabled" },
             // Header row
             div {
                 class: "list-item-header",

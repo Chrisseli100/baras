@@ -126,6 +126,13 @@ pub struct TimerDefinition {
     /// Specific boss name (if applicable)
     pub boss: Option<String>,
 
+    /// Boss definition ID for scoping (e.g., "scyva", "SCYVA_K").
+    /// When set, this timer only activates when the detected boss encounter's
+    /// definition_id matches. This is more precise than `boss` (display name),
+    /// which can collide when multiple definitions share the same display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boss_definition_id: Option<String>,
+
     /// Active difficulties: "story", "veteran", "master"
     #[serde(default)]
     pub difficulties: Vec<String>,
@@ -310,6 +317,7 @@ impl TimerDefinition {
         area_id: Option<i64>,
         encounter: Option<&str>,
         boss: Option<&str>,
+        boss_def_id: Option<&str>,
         difficulty: Option<Difficulty>,
     ) -> bool {
         // Check area filter - prefer area_ids (numeric) over encounters (string)
@@ -331,8 +339,17 @@ impl TimerDefinition {
             }
         }
 
-        // Check boss filter
-        if let Some(timer_boss) = &self.boss {
+        // Check boss filter — prefer definition ID (unique) over display name (can collide)
+        if let Some(timer_boss_def_id) = &self.boss_definition_id {
+            if let Some(current_def_id) = boss_def_id {
+                if !timer_boss_def_id.eq_ignore_ascii_case(current_def_id) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else if let Some(timer_boss) = &self.boss {
+            // Legacy fallback: match by display name when no definition ID is set
             if let Some(current_boss) = boss {
                 if !timer_boss.eq_ignore_ascii_case(current_boss) {
                     return false;

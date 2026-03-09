@@ -154,7 +154,7 @@ fn ChallengeRow(
     let file_path = boss_with_path.file_path.clone();
 
     rsx! {
-        div { class: "list-item",
+        div { class: if challenge.enabled { "list-item" } else { "list-item item-disabled" },
             // Header row
             div {
                 class: "list-item-header",

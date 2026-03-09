@@ -315,9 +315,9 @@ impl SessionCache {
             return enc.active_boss_idx();
         }
 
-        // Search definitions for matching trigger entity
+        // Search definitions for matching trigger entity (skip disabled bosses)
         for (idx, def) in enc.boss_definitions().iter().enumerate() {
-            if def.encounter_trigger_ids().any(|id| id == npc_class_id) {
+            if def.enabled && def.encounter_trigger_ids().any(|id| id == npc_class_id) {
                 enc.set_active_boss_idx(Some(idx));
                 return Some(idx);
             }

@@ -6588,6 +6588,21 @@ details[open] .collapsible-summary::before {
   flex: none;
 }
 
+/* ─── Disabled State ─────────────────────────────────────────────────────────── */
+/* Greyed-out styling for disabled bosses, timers, phases, counters, challenges */
+.list-item.item-disabled > .list-item-header {
+  opacity: 0.45;
+}
+
+.list-item.item-disabled > .list-item-header:hover {
+  opacity: 0.6;
+}
+
+/* Keep the body fully visible when editing a disabled item */
+.list-item.item-disabled > .list-item-body {
+  opacity: 0.85;
+}
+
 /* ─── Unsaved Changes Indicator ──────────────────────────────────────────────── */
 .unsaved-indicator {
   display: inline-block;

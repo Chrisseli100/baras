@@ -72,18 +72,21 @@ pub(super) fn is_definition_active(
     encounter: Option<&CombatEncounter>,
 ) -> bool {
     // Extract context from encounter
-    let (area_id, area_name, boss_name, difficulty) = match encounter {
+    let (area_id, area_name, boss_name, boss_def_id, difficulty) = match encounter {
         Some(enc) => (
             enc.area_id,
             enc.area_name.as_deref(),
             enc.active_boss.as_ref().map(|b| b.name.as_str()),
+            enc.active_boss.as_ref().map(|b| b.definition_id.as_str()),
             enc.difficulty,
         ),
-        None => (None, None, None, None),
+        None => (None, None, None, None, None),
     };
 
     // First check basic context (area, boss, difficulty)
-    if !def.enabled || !def.is_active_for_context(area_id, area_name, boss_name, difficulty) {
+    if !def.enabled
+        || !def.is_active_for_context(area_id, area_name, boss_name, boss_def_id, difficulty)
+    {
         return false;
     }
 
@@ -118,17 +121,20 @@ pub(super) fn is_definition_active_with_snapshot(
     encounter: Option<&CombatEncounter>,
     timer_snapshot: &hashbrown::HashMap<String, f32>,
 ) -> bool {
-    let (area_id, area_name, boss_name, difficulty) = match encounter {
+    let (area_id, area_name, boss_name, boss_def_id, difficulty) = match encounter {
         Some(enc) => (
             enc.area_id,
             enc.area_name.as_deref(),
             enc.active_boss.as_ref().map(|b| b.name.as_str()),
+            enc.active_boss.as_ref().map(|b| b.definition_id.as_str()),
             enc.difficulty,
         ),
-        None => (None, None, None, None),
+        None => (None, None, None, None, None),
     };
 
-    if !def.enabled || !def.is_active_for_context(area_id, area_name, boss_name, difficulty) {
+    if !def.enabled
+        || !def.is_active_for_context(area_id, area_name, boss_name, boss_def_id, difficulty)
+    {
         return false;
     }
 

@@ -341,6 +341,10 @@ pub struct BossEncounterDefinition {
     pub id: String,
     #[serde(default)]
     pub name: String,
+    /// Whether this boss definition is enabled.
+    /// Disabled bosses are skipped for encounter detection and timer loading.
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     #[serde(default)]
     pub area_name: String,
     #[serde(default)]

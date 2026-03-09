@@ -179,7 +179,7 @@ impl EntityDefinition {
 
 /// Definition of a boss encounter (e.g., "Dread Guard", "Brontes")
 /// Uses an entity roster pattern: define NPCs once, reference by name.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BossEncounterDefinition {
     /// Unique identifier (e.g., "apex_vanguard")
     pub id: String,
@@ -187,6 +187,15 @@ pub struct BossEncounterDefinition {
     /// Display name
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
+
+    /// Whether this boss definition is enabled.
+    /// Disabled bosses are skipped for encounter detection and timer loading.
+    /// Useful in custom overlays to completely disable a bundled boss definition.
+    #[serde(
+        default = "crate::serde_defaults::default_true",
+        skip_serializing_if = "crate::serde_defaults::is_true"
+    )]
+    pub enabled: bool,
 
     /// Area name as it appears in the game log (for display/logging)
     /// E.g., "Dxun - The CI-004 Facility", "Blood Hunt"
@@ -263,6 +272,31 @@ pub struct BossEncounterDefinition {
 
 fn is_zero(v: &i64) -> bool {
     *v == 0
+}
+
+impl Default for BossEncounterDefinition {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            enabled: true,
+            area_name: String::new(),
+            area_id: 0,
+            area_type: AreaType::default(),
+            difficulties: Vec::new(),
+            entities: Vec::new(),
+            phases: Vec::new(),
+            counters: Vec::new(),
+            timers: Vec::new(),
+            challenges: Vec::new(),
+            notes: None,
+            has_victory_trigger: false,
+            victory_trigger: None,
+            victory_trigger_difficulties: Vec::new(),
+            victory_conditions: Vec::new(),
+            all_npc_ids: HashSet::new(),
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -416,6 +450,7 @@ impl BossTimerDefinition {
         area_id: i64,
         area_name: &str,
         boss_name: &str,
+        boss_id: &str,
     ) -> crate::timers::TimerDefinition {
         crate::timers::TimerDefinition {
             id: self.id.clone(),
@@ -443,6 +478,7 @@ impl BossTimerDefinition {
             area_ids: vec![area_id],
             encounters: vec![area_name.to_string()], // Kept for logging/legacy
             boss: Some(boss_name.to_string()),
+            boss_definition_id: Some(boss_id.to_string()),
             difficulties: self.difficulties.clone(),
             conditions: self.conditions.clone(),
             phases: self.phases.clone(),

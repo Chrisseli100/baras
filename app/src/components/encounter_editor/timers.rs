@@ -218,7 +218,7 @@ fn TimerRow(
     let is_role_visible = !timer.roles.is_empty();
 
     rsx! {
-        div { class: "list-item",
+        div { class: if timer.enabled { "list-item" } else { "list-item item-disabled" },
             // Header row
             div {
                 class: "list-item-header timer-row-header",

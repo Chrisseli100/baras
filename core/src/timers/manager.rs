@@ -300,11 +300,16 @@ impl TimerManager {
         let boss_count = bosses.len();
 
         for boss in bosses {
+            // Skip entirely disabled boss definitions
+            if !boss.enabled {
+                tracing::debug!(boss_id = %boss.id, "Skipping disabled boss definition");
+                continue;
+            }
             // Extract boss timers and convert to TimerDefinition
             for boss_timer in &boss.timers {
                 if boss_timer.enabled {
                     let timer_def =
-                        boss_timer.to_timer_definition(boss.area_id, &boss.area_name, &boss.name);
+                        boss_timer.to_timer_definition(boss.area_id, &boss.area_name, &boss.name, &boss.id);
 
                     // Check for duplicate ID - warn and skip instead of silent overwrite
                     if let Some(existing) = self.definitions.get(&timer_def.id) {

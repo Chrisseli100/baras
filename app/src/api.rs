@@ -673,6 +673,20 @@ pub async fn update_boss_notes(
     Ok(())
 }
 
+/// Update a boss definition's enabled state
+pub async fn update_boss_enabled(
+    boss_id: &str,
+    file_path: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    let obj = js_sys::Object::new();
+    js_set(&obj, "bossId", &JsValue::from_str(boss_id));
+    js_set(&obj, "filePath", &JsValue::from_str(file_path));
+    js_set(&obj, "enabled", &JsValue::from_bool(enabled));
+    try_invoke("update_boss_enabled", obj.into()).await?;
+    Ok(())
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Effect Editor Commands
 // ─────────────────────────────────────────────────────────────────────────────

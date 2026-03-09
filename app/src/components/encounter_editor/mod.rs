@@ -489,6 +489,7 @@ pub fn EncounterEditorPanel(mut props: EncounterEditorProps) -> Element {
                             {
                                 let is_expanded = expanded_boss() == Some(bwp.boss.id.clone());
                                 let boss_id = bwp.boss.id.clone();
+                                let boss_enabled = bwp.boss.enabled;
                                 // Extract counts directly from BossWithPath
                                 let timer_count = bwp.boss.timers.len();
                                 let phase_count = bwp.boss.phases.len();
@@ -497,7 +498,7 @@ pub fn EncounterEditorPanel(mut props: EncounterEditorProps) -> Element {
                                 let entity_count = bwp.boss.entities.len();
 
                                 rsx! {
-                                    div { class: "list-item",
+                                    div { class: if boss_enabled { "list-item" } else { "list-item item-disabled" },
                                         div {
                                             class: "list-item-header",
                                             onclick: move |_| {
@@ -521,13 +522,46 @@ pub fn EncounterEditorPanel(mut props: EncounterEditorProps) -> Element {
                                             if entity_count > 0 {
                                                 span { class: "tag", "{entity_count} entities" }
                                             }
+                                            // Enable/disable toggle
+                                            {
+                                                let toggle_boss_id = bwp.boss.id.clone();
+                                                let toggle_file_path = bwp.file_path.clone();
+                                                rsx! {
+                                                    span {
+                                                        class: "row-toggle",
+                                                        style: "margin-left: auto;",
+                                                        title: if boss_enabled { "Disable boss" } else { "Enable boss" },
+                                                        onclick: move |e| {
+                                                            e.stop_propagation();
+                                                            let bid = toggle_boss_id.clone();
+                                                            let fp = toggle_file_path.clone();
+                                                            let new_enabled = !boss_enabled;
+                                                            spawn(async move {
+                                                                match api::update_boss_enabled(&bid, &fp, new_enabled).await {
+                                                                    Ok(()) => {
+                                                                        // Refetch to update the UI
+                                                                        if let Some(b) = api::fetch_area_bosses(&fp).await {
+                                                                            bosses.set(b);
+                                                                        }
+                                                                    }
+                                                                    Err(e) => status_message.set(Some((e, true))),
+                                                                }
+                                                            });
+                                                        },
+                                                        span {
+                                                            class: if boss_enabled { "text-success" } else { "text-muted" },
+                                                            if boss_enabled { "✓" } else { "○" }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             {
                                                 let export_boss_id = bwp.boss.id.clone();
                                                 let export_file_path = bwp.file_path.clone();
                                                 rsx! {
                                                     button {
                                                         class: "btn btn-ghost btn-sm",
-                                                        style: "margin-left: auto; padding: 2px 8px; font-size: 11px;",
+                                                        style: "padding: 2px 8px; font-size: 11px;",
                                                         onclick: move |e| {
                                                             e.stop_propagation();
                                                             let bid = export_boss_id.clone();

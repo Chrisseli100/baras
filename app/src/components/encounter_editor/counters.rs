@@ -183,7 +183,7 @@ fn CounterRow(
     };
 
     rsx! {
-        div { class: "list-item",
+        div { class: if counter.enabled { "list-item" } else { "list-item item-disabled" },
             // Header row
             div {
                 class: "list-item-header",

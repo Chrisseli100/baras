@@ -631,6 +631,7 @@ fn test_bestia_complete_encounter() {
             area_ids: Vec::new(),
             encounters: Vec::new(),
             boss: None,
+            boss_definition_id: None,
             display_target: Default::default(),
             difficulties: Vec::new(),
             conditions: Vec::new(),
