@@ -1397,6 +1397,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-chart-bar overlay-btn-icon" }
                                         "Personal Stats"
                                     }
                                     button {
@@ -1409,6 +1410,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-users overlay-btn-icon" }
                                         "Raid Frames"
                                     }
                                     button {
@@ -1420,6 +1422,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-bell overlay-btn-icon" }
                                         "Alerts"
                                     }
                                     button {
@@ -1431,6 +1434,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-stopwatch overlay-btn-icon" }
                                         "Combat Time"
                                     }
                                     button {
@@ -1442,6 +1446,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-hourglass-half overlay-btn-icon" }
                                         "Op Timer"
                                     }
                                 }
@@ -1460,6 +1465,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-heart-pulse overlay-btn-icon" }
                                         "Boss Health"
                                     }
                                     button {
@@ -1471,6 +1477,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-trophy overlay-btn-icon" }
                                         "Challenges"
                                     }
                                     button {
@@ -1482,6 +1489,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-clock overlay-btn-icon" }
                                         "Timers A"
                                     }
                                     button {
@@ -1493,6 +1501,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-clock overlay-btn-icon" }
                                         "Timers B"
                                     }
                                     button {
@@ -1504,6 +1513,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-note-sticky overlay-btn-icon" }
                                         "Notes"
                                     }
                                 }
@@ -1522,6 +1532,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-bolt overlay-btn-icon" }
                                         "Effects A"
                                     }
                                     button {
@@ -1533,6 +1544,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-bolt overlay-btn-icon" }
                                         "Effects B"
                                     }
                                     button {
@@ -1544,6 +1556,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-rotate overlay-btn-icon" }
                                         "Cooldowns"
                                     }
                                     button {
@@ -1555,6 +1568,7 @@ pub fn App() -> Element {
                                                 profile_dirty.set(true);
                                             }
                                         }); },
+                                        i { class: "fa-solid fa-fire overlay-btn-icon" }
                                         "DOT Tracker"
                                     }
                                 }
@@ -1568,6 +1582,7 @@ pub fn App() -> Element {
                                         {
                                             let ot = *mt;
                                             let is_on = enabled_map.get(&ot).copied().unwrap_or(false);
+                                            let icon = ot.icon_class();
                                             rsx! {
                                                 button {
                                                     class: if is_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
@@ -1579,6 +1594,7 @@ pub fn App() -> Element {
                                                             profile_dirty.set(true);
                                                         }
                                                     }); },
+                                                    i { class: "{icon} overlay-btn-icon" }
                                                     "{ot.label()}"
                                                 }
                                             }

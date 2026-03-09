@@ -215,6 +215,20 @@ impl MetricType {
         }
     }
 
+    /// Font Awesome icon class for overlay button display
+    pub fn icon_class(&self) -> &'static str {
+        match self {
+            MetricType::Dps => "fa-solid fa-khanda",
+            MetricType::EDps => "fa-solid fa-crosshairs",
+            MetricType::BossDps => "fa-solid fa-skull",
+            MetricType::Hps => "fa-solid fa-heart",
+            MetricType::EHps => "fa-solid fa-hand-holding-heart",
+            MetricType::Abs => "fa-solid fa-shield-halved",
+            MetricType::Dtps => "fa-solid fa-shield",
+            MetricType::Tps => "fa-solid fa-triangle-exclamation",
+        }
+    }
+
     /// Config key used for persistence
     pub fn config_key(&self) -> &'static str {
         match self {
