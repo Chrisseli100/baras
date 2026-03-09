@@ -102,6 +102,14 @@ async fn try_portal_shortcuts(
                 .preferred_trigger(converted_keys.last().unwrap().as_str())
         );
     }
+    if let Some(ref key) = hotkeys.toggle_live_mode {
+        let converted = convert_key_format(key);
+        converted_keys.push(converted);
+        shortcuts.push(
+            NewShortcut::new("toggle-live-mode", "Go live")
+                .preferred_trigger(converted_keys.last().unwrap().as_str())
+        );
+    }
     
     if shortcuts.is_empty() {
         info!("No hotkeys configured, skipping portal registration");
@@ -154,6 +162,11 @@ async fn try_portal_shortcuts(
                         "toggle-operation-timer" => {
                             tauri::async_runtime::spawn(async move {
                                 toggle_operation_timer_hotkey(handle).await;
+                            });
+                        }
+                        "toggle-live-mode" => {
+                            tauri::async_runtime::spawn(async move {
+                                toggle_live_mode_hotkey(handle).await;
                             });
                         }
                         _ => {
@@ -319,6 +332,30 @@ pub fn spawn_register_hotkeys(
                 warn!(hotkey = %key_str, "Invalid operation timer hotkey format");
             }
         }
+
+        // Register go live hotkey
+        if let Some(ref key_str) = hotkeys.toggle_live_mode {
+            if let Ok(shortcut) = key_str.parse::<Shortcut>() {
+                let handle = service_handle.clone();
+
+                if let Err(e) =
+                    global_shortcut.on_shortcut(shortcut, move |_app, _shortcut, event| {
+                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            let handle = handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                toggle_live_mode_hotkey(handle).await;
+                            });
+                        }
+                    })
+                {
+                    error!(error = %e, hotkey = %key_str, "Failed to register go live hotkey");
+                } else {
+                    info!(hotkey = %key_str, "Registered go live hotkey");
+                }
+            } else {
+                warn!(hotkey = %key_str, "Invalid go live hotkey format");
+            }
+        }
     });
 }
 
@@ -398,6 +435,16 @@ async fn toggle_operation_timer_hotkey(service: ServiceHandle) {
     } else {
         if let Err(e) = service.start_operation_timer().await {
             error!(error = %e, "Failed to start operation timer via hotkey");
+        }
+    }
+}
+
+/// Hotkey handler: Resume live tailing if not already live
+async fn toggle_live_mode_hotkey(service: ServiceHandle) {
+    if !service.is_live_tailing() {
+        info!("Go Live hotkey pressed, resuming live tailing");
+        if let Err(e) = service.resume_live_tailing().await {
+            error!(error = %e, "Failed to resume live tailing via hotkey");
         }
     }
 }
