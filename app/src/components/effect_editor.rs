@@ -858,7 +858,12 @@ fn EffectRow(
     rsx! {
         div {
             id: "effect-{effect.id}",
-            class: if expanded { "effect-row expanded" } else { "effect-row" },
+            class: match (expanded, effect.enabled) {
+                (true, true) => "effect-row expanded",
+                (true, false) => "effect-row expanded item-disabled",
+                (false, true) => "effect-row",
+                (false, false) => "effect-row item-disabled",
+            },
             div {
                 class: "effect-row-summary",
                 onclick: move |_| on_toggle.call(()),

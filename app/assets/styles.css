@@ -5888,6 +5888,18 @@ details[open] .collapsible-summary::before {
   border-color: var(--border-accent-strong);
 }
 
+.effect-row.item-disabled > .effect-row-summary {
+  opacity: 0.45;
+}
+
+.effect-row.item-disabled:hover > .effect-row-summary {
+  opacity: 0.6;
+}
+
+.effect-row.item-disabled > .effect-edit-form {
+  opacity: 0.85;
+}
+
 .effect-row-summary {
   display: flex;
   align-items: center;
