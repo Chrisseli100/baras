@@ -1355,7 +1355,11 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                                                     },
                                                     td { class: "effect-name-cell",
                                                         AbilityIcon { key: "{icon_id}", ability_id: icon_id, size: 16 }
-                                                        "{effect.effect_name}"
+                                                        if effect.effect_name.is_empty() {
+                                                            span { class: "effect-id-fallback", "{eid}" }
+                                                        } else {
+                                                            "{effect.effect_name}"
+                                                        }
                                                     }
                                                     td { class: "num", "{effect.count}" }
                                                     td { class: "num", "{formatting::format_duration_f32(effect.total_duration_secs)}" }

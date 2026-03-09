@@ -1173,6 +1173,10 @@
 .effect-table td {
   padding: 4px 6px;
   text-align: left;
+}
+
+.effect-table thead tr,
+.effect-table tbody tr {
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -1218,6 +1222,12 @@
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.effect-id-fallback {
+  color: #666;
+  font-family: monospace;
+  font-size: 0.85em;
 }
 
 /* Combat Log tab color */
