@@ -106,8 +106,13 @@ pub struct ShieldDefinition {
     pub label: String,
     /// Effect ID that activates the shield (EffectApplied on this entity)
     pub trigger_effect: u64,
-    /// Total shield HP value
+    /// Total shield HP value (used for 8-man and as fallback for 16-man)
     pub total: i64,
+    /// Total shield HP value for 16-man encounters.
+    /// When set and the current encounter difficulty is 16-man, this value
+    /// is used instead of `total`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_16: Option<i64>,
     /// Effect ID that deactivates the shield (EffectRemoved fallback)
     pub end_trigger_effect: u64,
 }

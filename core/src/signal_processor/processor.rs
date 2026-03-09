@@ -808,6 +808,12 @@ impl EventProcessor {
                 }
                 let eid = event.effect.effect_id;
                 // Collect shield activations (read-only borrow of definitions)
+                // Resolve effective shield HP: use total_16 for 16-man encounters when set
+                let is_16man = cache
+                    .current_encounter()
+                    .and_then(|enc| enc.difficulty)
+                    .map(|d| d.group_size() == 16)
+                    .unwrap_or(false);
                 let activations: Vec<(usize, i64)> = cache
                     .current_encounter()
                     .and_then(|enc| enc.boss_definitions()[def_idx].entity_for_id(target_class_id))
@@ -817,7 +823,14 @@ impl EventProcessor {
                             .iter()
                             .enumerate()
                             .filter(|(_, s)| s.trigger_effect == eid as u64)
-                            .map(|(idx, s)| (idx, s.total))
+                            .map(|(idx, s)| {
+                                let effective_total = if is_16man {
+                                    s.total_16.unwrap_or(s.total)
+                                } else {
+                                    s.total
+                                };
+                                (idx, effective_total)
+                            })
                             .collect()
                     })
                     .unwrap_or_default();

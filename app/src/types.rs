@@ -540,6 +540,10 @@ pub struct ShieldDefinition {
     pub label: String,
     pub trigger_effect: u64,
     pub total: i64,
+    /// Total shield HP for 16-man encounters. When set, 16-man encounters
+    /// use this value instead of `total`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_16: Option<i64>,
     pub end_trigger_effect: u64,
 }
 

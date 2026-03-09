@@ -143,9 +143,25 @@ impl Difficulty {
     }
 
     /// Check if this difficulty matches a config key (case-insensitive)
-    /// Handles both exact matches ("veteran") and tier-only matches
+    ///
+    /// Supports both tier-only keys and group-size-qualified keys:
+    /// - `"veteran"` → matches Veteran4, Veteran8, Veteran16
+    /// - `"veteran_8"` → matches only Veteran8
+    /// - `"veteran_16"` → matches only Veteran16
+    /// - `"story_16"` → matches only Story16
     pub fn matches_config_key(&self, key: &str) -> bool {
         let key_lower = key.to_ascii_lowercase();
+
+        // Try compound key first (e.g., "veteran_16", "story_8")
+        if let Some((tier, size_str)) = key_lower.rsplit_once('_') {
+            if let Ok(size) = size_str.parse::<u8>() {
+                if size == 4 || size == 8 || size == 16 {
+                    return self.config_key() == tier && self.group_size() == size;
+                }
+            }
+        }
+
+        // Fall back to tier-only match (e.g., "veteran" matches both 8 and 16)
         self.config_key() == key_lower
     }
 }
@@ -191,4 +207,86 @@ pub fn get_boss_ids(operation: &str, boss: &str) -> Vec<i64> {
 /// Returns Some(ContentType) if the area is a known operation/flashpoint/lair
 pub fn lookup_area_content_type(area_name: &str) -> Option<ContentType> {
     AREA_CONTENT_LOOKUP.get(area_name).copied()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matches_config_key_tier_only() {
+        // Plain tier keys match all group sizes
+        assert!(Difficulty::Story8.matches_config_key("story"));
+        assert!(Difficulty::Story16.matches_config_key("story"));
+        assert!(Difficulty::Veteran8.matches_config_key("veteran"));
+        assert!(Difficulty::Veteran16.matches_config_key("veteran"));
+        assert!(Difficulty::Veteran4.matches_config_key("veteran"));
+        assert!(Difficulty::Master8.matches_config_key("master"));
+        assert!(Difficulty::Master16.matches_config_key("master"));
+        assert!(Difficulty::Master4.matches_config_key("master"));
+
+        // Non-matching tiers
+        assert!(!Difficulty::Story8.matches_config_key("veteran"));
+        assert!(!Difficulty::Veteran8.matches_config_key("master"));
+        assert!(!Difficulty::Master8.matches_config_key("story"));
+    }
+
+    #[test]
+    fn test_matches_config_key_compound_8() {
+        // 8-man compound keys
+        assert!(Difficulty::Story8.matches_config_key("story_8"));
+        assert!(!Difficulty::Story16.matches_config_key("story_8"));
+
+        assert!(Difficulty::Veteran8.matches_config_key("veteran_8"));
+        assert!(!Difficulty::Veteran16.matches_config_key("veteran_8"));
+        assert!(!Difficulty::Veteran4.matches_config_key("veteran_8"));
+
+        assert!(Difficulty::Master8.matches_config_key("master_8"));
+        assert!(!Difficulty::Master16.matches_config_key("master_8"));
+        assert!(!Difficulty::Master4.matches_config_key("master_8"));
+    }
+
+    #[test]
+    fn test_matches_config_key_compound_16() {
+        // 16-man compound keys
+        assert!(Difficulty::Story16.matches_config_key("story_16"));
+        assert!(!Difficulty::Story8.matches_config_key("story_16"));
+
+        assert!(Difficulty::Veteran16.matches_config_key("veteran_16"));
+        assert!(!Difficulty::Veteran8.matches_config_key("veteran_16"));
+        assert!(!Difficulty::Veteran4.matches_config_key("veteran_16"));
+
+        assert!(Difficulty::Master16.matches_config_key("master_16"));
+        assert!(!Difficulty::Master8.matches_config_key("master_16"));
+        assert!(!Difficulty::Master4.matches_config_key("master_16"));
+    }
+
+    #[test]
+    fn test_matches_config_key_compound_4() {
+        // 4-man compound keys
+        assert!(Difficulty::Veteran4.matches_config_key("veteran_4"));
+        assert!(!Difficulty::Veteran8.matches_config_key("veteran_4"));
+        assert!(!Difficulty::Veteran16.matches_config_key("veteran_4"));
+
+        assert!(Difficulty::Master4.matches_config_key("master_4"));
+        assert!(!Difficulty::Master8.matches_config_key("master_4"));
+        assert!(!Difficulty::Master16.matches_config_key("master_4"));
+    }
+
+    #[test]
+    fn test_matches_config_key_case_insensitive() {
+        assert!(Difficulty::Veteran8.matches_config_key("Veteran"));
+        assert!(Difficulty::Veteran8.matches_config_key("VETERAN"));
+        assert!(Difficulty::Veteran16.matches_config_key("Veteran_16"));
+        assert!(Difficulty::Veteran16.matches_config_key("VETERAN_16"));
+    }
+
+    #[test]
+    fn test_matches_config_key_invalid_compound() {
+        // Invalid suffixes should not match as compound keys
+        // "story_99" has suffix 99, which is not 4/8/16, so falls back to plain match
+        assert!(!Difficulty::Story8.matches_config_key("story_99"));
+        // "veteran_" is not a valid compound key
+        assert!(!Difficulty::Veteran8.matches_config_key("veteran_"));
+    }
 }

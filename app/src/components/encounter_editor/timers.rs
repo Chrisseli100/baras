@@ -18,6 +18,53 @@ use super::tabs::EncounterData;
 use super::triggers::ComposableTriggerEditor;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Difficulty Group Size Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Strip group size suffix from a difficulty key (e.g., "veteran_16" → "veteran")
+fn strip_difficulty_suffix(key: &str) -> &str {
+    if let Some(base) = key.strip_suffix("_8") {
+        if matches!(base, "story" | "veteran" | "master") {
+            return base;
+        }
+    }
+    if let Some(base) = key.strip_suffix("_16") {
+        if matches!(base, "story" | "veteran" | "master") {
+            return base;
+        }
+    }
+    key
+}
+
+/// Detect the current group size suffix from a list of difficulty keys.
+/// Returns "" for all/mixed, "_8" for 8-man only, "_16" for 16-man only.
+fn detect_group_size_suffix(difficulties: &[String]) -> String {
+    let has_8 = difficulties.iter().any(|d| d.ends_with("_8"));
+    let has_16 = difficulties.iter().any(|d| d.ends_with("_16"));
+    let has_plain = difficulties
+        .iter()
+        .any(|d| matches!(d.as_str(), "story" | "veteran" | "master"));
+
+    if has_16 && !has_8 && !has_plain {
+        "_16".to_string()
+    } else if has_8 && !has_16 && !has_plain {
+        "_8".to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// Format a difficulty key with the given group size suffix.
+/// If suffix is empty, returns the plain tier key.
+fn format_difficulty_key(tier: &str, suffix: &str) -> String {
+    if suffix.is_empty() {
+        tier.to_string()
+    } else {
+        format!("{tier}{suffix}")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Timers Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -652,23 +699,69 @@ fn TimerEditForm(
                                 div { class: "flex gap-xs",
                                     for diff in ["story", "veteran", "master"] {
                                         {
+                                            // Check if this tier is active (with any group size suffix)
                                             let diff_str = diff.to_string();
-                                            let is_active = draft().difficulties.contains(&diff_str);
-                                            let diff_clone = diff_str.clone();
+                                            let is_active = draft().difficulties.iter().any(|d| {
+                                                d == &diff_str || d == &format!("{diff_str}_8") || d == &format!("{diff_str}_16")
+                                            });
 
                                             rsx! {
                                                 button {
                                                     class: if is_active { "toggle-btn active" } else { "toggle-btn" },
-                                                    onclick: move |_| {
-                                                        let mut d = draft();
-                                                        if d.difficulties.contains(&diff_clone) {
-                                                            d.difficulties.retain(|x| x != &diff_clone);
-                                                        } else {
-                                                            d.difficulties.push(diff_clone.clone());
+                                                    onclick: {
+                                                        let diff_str = diff_str.clone();
+                                                        move |_| {
+                                                            let mut d = draft();
+                                                            // Determine current group size suffix
+                                                            let suffix = detect_group_size_suffix(&d.difficulties);
+                                                            let key = format_difficulty_key(&diff_str, &suffix);
+                                                            // Remove all variants of this tier
+                                                            let tier = diff_str.clone();
+                                                            d.difficulties.retain(|x| {
+                                                                strip_difficulty_suffix(x) != tier
+                                                            });
+                                                            // If it wasn't active, add it back with current suffix
+                                                            if !is_active {
+                                                                d.difficulties.push(key);
+                                                            }
+                                                            draft.set(d);
                                                         }
-                                                        draft.set(d);
                                                     },
                                                     "{diff}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            div { class: "form-row-hz",
+                                label { "Group Size" }
+                                div { class: "flex gap-xs",
+                                    {
+                                        let current_suffix = detect_group_size_suffix(&draft().difficulties);
+                                        rsx! {
+                                            for (label, suffix) in [("All", ""), ("8-man", "_8"), ("16-man", "_16")] {
+                                                {
+                                                    let is_active = current_suffix == suffix;
+                                                    let suffix_owned = suffix.to_string();
+                                                    rsx! {
+                                                        button {
+                                                            class: if is_active { "toggle-btn active" } else { "toggle-btn" },
+                                                            onclick: move |_| {
+                                                                let mut d = draft();
+                                                                // Re-key all current difficulties with the new suffix
+                                                                let tiers: Vec<String> = d.difficulties.iter()
+                                                                    .map(|x| strip_difficulty_suffix(x).to_string())
+                                                                    .collect();
+                                                                d.difficulties = tiers.iter()
+                                                                    .map(|tier| format_difficulty_key(tier, &suffix_owned))
+                                                                    .collect();
+                                                                draft.set(d);
+                                                            },
+                                                            "{label}"
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

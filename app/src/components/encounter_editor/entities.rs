@@ -453,6 +453,7 @@ fn EntityEditForm(
                                 label: String::new(),
                                 trigger_effect: 0,
                                 total: 0,
+                                total_16: None,
                                 end_trigger_effect: 0,
                             });
                             draft.set(d);
@@ -463,6 +464,7 @@ fn EntityEditForm(
                 div { class: "text-xs text-muted mb-xs", "Absorb shields shown on the HP bar overlay" }
                 for (i, shield) in draft().shields.iter().cloned().enumerate() {
                     div { class: "form-section", style: "padding: 4px 8px; margin-bottom: 4px;",
+                        // Header row: Label + remove button
                         div { class: "form-row-hz",
                             label { "Label" }
                             input {
@@ -486,43 +488,72 @@ fn EntityEditForm(
                                 "×"
                             }
                         }
-                        div { class: "form-row-hz", style: "align-items: flex-start;",
-                            label { style: "padding-top: 6px;", "Trigger" }
-                            IdChipEditor {
-                                ids: if shield.trigger_effect != 0 { vec![shield.trigger_effect] } else { vec![] },
-                                placeholder: "Effect ID (Enter)",
-                                on_change: move |ids: Vec<u64>| {
-                                    let mut d = draft();
-                                    d.shields[i].trigger_effect = ids.first().copied().unwrap_or(0);
-                                    draft.set(d);
+                        // Two-column layout: HP values | Effect IDs
+                        div { class: "flex gap-md", style: "margin-top: 4px;",
+                            // Left column: HP values
+                            div { class: "flex-1",
+                                div { class: "form-row-hz",
+                                    label { "Total HP" }
+                                    input {
+                                        class: "input-inline text-mono",
+                                        style: "width: 120px;",
+                                        r#type: "number",
+                                        value: "{shield.total}",
+                                        oninput: move |e| {
+                                            let mut d = draft();
+                                            if let Ok(v) = e.value().parse::<i64>() {
+                                                d.shields[i].total = v;
+                                                draft.set(d);
+                                            }
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        div { class: "form-row-hz",
-                            label { "Total HP" }
-                            input {
-                                class: "input-inline text-mono",
-                                style: "width: 140px;",
-                                r#type: "number",
-                                value: "{shield.total}",
-                                oninput: move |e| {
-                                    let mut d = draft();
-                                    if let Ok(v) = e.value().parse::<i64>() {
-                                        d.shields[i].total = v;
-                                        draft.set(d);
+                                div { class: "form-row-hz",
+                                    label { "HP (16-man)" }
+                                    input {
+                                        class: "input-inline text-mono",
+                                        style: "width: 120px;",
+                                        r#type: "number",
+                                        placeholder: "Same as Total HP",
+                                        value: if let Some(v) = shield.total_16 { format!("{v}") } else { String::new() },
+                                        oninput: move |e| {
+                                            let mut d = draft();
+                                            let val = e.value();
+                                            d.shields[i].total_16 = if val.is_empty() {
+                                                None
+                                            } else {
+                                                val.parse::<i64>().ok()
+                                            };
+                                            draft.set(d);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        div { class: "form-row-hz", style: "align-items: flex-start;",
-                            label { style: "padding-top: 6px;", "End" }
-                            IdChipEditor {
-                                ids: if shield.end_trigger_effect != 0 { vec![shield.end_trigger_effect] } else { vec![] },
-                                placeholder: "Effect ID (Enter)",
-                                on_change: move |ids: Vec<u64>| {
-                                    let mut d = draft();
-                                    d.shields[i].end_trigger_effect = ids.first().copied().unwrap_or(0);
-                                    draft.set(d);
+                            // Right column: Effect IDs
+                            div { class: "flex-1",
+                                div { class: "form-row-hz", style: "align-items: flex-start;",
+                                    label { style: "padding-top: 6px;", "Start Effect" }
+                                    IdChipEditor {
+                                        ids: if shield.trigger_effect != 0 { vec![shield.trigger_effect] } else { vec![] },
+                                        placeholder: "Effect ID (Enter)",
+                                        on_change: move |ids: Vec<u64>| {
+                                            let mut d = draft();
+                                            d.shields[i].trigger_effect = ids.first().copied().unwrap_or(0);
+                                            draft.set(d);
+                                        }
+                                    }
+                                }
+                                div { class: "form-row-hz", style: "align-items: flex-start;",
+                                    label { style: "padding-top: 6px;", "End Effect" }
+                                    IdChipEditor {
+                                        ids: if shield.end_trigger_effect != 0 { vec![shield.end_trigger_effect] } else { vec![] },
+                                        placeholder: "Effect ID (Enter)",
+                                        on_change: move |ids: Vec<u64>| {
+                                            let mut d = draft();
+                                            d.shields[i].end_trigger_effect = ids.first().copied().unwrap_or(0);
+                                            draft.set(d);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -547,4 +578,3 @@ fn EntityEditForm(
         }
     }
 }
-
