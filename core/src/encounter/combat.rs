@@ -1201,6 +1201,13 @@ impl CombatEncounter {
     // ═══════════════════════════════════════════════════════════════════════
 
     pub fn accumulate_data(&mut self, event: &CombatEvent) {
+        // Only accumulate metrics once combat has started. Pre-combat events
+        // (before EnterCombat sets enter_combat_time) are intentionally dropped
+        // so that healing, threat, taunts, etc. don't inflate encounter totals.
+        if self.enter_combat_time.is_none() {
+            return;
+        }
+
         use crate::is_boss;
 
         let defense_type = event.details.defense_type_id;
