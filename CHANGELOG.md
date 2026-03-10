@@ -1,42 +1,40 @@
-# Hotfix v2026.3.7001
+# v2026.3.10000
 
-- Fixed issue with phase ended trigger firing twice on same event, breaking Firebrand and Stormcaller phase logic
-- Custom boss creation on default areas now works properly
-- Fixed issue with Calphayus burn phase trigger
-- Fixed issue with IP-CPT burn phase trigger
-- Dynamic background now renders properly when `Stack from Bottom` option is selected for metrics overlays
+Many timer definitions are being refined and updated. This is an incremental process and it will take time to verify every one is accurate. Please report any timer issues on discord.
 
-# v2026.3.7
+Look for more refinements to timer/boss definitions in the future.
 
 ## General
 
-- The application is no longer susceptible to time drift or clock skew relative to the SWTOR server time
-- Replaced timer enable/disable on card header with visibility toggle.
-- Separated the ability to enable/disable timers, phases and counters into a separate section with warning
-- Added support for NOT keyword in the combat log filter
+- Replaced Shielding Given overlay with HTPS overlay
+- Added a "pushes at" field to the entity definition allowing the health bar to be hidden at non-zero values
+- Added option to disable bosses
+- Added a "Final Boss" flag that will stop the operation timer once the final boss is killed
+- Added group size field for timers
+- Added ability to define different shield HP values for 8/16 man
+- Added hotkey for returning to live file parsing
 
-## Timer System
+## UI
 
-- Enabled counter to counter comparison condition in timers
-- Added trigger type on any counter change
-- Added counter mode for tracking effect stacks
+- Reformatted encounter selection sidebar
+- Added burst healing taken to HP tracking chart
+- Improved formatting of the damage taken summary block
+- Added icons to overlay buttons
+- Disabled elements will not
+
+## Definitions
+
+- Added/Corrected boss definitions for Objective Meridian (Republic), Spirit of Vengeance, Shrine of Silence, Manaan, Blood Hunt, Battle of Rishi, and Legacy of the Rakata flashpoints
+- Updated timers for Sword Squadron, Underlurker
+- Updated boss timers/definitions for R4
+- Updated boss timers for SCYVA
+- Updated some boss definitions/timers for EV/KP
+
+Thank you Wolfy, Advieser, and Keetsune for contributing to the timers.
 
 ## Bugfixes
 
-- Players registered are now reset on area change to prevent them from leaking into the next encounter
-- Fixed issue with `Any Phase Entered` trigger not firing for timers
-- `Boss HP Below` trigger is now more consistent and sensitive to small HP movements
-- Removed duplicate time remaining from effects overlay when in vertical mode
-- Fixed issue with cooldown overlay source clipping into other entries
-- Removed unsupported target set and time elapsed triggers from phases in UI
-- Removed "Training Dummy" invalid area type from encounter builder area creation menu
-- Fixed issues causing SCYVA timers chains not to fire
-- Adding notes to built-in boss files or creating a new boss on a built-in file will no longer attempt to write to the built-in directory
-- Fixed issue causing save/duplicate buttons in the timer editor to shift if a built-in timer is modified
-- Fixed issue with overlapping Boss Name and target text on the HP overlay
-- `AbilityCast` triggers now respect the target filter
-- Non-local player effects should now properly track and refresh
-- Users are no longer restricted from navigating away from the parsely upload file modal
-- CounterReaches triggers now recognize decrements
-- Conditions relying on timer time remaining now evaluate based on latest signal state
-- DOT refreshes are now calculated from the first damage event after the ability cast instead of the cast event
+- Fixed issue causing multiple bosses to load in if names were the same
+- Corrected effect uptime query when time range is filtered
+- Negative threat values now display in the combat log
+- Operations timer can no longer be triggered when in historical mode
