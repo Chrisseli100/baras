@@ -1,0 +1,48 @@
+[area]
+name = "Depths of Manaan"
+id = 833571547775719
+area_type = "flashpoint"
+
+[[boss]]
+id = "sairisi"
+name = "Sairisi"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Sairisi"
+ids = [3505251659284480, 3350332188917760]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+id = "ortuno"
+name = "Ortuno"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Ortuno"
+ids = [3350327893950464, 3505260249219072]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+name = "M2-AUX Foreman"
+id = "bonus_droid"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "M2-AUX Foreman"
+ids = [3506922401562624, 3506896631758848]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+name = "Stivastin"
+id = "stivastin"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Stivastin"
+ids = [3362925033029632, 3505268839153664]
+is_boss = true
+is_kill_target = true

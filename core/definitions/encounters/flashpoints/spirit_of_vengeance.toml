@@ -62,9 +62,15 @@ difficulties = ["story", "veteran", "master"]
 name = "Heta Kol"
 ids = [4419718916079616]
 is_boss = true
+is_kill_target = false
+pushes_at = 66.1
+
+[[boss.entities]]
+name = "Heta Kol P2"
+ids = [4437744893820928]
+is_boss = true
 is_kill_target = true
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Bonus Boss: Goldie
 # ═══════════════════════════════════════════════════════════════════════════════
-

@@ -1,0 +1,55 @@
+[area]
+name = "Shrine of Silence"
+id = 137438987149
+area_type = "flashpoint"
+
+
+[[boss]]
+id = "corrupted_vorantikus"
+name = "Corrupted Vorantikus"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Corrupted Vorantikus"
+ids = [4702752965918720, 4702735786049536, 4702748670951424]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+name = "Voss Mystics"
+id = "voss_mystics"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Corrupted Vorantikus"
+ids = [4705604824203264, 4705600529235968, 4705596234268672]
+is_boss = true
+is_kill_target = true
+
+[[boss.entities]]
+name = "Rada-Ki"
+ids = [4705570464464896, 4705574759432192, 4705591939301376]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+name = "Ancient Gormak"
+id = "gormak"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Kirba, the Forgotten"
+ids = [4702761555853312, 4702765850820608, 4702770145787904]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+name = "The Curse"
+id = "temu_tfb"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "The Curse"
+ids = [4705566169497600, 4705557579563008, 4705561874530304]
+is_boss = true
+is_kill_target = true
