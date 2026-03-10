@@ -114,7 +114,8 @@ is_kill_target = true
 # -- Combat Start Timers --
 [[boss.timer]]
 id = "ss_shield_cs"
-name = "Shield"
+name = "Shield 1st"
+display_text = "Shield"
 trigger = { type = "combat_start" }
 duration_secs = 30.0
 color = [32, 34, 219, 255]
@@ -137,12 +138,24 @@ color = [29, 39, 224, 255]
 difficulties = ["veteran"]
 
 [[boss.timer]]
-id = "ss_gravity"
-name = "Gravity"
-trigger = { type = "any_of", conditions = [{ type = "combat_start" }] }
+id = "ss_gravity_cs"
+name = "Gravity 1st"
+display_text = "Gravity"
+trigger = { type = "combat_start" }
 duration_secs = 40.0
 color = [33, 224, 218, 255]
 difficulties = ["veteran"]
+
+[[boss.timer]]
+id = "ss_gravity"
+name = "Gravity"
+trigger = { type = "effect_applied", effects = [3519626914824192] }
+duration_secs = 35.5
+show_at_seconds = 20.0
+color = [33, 224, 218, 255]
+difficulties = ["veteran"]
+can_refresh = false
+
 
 [[boss.timer]]
 id = "ss_shield_down"
@@ -172,15 +185,6 @@ duration_secs = 19.0
 color = [219, 32, 28, 255]
 difficulties = ["veteran"]
 
-# Alert: Notify when Rain of Missiles timer expires (next cast incoming)
-[[boss.timer]]
-id = "ss_rain_reset"
-name = "Rain Reset"
-is_alert = true
-trigger = { type = "timer_expires", timer_id = "ss_rain_of_missiles" }
-alert_text = "Rain Incoming!"
-color = [219, 32, 28, 255]
-difficulties = ["veteran"]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # The Underlurker
