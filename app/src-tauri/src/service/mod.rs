@@ -348,16 +348,19 @@ impl SignalHandler for CombatSignalHandler {
                 let _ = self.overlay_tx.try_send(OverlayUpdate::CombatEnded);
 
                 // Auto-stop operation timer when final boss is killed
-                if let Some(enc) = _encounter {
-                    if let Some(def) = enc.active_boss_definition() {
-                        if def.is_final_boss {
-                            let area_id = self.shared.current_area_id.load(Ordering::SeqCst);
-                            if baras_core::game_data::is_operation(area_id) {
-                                let success = baras_core::encounter::summary::determine_success(enc);
-                                if success {
-                                    let mut timer = self.shared.operation_timer.lock().unwrap();
-                                    if timer.is_running() {
-                                        timer.stop();
+                // Only in live mode - historical replays should not drive the timer
+                if self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                    if let Some(enc) = _encounter {
+                        if let Some(def) = enc.active_boss_definition() {
+                            if def.is_final_boss {
+                                let area_id = self.shared.current_area_id.load(Ordering::SeqCst);
+                                if baras_core::game_data::is_operation(area_id) {
+                                    let success = baras_core::encounter::summary::determine_success(enc);
+                                    if success {
+                                        let mut timer = self.shared.operation_timer.lock().unwrap();
+                                        if timer.is_running() {
+                                            timer.stop();
+                                        }
                                     }
                                 }
                             }
@@ -469,11 +472,14 @@ impl SignalHandler for CombatSignalHandler {
 
                 // Auto-start operation timer on first boss pull in an operation
                 // Start directly (not via command channel) to avoid 1-second tick delay
-                let area_id = self.shared.current_area_id.load(Ordering::SeqCst);
-                if baras_core::game_data::is_operation(area_id) {
-                    let mut timer = self.shared.operation_timer.lock().unwrap();
-                    if !timer.is_running() && !timer.manually_stopped {
-                        timer.start();
+                // Only in live mode - historical replays should not drive the timer
+                if self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                    let area_id = self.shared.current_area_id.load(Ordering::SeqCst);
+                    if baras_core::game_data::is_operation(area_id) {
+                        let mut timer = self.shared.operation_timer.lock().unwrap();
+                        if !timer.is_running() && !timer.manually_stopped {
+                            timer.start();
+                        }
                     }
                 }
             }
@@ -1124,30 +1130,39 @@ impl CombatService {
                             }
                         }
                         ServiceCommand::StartOperationTimer => {
-                            let mut timer = self.shared.operation_timer.lock().unwrap();
-                            timer.manually_started = true;
-                            timer.manually_stopped = false;
-                            timer.start();
-                            drop(timer);
-                            self.emit_operation_timer_tick();
+                            // Only allow in live mode - not during historical replay
+                            if self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                                let mut timer = self.shared.operation_timer.lock().unwrap();
+                                timer.manually_started = true;
+                                timer.manually_stopped = false;
+                                timer.start();
+                                drop(timer);
+                                self.emit_operation_timer_tick();
+                            }
                         }
                         ServiceCommand::StopOperationTimer => {
-                            let mut timer = self.shared.operation_timer.lock().unwrap();
-                            timer.stop();
-                            drop(timer);
-                            self.emit_operation_timer_tick();
-                            // Also send final state to overlay
-                            let data = self.shared.operation_timer.lock().unwrap().to_overlay_data();
-                            let _ = self.overlay_tx.try_send(OverlayUpdate::OperationTimerUpdated(data));
+                            // Only allow in live mode - not during historical replay
+                            if self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                                let mut timer = self.shared.operation_timer.lock().unwrap();
+                                timer.stop();
+                                drop(timer);
+                                self.emit_operation_timer_tick();
+                                // Also send final state to overlay
+                                let data = self.shared.operation_timer.lock().unwrap().to_overlay_data();
+                                let _ = self.overlay_tx.try_send(OverlayUpdate::OperationTimerUpdated(data));
+                            }
                         }
                         ServiceCommand::ResetOperationTimer => {
-                            let mut timer = self.shared.operation_timer.lock().unwrap();
-                            timer.reset();
-                            drop(timer);
-                            self.emit_operation_timer_tick();
-                            // Send cleared state to overlay
-                            let data = self.shared.operation_timer.lock().unwrap().to_overlay_data();
-                            let _ = self.overlay_tx.try_send(OverlayUpdate::OperationTimerUpdated(data));
+                            // Only allow in live mode - not during historical replay
+                            if self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                                let mut timer = self.shared.operation_timer.lock().unwrap();
+                                timer.reset();
+                                drop(timer);
+                                self.emit_operation_timer_tick();
+                                // Send cleared state to overlay
+                                let data = self.shared.operation_timer.lock().unwrap().to_overlay_data();
+                                let _ = self.overlay_tx.try_send(OverlayUpdate::OperationTimerUpdated(data));
+                            }
                         }
                         ServiceCommand::SetOperationTimerContext { operation_name } => {
                             let mut timer = self.shared.operation_timer.lock().unwrap();
@@ -1193,12 +1208,15 @@ impl CombatService {
                     self.check_pending_file().await;
                 }
                 // Operation timer tick: emit current time every second while running
+                // Only emit in live mode - historical replays should not drive the timer
                 _ = op_timer_interval.tick() => {
-                    let is_running = self.shared.operation_timer.lock()
-                        .map(|t| t.is_running())
-                        .unwrap_or(false);
-                    if is_running {
-                        self.emit_operation_timer_tick();
+                    if self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                        let is_running = self.shared.operation_timer.lock()
+                            .map(|t| t.is_running())
+                            .unwrap_or(false);
+                        if is_running {
+                            self.emit_operation_timer_tick();
+                        }
                     }
                 }
             }

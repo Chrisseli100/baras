@@ -425,7 +425,12 @@ async fn toggle_move_mode_hotkey(overlay_state: SharedOverlayState, service: Ser
 }
 
 /// Hotkey handler: Toggle operation timer start/stop
+/// No-ops in historical mode - timer should only be driven by live gameplay
 async fn toggle_operation_timer_hotkey(service: ServiceHandle) {
+    if !service.is_live_tailing() {
+        return;
+    }
+
     let is_running = service.is_operation_timer_running();
 
     if is_running {
