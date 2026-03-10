@@ -1237,7 +1237,7 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                                 div { class: "log-cell log-dmg-type", style: "width: {col_dmg_type}px; min-width: {col_dmg_type}px;", "{format_damage_type(&row.damage_type)}" }
                                 div { class: "log-cell log-threat", style: "width: {col_threat}px; min-width: {col_threat}px;",
                                     {
-                                        let threat_str = if row.threat > 0.0 {
+                                        let threat_str = if row.threat != 0.0 {
                                             format!("{:.0}", row.threat)
                                         } else {
                                             String::new()
