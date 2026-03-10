@@ -111,11 +111,6 @@ ids = [3447789291831296]       # All difficulties
 is_boss = true
 is_kill_target = true
 
-[[boss.phases]]
-id = "p1"
-name = "Phase 1"
-trigger = { type = "combat_start" }
-
 # -- Combat Start Timers --
 [[boss.timer]]
 id = "ss_shield_cs"
@@ -125,17 +120,8 @@ duration_secs = 30.0
 color = [32, 34, 219, 255]
 difficulties = ["veteran"]
 
-[[boss.timer]]
-id = "ss_gravity_cs"
-name = "Gravity"
-trigger = { type = "combat_start" }
-duration_secs = 40.0                # ORBS: 40s
-color = [36, 214, 210, 255]
-difficulties = ["veteran"]
-
 # -- Ability Timers --
 # Shield: self-chaining timer for scripted 60s mechanic
-# Triggers on ability cast OR when previous Shield timer expires (for when cast isn't logged)
 [[boss.timer]]
 id = "ss_shield"
 name = "Shield"
@@ -153,31 +139,36 @@ difficulties = ["veteran"]
 [[boss.timer]]
 id = "ss_gravity"
 name = "Gravity"
-trigger = { type = "ability_cast", abilities = [3519549605412864] }
+trigger = { type = "any_of", conditions = [{ type = "combat_start" }] }
 duration_secs = 40.0
 color = [33, 224, 218, 255]
 difficulties = ["veteran"]
+chains_to = "ss_gravity"
+
+[[boss.timer]]
+id = "ss_shield_down"
+name = "Emergency Shield Down"
+alert_text = "Unit 1 Shield Down"
+is_alert = true
+trigger = { type = "effect_removed", effects = [3498933762392064] }
 
 # -- Rain of Missiles (counter-gated repeating timer) --
-# Logic: Timer only fires when counter is 0, then locks (counter=1) until timer expires
-# This prevents the timer from re-triggering on every Rain of Missiles cast during cooldown
-# When timer expires, counter resets to 0, allowing next cast to start timer again
 
 # Counter: Tracks if Rain of Missiles timer is active (0 = can trigger, 1 = locked)
 [[boss.counters]]
-id = "rain_lock"
-name = "Rain of Missles Lock"
-increment_on = { type = "ability_cast", abilities = [3448064169738240] }
+id = "rain_damage"
+name = "Rain of Missiles Damage"
+increment_on = { type = "damage_taken", abilities = [
+  3448064169738240,
+], target = "local_player" }
 reset_on = { type = "timer_expires", timer_id = "ss_rain_of_missiles" }
 initial_value = 0
-set_value = 1
 
 # Timer: 19s countdown until next Rain of Missiles
 [[boss.timer]]
 id = "ss_rain_of_missiles"
 name = "Rain of Missiles"
-trigger = { type = "ability_cast", abilities = [3448064169738240] }
-conditions = [{ type = "counter_compare", counter_id = "rain_lock", operator = "eq", value = 0 }]
+trigger = { type = "counter_reaches", counter_id = "rain_damage", value = 1 }
 duration_secs = 19.0
 color = [219, 32, 28, 255]
 difficulties = ["veteran"]
