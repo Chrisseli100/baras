@@ -1409,6 +1409,8 @@ impl CombatEncounter {
                     edtps: (acc.damage_received_effective * 1000 / duration_ms) as i32,
                     htps: (acc.healing_received * 1000 / duration_ms) as i32,
                     ehtps: (acc.healing_received_effective * 1000 / duration_ms) as i32,
+                    total_healing_received: acc.healing_received,
+                    total_healing_received_effective: acc.healing_received_effective,
                     defense_pct,
                     shield_pct,
                     total_shield_absorbed: acc.shield_roll_absorbed,

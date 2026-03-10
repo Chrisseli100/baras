@@ -17,7 +17,8 @@ pub enum MetricType {
     BossDps,
     Hps,
     EHps,
-    Abs,
+    #[serde(rename = "abs", alias = "htps")]
+    Htps,
     Dtps,
     Tps,
 }
@@ -33,7 +34,7 @@ impl MetricType {
             MetricType::EHps => "Effective Healing",
             MetricType::Tps => "Threat",
             MetricType::Dtps => "Damage Taken",
-            MetricType::Abs => "Shielding Given",
+            MetricType::Htps => "Healing Taken",
         }
     }
 
@@ -47,7 +48,7 @@ impl MetricType {
             MetricType::EHps => "baras-ehps",
             MetricType::Tps => "baras-tps",
             MetricType::Dtps => "baras-dtps",
-            MetricType::Abs => "baras-abs",
+            MetricType::Htps => "baras-abs",
         }
     }
 
@@ -61,7 +62,7 @@ impl MetricType {
             MetricType::EHps => (50, 280),
             MetricType::Tps => (50, 510),
             MetricType::Dtps => (350, 50),
-            MetricType::Abs => (350, 280),
+            MetricType::Htps => (350, 280),
         }
     }
 
@@ -73,7 +74,7 @@ impl MetricType {
             MetricType::BossDps,
             MetricType::Hps,
             MetricType::EHps,
-            MetricType::Abs,
+            MetricType::Htps,
             MetricType::Dtps,
             MetricType::Tps,
         ]
@@ -89,7 +90,7 @@ impl MetricType {
             MetricType::EHps => "ehps",
             MetricType::Tps => "tps",
             MetricType::Dtps => "dtps",
-            MetricType::Abs => "abs",
+            MetricType::Htps => "abs",
         }
     }
 
@@ -102,7 +103,7 @@ impl MetricType {
             "ehps" => Some(MetricType::EHps),
             "tps" => Some(MetricType::Tps),
             "dtps" => Some(MetricType::Dtps),
-            "abs" => Some(MetricType::Abs),
+            "abs" => Some(MetricType::Htps),
             _ => None,
         }
     }

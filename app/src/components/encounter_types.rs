@@ -54,6 +54,14 @@ pub struct PlayerMetrics {
     pub total_damage_taken_effective: i64,
     pub abs: i64,
     pub total_shielding: i64,
+    #[serde(default)]
+    pub htps: i64,
+    #[serde(default)]
+    pub ehtps: i64,
+    #[serde(default)]
+    pub total_healing_received: i64,
+    #[serde(default)]
+    pub total_healing_received_effective: i64,
     pub apm: f32,
 }
 

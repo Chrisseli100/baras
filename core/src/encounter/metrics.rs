@@ -86,6 +86,8 @@ pub struct EntityMetrics {
     // Healing received
     pub htps: i32,
     pub ehtps: i32,
+    pub total_healing_received: i64,
+    pub total_healing_received_effective: i64,
 
     // Tank stats
     pub defense_pct: f32,
@@ -142,6 +144,12 @@ impl EntityMetrics {
             abs: self.abs as i64,
             total_shielding: self.total_shielding,
 
+            // Healing received
+            htps: self.htps as i64,
+            ehtps: self.ehtps as i64,
+            total_healing_received: self.total_healing_received,
+            total_healing_received_effective: self.total_healing_received_effective,
+
             // Tank stats
             defense_pct: self.defense_pct,
             shield_pct: self.shield_pct,
@@ -195,6 +203,12 @@ pub struct PlayerMetrics {
     // Shielding (absorbs)
     pub abs: i64,
     pub total_shielding: i64,
+
+    // Healing received
+    pub htps: i64,
+    pub ehtps: i64,
+    pub total_healing_received: i64,
+    pub total_healing_received_effective: i64,
 
     // Tank stats
     pub defense_pct: f32,

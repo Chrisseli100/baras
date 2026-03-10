@@ -195,7 +195,8 @@ pub enum MetricType {
     BossDps,
     Hps,
     EHps,
-    Abs,
+    #[serde(rename = "abs", alias = "htps")]
+    Htps,
     Dtps,
     Tps,
 }
@@ -211,7 +212,7 @@ impl MetricType {
             MetricType::EHps => "Effective Healing",
             MetricType::Tps => "Threat",
             MetricType::Dtps => "Damage Taken",
-            MetricType::Abs => "Shielding Given",
+            MetricType::Htps => "Healing Taken",
         }
     }
 
@@ -223,7 +224,7 @@ impl MetricType {
             MetricType::BossDps => "fa-solid fa-skull",
             MetricType::Hps => "fa-solid fa-heart",
             MetricType::EHps => "fa-solid fa-hand-holding-heart",
-            MetricType::Abs => "fa-solid fa-shield-halved",
+            MetricType::Htps => "fa-solid fa-kit-medical",
             MetricType::Dtps => "fa-solid fa-shield",
             MetricType::Tps => "fa-solid fa-triangle-exclamation",
         }
@@ -239,7 +240,7 @@ impl MetricType {
             MetricType::EHps => "ehps",
             MetricType::Tps => "tps",
             MetricType::Dtps => "dtps",
-            MetricType::Abs => "abs",
+            MetricType::Htps => "abs",
         }
     }
 
@@ -251,7 +252,7 @@ impl MetricType {
             MetricType::BossDps,
             MetricType::Hps,
             MetricType::EHps,
-            MetricType::Abs,
+            MetricType::Htps,
             MetricType::Dtps,
             MetricType::Tps,
         ]

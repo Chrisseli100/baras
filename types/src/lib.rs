@@ -965,7 +965,7 @@ pub mod overlay_colors {
             "hps" | "ehps" => HPS,
             "tps" => TPS,
             "dtps" | "edtps" => DTPS,
-            "abs" => ABS,
+            "abs" => HPS,
             _ => DPS,
         }
     }

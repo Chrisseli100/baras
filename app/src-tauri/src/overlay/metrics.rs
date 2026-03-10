@@ -77,12 +77,12 @@ fn extract_values(m: &PlayerMetrics, overlay_type: MetricType) -> MetricValues {
             split_total: None,
             split_color: None,
         },
-        MetricType::Abs => MetricValues {
-            rate: m.abs,
-            total: m.total_shielding,
-            split_rate: None,
-            split_total: None,
-            split_color: None,
+        MetricType::Htps => MetricValues {
+            rate: m.htps,
+            total: m.total_healing_received,
+            split_rate: Some(m.ehtps),
+            split_total: Some(m.total_healing_received_effective),
+            split_color: None, // Uses default lighter color for overheal received
         },
     }
 }
