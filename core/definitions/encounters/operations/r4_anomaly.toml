@@ -1,8 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-# R-4 Anomaly - Operation
-# ═══════════════════════════════════════════════════════════════════════════════
-# The newest operation. 4 bosses.
-
 [area]
 name = "R4"
 id = 833571547775799
@@ -35,19 +30,17 @@ start_trigger = { type = "any_of", conditions = [
   { type = "phase_ended", phase_id = "ip_bombs" },
 ] }
 end_trigger = { type = "npc_appears", selector = ["Intrusion ID Unit"] }
-
+conditions = [
+  { type = "counter_compare", counter_id = "ip_cpt_bomb_phase", operator = "lte", value = 2 },
+]
 [[boss.phases]]
 id = "ip_bombs"
 name = "Bombs"
 start_trigger = { type = "phase_ended", phase_id = "ip_main" }
 end_trigger = { type = "effect_removed", effects = [4471627890819336] }
-
-[[boss.phases.conditions]]
-type = "counter_compare"
-counter_id = "ip_cpt_bomb_phases"
-operator = "lt"
-value = 2
-
+conditions = [
+  { type = "counter_compare", counter_id = "ip_cpt_bomb_phase", operator = "lt", value = 2 },
+]
 [[boss.phases]]
 id = "burn"
 name = "Burn"
@@ -55,26 +48,51 @@ start_trigger = { type = "ability_cast", abilities = [4471730970034176] }
 
 # -- Challenges
 [[boss.challenge]]
-conditions = [
-  { type = "source", match = { selector = [
-    "IP-CPT",
-  ] } },
-  { type = "ability", ability_ids = [
-    4471271408533794,
-  ] },
-]
-id = "small_grenade"
-name = "Small Grenade"
-metric = "damage_taken"
-color = [237, 115, 100, 255]
-
-[[boss.challenge]]
 id = "bomb_dps"
 name = "Bomb DPS"
 metric = "damage"
 conditions = [{ type = "target", match = { selector = [4470446774812672] } }]
 color = [24, 156, 139, 255]
-# -- Timers
+
+[[boss.challenge]]
+id = "ip_cpt_burn"
+name = "Burn"
+metric = "damage"
+enabled = true
+columns = "total_percent"
+
+[[boss.challenge.conditions]]
+type = "phase"
+phase_ids = ["burn"]
+
+# -- Counters
+[[boss.counters]]
+id = "ip_cpt_stacks"
+name = "Stacks"
+initial_value = 0
+decrement = false
+
+[boss.counters.increment_on]
+type = "effect_applied"
+effects = [4472005847941376]
+source = "any"
+target = "local_player"
+
+[boss.counters.reset_on]
+type = "effect_removed"
+effects = [4472005847941376]
+source = "any"
+target = "local_player"
+
+[[boss.counters]]
+id = "ip_cpt_intrusion_death"
+name = "Intrusion death"
+initial_value = 0
+decrement = false
+
+[boss.counters.increment_on]
+type = "entity_death"
+selector = ["Intrusion ID Unit"]
 
 [[boss.counters]]
 id = "ip_cpt_big_bombs"
@@ -89,93 +107,15 @@ source = "any"
 target = "any"
 
 [[boss.counters]]
-id = "ip_cpt_bomb_phases"
+id = "ip_cpt_bomb_phase"
 name = "Bomb Phases"
-enabled = true
 initial_value = 0
-decrement = false
 
 [boss.counters.increment_on]
 type = "phase_entered"
 phase_id = "ip_bombs"
 
-[boss.counters.reset_on]
-type = "combat_end"
-
-
-# [[boss.timer]]
-# id = "ip_cpt_back_wall_not_safe"
-# name = "Back wall not safe"
-# duration_secs = 8.5
-# color = [255, 128, 0, 255]
-# difficulties = ["veteran"]
-# enabled = true
-# display_target = "timers_a"
-#
-# [boss.timer.trigger]
-# type = "any_of"
-#
-# [[boss.timer.trigger.conditions]]
-# type = "counter_reaches"
-# counter_id = "ip_cpt_big_bombs"
-# value = 6
-#
-# [[boss.timer.trigger.conditions]]
-# type = "counter_reaches"
-# counter_id = "ip_cpt_big_bombs"
-# value = 18
-#
-# [[boss.timer]]
-# id = "ip_cpt_side_wall_not_safe"
-# name = "Side wall not safe"
-# duration_secs = 8.5
-# color = [255, 128, 0, 255]
-# difficulties = ["veteran"]
-# enabled = true
-# display_target = "timers_a"
-#
-# [boss.timer.trigger]
-# type = "any_of"
-#
-# [[boss.timer.trigger.conditions]]
-# type = "counter_reaches"
-# counter_id = "ip_cpt_big_bombs"
-# value = 8
-#
-# [[boss.timer.trigger.conditions]]
-# type = "counter_reaches"
-# counter_id = "ip_cpt_big_bombs"
-# value = 16
-#
-# [[boss.timer]]
-# id = "ip_cpt_exit_not_safe"
-# name = "Exit not safe"
-# duration_secs = 8.5
-# color = [255, 128, 0, 255]
-# difficulties = ["veteran"]
-# enabled = true
-# display_target = "timers_a"
-#
-# [boss.timer.trigger]
-# type = "counter_reaches"
-# counter_id = "ip_cpt_big_bombs"
-# value = 10
-#
-# [[boss.timer]]
-# id = "ip_cpt_entrance_not_safe"
-# name = "Entrance not safe"
-# duration_secs = 8.5
-# color = [255, 128, 0, 255]
-# difficulties = ["veteran"]
-# enabled = true
-# display_target = "timers_a"
-#
-# [boss.timer.trigger]
-# type = "counter_reaches"
-# counter_id = "ip_cpt_big_bombs"
-# value = 20
-#
-
+# -- Timers
 [[boss.timer]]
 id = "ip_cpt_big_grenade"
 name = "Big Grenade"
@@ -184,50 +124,264 @@ trigger = { type = "effect_applied", effects = [
 ], target = "local_player" }
 duration_secs = 8.5
 color = [20, 153, 33, 255]
-difficulties = ["veteran"]
-
-# P2 chain: Bombs 1 -> Droids -> Bombs 2 -> Turrets
-[[boss.timer]]
-id = "ip_cpt_bombs_1"
-name = "Intrusion Units Initial"
-display_text = "Intrusion Units"
-trigger = { type = "phase_entered", phase_id = "ip_bombs" }
-duration_secs = 4.5
-color = [32, 219, 213, 255]
+icon_ability_id = 4471271408533778
 difficulties = ["veteran"]
 
 [[boss.timer]]
-id = "ip_cpt_droids"
-name = "Droids"
-trigger = { type = "timer_expires", timer_id = "ip_cpt_bombs_1" }
-duration_secs = 15.0
-color = [32, 219, 213, 255]
+id = "ip_cpt_back_wall_not_safe"
+name = "Back wall not safe"
+duration_secs = 8.5
+color = [255, 128, 0, 255]
+icon_ability_id = 4471271408533778
 difficulties = ["veteran"]
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 6
+
+[[boss.timer.trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 18
 
 [[boss.timer]]
-id = "ip_cpt_bombs_2"
-name = "Intrusion Units"
-trigger = { type = "timer_expires", timer_id = "ip_cpt_droids" }
+id = "ip_cpt_side_wall_not_safe"
+name = "Side wall not safe"
+duration_secs = 8.5
+color = [255, 128, 0, 255]
+icon_ability_id = 4471271408533778
+difficulties = ["veteran"]
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 8
+
+[[boss.timer.trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 16
+
+[[boss.timer]]
+id = "ip_cpt_exit_not_safe"
+name = "Exit not safe"
+duration_secs = 8.5
+color = [255, 128, 0, 255]
+icon_ability_id = 4471271408533778
+difficulties = ["veteran"]
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 10
+
+[[boss.timer]]
+id = "ip_cpt_entrance_not_safe"
+name = "Entrance not safe"
+duration_secs = 8.5
+color = [255, 128, 0, 255]
+icon_ability_id = 4471271408533778
+difficulties = ["veteran"]
+display_target = "timers_a"
+
+[boss.timer.trigger]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 20
+
+[[boss.timer]]
+id = "ip_cpt_at_4_stacks"
+name = "At 4 stacks"
 duration_secs = 30.0
-color = [32, 219, 213, 255]
+is_alert = true
+alert_text = "At 4 stacks!"
+color = [255, 0, 136, 255]
 difficulties = ["veteran"]
 
-[[boss.timer]]
-id = "ip_cpt_turrets"
-name = "Turrets"
-trigger = { type = "timer_expires", timer_id = "ip_cpt_bombs_2" }
-duration_secs = 5.0
-color = [32, 219, 213, 255]
-difficulties = ["veteran"]
+[boss.timer.trigger]
+type = "counter_reaches"
+counter_id = "ip_cpt_stacks"
+value = 4
 
-# Burn phase
 [[boss.timer]]
-id = "ip_cpt_burn_rng_flor"
-name = "Burn RNG Floor"
-trigger = { type = "phase_entered", phase_id = "burn" }
-duration_secs = 4.8
-color = [219, 32, 34, 255]
-difficulties = ["veteran"]
+id = "ip_cpt_1st_intrusion_units"
+name = "1st Intrusion Units"
+display_text = "Intrusion Units"
+duration_secs = 68.0
+color = [0, 238, 255, 255]
+icon_ability_id = 4470747422523392
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "counter_reaches"
+counter_id = "ip_cpt_big_bombs"
+value = 1
+
+[[boss.timer]]
+id = "ip_cpt_1st_droids"
+name = "1st Droids"
+display_text = "Droids"
+duration_secs = 16
+color = [0, 100, 255, 255]
+icon_ability_id = 4480204940509454
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "ip_cpt_1st_intrusion_units"
+
+[[boss.timer]]
+id = "ip_cpt_2nd_intrusion_units"
+name = "2nd Intrusion Units"
+display_text = "Intrusion Units"
+duration_secs = 45.0
+color = [0, 238, 255, 255]
+icon_ability_id = 4470747422523392
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "ip_cpt_1st_intrusion_units"
+
+[[boss.timer]]
+id = "ip_cpt_3rd_intrusion_units"
+name = "3rd Intrusion Units"
+display_text = "Intrusion Units"
+duration_secs = 101.5
+color = [0, 238, 255, 255]
+icon_ability_id = 4470747422523392
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "ip_cpt_2nd_intrusion_units"
+
+[[boss.timer]]
+id = "ip_cpt_4th_intrusion_units"
+name = "4th Intrusion Units"
+display_text = "Intrusion Units"
+duration_secs = 45.0
+color = [0, 238, 255, 255]
+icon_ability_id = 4470747422523392
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "ip_cpt_3rd_intrusion_units"
+
+[[boss.timer]]
+id = "ip_cpt_2nd_droids"
+name = "2nd Droids"
+display_text = "Droids"
+duration_secs = 6.5
+color = [0, 100, 255, 255]
+icon_ability_id = 4480204940509454
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "ip_cpt_4th_intrusion_units"
+
+[[boss.timer]]
+id = "ip_cpt_bomb_explosion"
+name = "Bomb explosion"
+duration_secs = 31.0
+color = [200, 0, 0, 255]
+icon_ability_id = 4470747422523392
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "target_set"
+selector = ["Intrusion ID Unit"]
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_intrusion_death"
+value = 2
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_intrusion_death"
+value = 4
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_intrusion_death"
+value = 7
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "counter_reaches"
+counter_id = "ip_cpt_intrusion_death"
+value = 10
+
+[[boss.timer]]
+id = "ip_cpt_leave_consoles"
+name = "Leave consoles"
+duration_secs = 30.0
+is_alert = true
+color = [200, 0, 0, 255]
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "timer_expires"
+timer_id = "ip_cpt_bomb_explosion"
+
+[[boss.timer.trigger.conditions]]
+type = "timer_canceled"
+timer_id = "ip_cpt_bomb_explosion"
+
+[[boss.timer]]
+id = "ip_cpt_boss_returning"
+name = "Boss returning"
+duration_secs = 44.5
+color = [200, 0, 255, 255]
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "timer_expires"
+timer_id = "ip_cpt_2nd_intrusion_units"
+
+[[boss.timer.trigger.conditions]]
+type = "timer_expires"
+timer_id = "ip_cpt_4th_intrusion_units"
+
+[[boss.timer]]
+id = "ip_cpt_boss_returning_burn_start"
+name = "Boss returning, Burn start"
+display_text = "Burn start"
+duration_secs = 102.5
+color = [200, 0, 255, 255]
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "ip_cpt_4th_intrusion_units"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -237,7 +391,7 @@ difficulties = ["veteran"]
 [[boss]]
 id = "watchdog"
 name = "Watchdog"
-difficulties = ["story", "veteran", "master"]
+difficulties = ["story", "veteran"]
 
 [[boss.entities]]
 name = "Watchdog"
@@ -269,6 +423,19 @@ name = "Polarized Beam"
 start_trigger = { type = "ability_cast", abilities = [4471709495197696] }
 end_trigger = { type = "ability_cast", abilities = [4472216301338624] }
 
+# -- Counters
+[[boss.counters]]
+id = "watchdog_colors_going_out"
+name = "Colors going out"
+initial_value = 0
+decrement = false
+
+[boss.counters.increment_on]
+type = "ability_cast"
+abilities = [4468595643908096]
+source = "any"
+target = "any"
+
 [[boss.counters]]
 id = "wd_deguass_counter"
 name = "Degausses"
@@ -280,54 +447,27 @@ name = "Polarized Beam"
 increment_on = { type = "ability_cast", abilities = [4471709495197696] }
 reset_on = { type = "ability_cast", abilities = [4472216301338624] }
 
-
 # -- Timers
+[[boss.timer]]
+id = "watchdog_bombs_1st"
+name = "Color Bombs 1st"
+display_text = "Color Bombs"
+duration_secs = 14.0
+color = [224, 30, 29, 255]
+icon_ability_id = 4468595643908096
+difficulties = ["veteran"]
+
+[boss.timer.trigger]
+type = "combat_start"
 
 [[boss.timer]]
 id = "watchdog_wd_protocol_cs"
 name = "WD Protocol 1st"
 display_text = "Watchdog Protocol"
 trigger = { type = "combat_start" }
-duration_secs = 24.0
+duration_secs = 28.0
 color = [180, 29, 224, 255]
-difficulties = ["veteran"]
-
-[[boss.timer]]
-id = "watchdog_bombs_p1"
-name = "PMX4 Bombs 1st"
-display_text = "PMX4 Bombs"
-trigger = { type = "combat_start" }
-duration_secs = 12.0
-color = [224, 30, 29, 255]
-difficulties = ["veteran"]
-
-[[boss.timer]]
-id = "watchdog_bombs_p2_1st"
-name = "Bombs P2 1st"
-trigger = { type = "timer_expires", timer_id = "watchdog_invert" }
-duration_secs = 17.0
-color = [224, 30, 29, 255]
-difficulties = ["veteran"]
-
-[[boss.timer]]
-id = "watchdog_bombs_p2_2nd"
-name = "PMX4 Bombs 2nd"
-display_text = "PMX4 Bombs"
-trigger = { type = "ability_cast", abilities = [4472216301338624] }
-duration_secs = 7.0
-color = [219, 28, 29, 255]
-difficulties = ["veteran", "master"]
-conditions = [
-  { type = "counter_compare", counter_id = "wd_deguass_counter", operator = "eq", value = 2 },
-]
-
-[[boss.timer]]
-id = "watchdog_degauss_1st"
-name = "Degauss 1st"
-display_text = "Degauss"
-trigger = { type = "combat_start" }
-duration_secs = 62.0
-color = [29, 224, 218, 255]
+icon_ability_id = 4474376669888512
 difficulties = ["veteran"]
 
 [[boss.timer]]
@@ -336,6 +476,7 @@ name = "WD Protocol Swap"
 trigger = { type = "ability_cast", abilities = [4472272135913472] }
 duration_secs = 15.0
 color = [180, 29, 224, 255]
+icon_ability_id = 4474376669888512
 difficulties = ["veteran"]
 
 [[boss.timer]]
@@ -344,16 +485,19 @@ name = "WD Protocol END"
 trigger = { type = "timer_expires", timer_id = "watchdog_wd_protocol_swap" }
 duration_secs = 12.0
 color = [180, 29, 224, 255]
+icon_ability_id = 4474376669888512
 difficulties = ["veteran"]
 
 [[boss.timer]]
-id = "watchdog_degauss"
-name = "Degauss"
+id = "watchdog_degauss_1st"
+name = "Degauss 1st"
 display_text = "Degauss"
-trigger = { type = "counter_reaches", counter_id = "wd_beam_counter", value = 4 }
-duration_secs = 8.0
-color = [29, 221, 224, 255]
-difficulties = ["veteran", "master"]
+trigger = { type = "combat_start" }
+duration_secs = 63.0
+color = [29, 224, 218, 255]
+icon_ability_id = 4472216301338624
+difficulties = ["veteran"]
+show_at_secs = 10.0
 
 [[boss.timer]]
 id = "watchdog_stalker_protocol"
@@ -364,10 +508,8 @@ trigger = { type = "any_of", conditions = [
 ] }
 duration_secs = 7.0
 color = [135, 163, 66, 255]
+icon_ability_id = 4472963625648128
 difficulties = ["veteran"]
-conditions = [
-  { type = "counter_compare", counter_id = "wd_deguass_counter", operator = "eq", value = 0 },
-]
 
 [[boss.timer]]
 id = "watchdog_invert"
@@ -375,47 +517,134 @@ name = "Invert"
 trigger = { type = "ability_cast", abilities = [4472963625648128] }
 duration_secs = 19.0
 color = [135, 163, 66, 255]
+icon_ability_id = 4473247093489664
 difficulties = ["veteran"]
+
+[[boss.timer]]
+id = "watchdog_stalker_ending"
+name = "Stalker ending"
+duration_secs = 15.0
+color = [135, 163, 66, 255]
+icon_ability_id = 4472963625648128
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "watchdog_invert"
+
+[[boss.timer]]
+id = "watchdog_avoid_circles"
+name = "Avoid circles"
+duration_secs = 34.0
+color = [200, 0, 0, 255]
+icon_ability_id = 4468587053973504
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "timer_expires"
+timer_id = "watchdog_stalker_protocol"
+
+[[boss.timer]]
+id = "watchdog_bombs_2nd"
+name = "Color Bombs 2nd"
+display_text = "Color Bombs"
+duration_secs = 18.0
+color = [224, 30, 29, 255]
+icon_ability_id = 4468595643908096
+difficulties = ["veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4473247093489664]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "watchdog_bombs_3rd"
+name = "Color Bombs 3rd"
+display_text = "Color Bombs"
+duration_secs = 9.5
+color = [219, 28, 29, 255]
+icon_ability_id = 4468595643908096
+difficulties = ["veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4472216301338624]
+source = "any"
+target = "any"
+
+[[boss.timer.conditions]]
+type = "counter_compare"
+counter_id = "wd_deguass_counter"
+operator = "eq"
+value = 2
+
+[[boss.timer]]
+id = "watchdog_degauss"
+name = "Degauss"
+display_text = "Degauss"
+trigger = { type = "counter_reaches", counter_id = "wd_beam_counter", value = 4 }
+duration_secs = 10.0
+color = [29, 221, 224, 255]
+icon_ability_id = 4472216301338624
+difficulties = ["veteran"]
+
+[[boss.timer]]
+id = "watchdog_1st_beam"
+name = "1st Beam"
+display_text = "Beam"
+duration_secs = 11.5
+color = [255, 128, 0, 255]
+icon_ability_id = 4471709495197696
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4468595643908096]
+source = "any"
+target = "any"
+
+[[boss.timer.conditions]]
+type = "counter_compare"
+counter_id = "watchdog_colors_going_out"
+operator = "gt"
+value = 1
+
+[boss.timer.cancel_trigger]
+type = "effect_applied"
+effects = [4511772950134784]
+source = "boss"
+target = "any"
 
 [[boss.timer]]
 id = "watchdog_missiles_pb"
 name = "Missiles + Beam"
 trigger = { type = "ability_cast", abilities = [4471709495197696] }
-duration_secs = 12.0
+duration_secs = 14.0
 color = [224, 129, 29, 255]
-difficulties = ["veteran", "master"]
-conditions = [
-  { type = "counter_compare", counter_id = "wd_beam_counter", operator = "lt", value = 3 },
-]
-
-[[boss.timer]]
-id = "watchdog_polarized_beam"
-name = "Polarized Beam"
-trigger = { type = "ability_cast", abilities = [4468595643908096] }
-duration_secs = 11.0
-color = [43, 29, 224, 255]
-difficulties = ["veteran", "master"]
-conditions = [
-  { type = "counter_compare", counter_id = "wd_beam_counter", operator = "eq", value = 4 },
-]
-
-[[boss.timer]]
-id = "watchdog_polarized_beam_p2_1st"
-name = "Polarized Beam P2 1st"
-trigger = { type = "timer_expires", timer_id = "watchdog_bombs_p2_1st" }
-duration_secs = 12.0
-color = [31, 24, 224, 255]
+icon_ability_id = 4471709495197696
 difficulties = ["veteran"]
 
+[[boss.timer.conditions]]
+type = "counter_compare"
+counter_id = "wd_beam_counter"
+operator = "lt"
+value = 4
+
 [[boss.timer]]
-id = "watchdog_missiles_burn"
-name = "Missiles Burn"
-display_text = "Missiles"
-trigger = { type = "ability_cast", abilities = [4468587053973504] }
-duration_secs = 7.5
-color = [224, 129, 29, 255]
-difficulties = ["veteran", "master"]
-conditions = [{ type = "phase_active", phase_ids = ["wd_burn"] }]
+id = "watchdog_burn_soon"
+name = "Burn soon"
+duration_secs = 30.0
+is_alert = true
+alert_text = "Burn soon"
+color = [255, 128, 0, 255]
+difficulties = ["veteran"]
+
+[boss.timer.trigger]
+type = "boss_hp_below"
+hp_percent = 18.0
+selector = ["Watchdog"]
 # ═══════════════════════════════════════════════════════════════════════════════
 # Boss 3: Lord Kanoth
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -423,7 +652,7 @@ conditions = [{ type = "phase_active", phase_ids = ["wd_burn"] }]
 [[boss]]
 id = "kanoth"
 name = "Lord Kanoth"
-difficulties = ["story", "veteran", "master"]
+difficulties = ["story", "veteran"]
 
 [[boss.entities]]
 name = "Lord Kanoth"
@@ -431,28 +660,249 @@ ids = [4466190462222336, 4494876548792320]
 is_boss = true
 is_kill_target = true
 
-[[boss.entities]]
-name = "Hulking Monstrocity"
-ids = [4601314428321792]
-is_boss = false
-is_kill_target = false
+[[boss.phases]]
+id = "kanoth_burn"
+name = "Burn"
+
+[boss.phases.start_trigger]
+type = "effect_removed"
+effects = [4602461184589824]
+source = "any"
+target = "any"
+
+[[boss.phases]]
+id = "kanoth_p1"
+name = "P1"
+
+[boss.phases.start_trigger]
+type = "combat_start"
+
+[[boss.phases]]
+id = "kanoth_p2"
+name = "P2"
+
+[boss.phases.start_trigger]
+type = "effect_applied"
+effects = [4601859889168384]
+source = "any"
+target = "any"
+
+# -- Challenges
+[[boss.challenges]]
+id = "kanoth_grenades_thrown"
+name = "Grenades thrown"
+metric = "ability_count"
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "ability"
+ability_ids = [4482674546704384]
+
+# -- Timers
+[[boss.timer]]
+id = "kanoth_1st_seed_of_echoes"
+name = "1st Seed of echoes"
+display_text = "Seed of echoe"
+duration_secs = 12.0
+color = [255, 0, 200, 255]
+icon_ability_id = 4484697476300800
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "combat_start"
 
 [[boss.timer]]
 id = "kanoth_seed_of_echoes"
 name = "Seed of echoes"
-duration_secs = 18.0
-color = [255, 0, 208, 255]
+duration_secs = 18.5
+color = [255, 0, 200, 255]
+icon_ability_id = 4484697476300800
 difficulties = ["story", "veteran"]
-enabled = true
-display_target = "timers_a"
+can_be_refreshed = true
 
 [boss.timer.trigger]
-type = "effect_applied"
-effects = [4484697476300800]
-source = "boss"
+type = "ability_cast"
+abilities = [4484697476300800]
+source = "any"
 target = "any"
 
+[boss.timer.cancel_trigger]
+type = "ability_cast"
+abilities = [4491556539072512]
+source = "any"
+target = "any"
 
+[[boss.timer]]
+id = "kanoth_1st_growth_seed"
+name = "1st Growth seed"
+display_text = "Growth seed"
+duration_secs = 6.3
+color = [255, 150, 100, 255]
+icon_ability_id = 4602474069491712
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "combat_start"
+
+[[boss.timer.trigger.conditions]]
+type = "effect_removed"
+effects = [4602461184590088]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_growth_seed"
+name = "Growth seed"
+duration_secs = 15.0
+color = [255, 150, 100, 255]
+icon_ability_id = 4602474069491712
+difficulties = ["story", "veteran"]
+can_be_refreshed = true
+show_at_secs = 7.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4481819848212480]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "ability_cast"
+abilities = [4491556539072512]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_fortify_ground"
+name = "Fortify ground"
+duration_secs = 15.0
+color = [175, 0, 175, 255]
+icon_ability_id = 4483005259186176
+difficulties = ["story", "veteran"]
+can_be_refreshed = true
+show_at_secs = 7.0
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "combat_start"
+
+[[boss.timer.trigger.conditions]]
+type = "ability_cast"
+abilities = [4483005259186176]
+source = "any"
+target = "any"
+
+[[boss.timer.trigger.conditions]]
+type = "effect_removed"
+effects = [4602461184589824]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "ability_cast"
+abilities = [4491556539072512]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_creeping_growth"
+name = "Creeping growth"
+duration_secs = 30.0
+is_alert = true
+alert_text = "Help clear floor"
+color = [200, 0, 0, 255]
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4485827052699648]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_ghosts_coming"
+name = "Ghosts coming"
+duration_secs = 30.0
+is_alert = true
+color = [255, 128, 0, 255]
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4602413939949568]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_monstrosity_soon"
+name = "Monstrosity soon"
+duration_secs = 5.5
+alert_text = "Monstorsity soon"
+color = [0, 110, 255, 255]
+icon_ability_id = 4602611508445451
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4601305838387200]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_p1_abduct"
+name = "P1 Abduct"
+display_text = "Abduct (or Repel)"
+duration_secs = 32.0
+color = [0, 255, 150, 255]
+icon_ability_id = 4483065388728320
+difficulties = ["veteran"]
+show_at_secs = 15.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4483082568597504]
+source = "any"
+target = "any"
+
+[[boss.timer.conditions]]
+type = "phase_active"
+phase_ids = ["kanoth_p1"]
+
+[boss.timer.cancel_trigger]
+type = "ability_cast"
+abilities = [4491556539072512]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "kanoth_abduct"
+name = "Abduct"
+duration_secs = 28.0
+color = [0, 255, 150, 255]
+icon_ability_id = 4483065388728320
+difficulties = ["story", "veteran"]
+show_at_secs = 15.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4483082568597504]
+source = "any"
+target = "any"
+
+[[boss.timer.conditions]]
+type = "phase_active"
+phase_ids = ["kanoth_p2"]
+
+[boss.timer.cancel_trigger]
+type = "ability_cast"
+abilities = [4491556539072512]
+source = "any"
+target = "any"
 # ═══════════════════════════════════════════════════════════════════════════════
 # Boss 4: Lady Dominique
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -460,8 +910,7 @@ target = "any"
 [[boss]]
 id = "dominique"
 name = "Lady Dominique"
-difficulties = ["story", "veteran", "master"]
-is_final_boss = true
+difficulties = ["story", "veteran"]
 
 [[boss.entities]]
 name = "Lady Dominique"
@@ -473,6 +922,7 @@ is_kill_target = true
 name = "Watchdog"
 ids = [4488524292161536]
 is_boss = true
+pushes_at = 0.1
 
 [[boss.entities]]
 name = "Attractors"
@@ -519,11 +969,6 @@ conditions = [
   { type = "counter_compare", counter_id = "dom_attractor_appearance", operator = "lt", value = 2 },
 ]
 
-[[boss.counters]]
-id = "dom_attractor_appearance"
-name = "Attractor Spawns"
-increment_on = { type = "npc_appears", selector = ["Attractors"] }
-
 [[boss.phases]]
 id = "dominique_burn"
 name = "Burn"
@@ -531,23 +976,34 @@ display_text = "Burn"
 
 [boss.phases.start_trigger]
 type = "boss_hp_below"
-hp_percent = 23.0
+hp_percent = 25.0
 selector = ["Lady Dominique"]
 
+# -- Counters
+[[boss.counters]]
+id = "dom_attractor_appearance"
+name = "Attractor Spawns"
+increment_on = { type = "npc_appears", selector = ["Attractors"] }
+
+# -- Challenges
+[[boss.challenges]]
+id = "dominique_burn"
+name = "Burn"
+metric = "damage"
+columns = "total_percent"
+
+[[boss.challenges.conditions]]
+type = "phase"
+phase_ids = ["dominique_burn"]
+
+# -- Timers
 [[boss.timer]]
 id = "dominique_orange_circle"
 name = "Orange circle"
 is_alert = true
 alert_text = "You have orange circle"
 color = [224, 112, 0, 255]
-conditions = [
-  { type = "phase_active", phase_ids = [
-    "dominique_dom",
-    "dominique_dom_generators",
-  ] },
-]
 difficulties = ["story", "veteran"]
-enabled = true
 display_target = "timers_a"
 
 [boss.timer.trigger]
@@ -556,20 +1012,13 @@ effects = [4574715695857998]
 source = "boss"
 target = "local_player"
 
-[boss.timer.audio]
-enabled = false
-offset = 0
-countdown_start = 0
-
 [[boss.timer]]
 id = "dominique_yellow_circle"
 name = "Yellow circle"
 is_alert = true
 alert_text = "You have yellow circle"
 color = [255, 234, 0, 255]
-conditions = [{ type = "phase_active", phase_ids = ["dominique_dom"] }]
 difficulties = ["story", "veteran"]
-enabled = true
 display_target = "timers_a"
 
 [boss.timer.trigger]
@@ -578,18 +1027,277 @@ effects = [4574698515988786]
 source = "boss"
 target = "local_player"
 
-[boss.timer.audio]
-enabled = false
-offset = 0
-countdown_start = 0
+[[boss.timer]]
+id = "dominique_aria_spawned"
+name = "ARIA spawned"
+duration_secs = 30.0
+is_alert = true
+color = [38, 162, 105, 255]
+difficulties = ["story", "veteran"]
 
-[[boss.challenges]]
-id = "dominique_burn"
-name = "Burn"
-metric = "damage"
-enabled = true
-columns = "total_percent"
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4594657229012992]
+source = "any"
+target = "any"
 
-[[boss.challenges.conditions]]
-type = "phase"
-phase_ids = ["dominique_burn"]
+[[boss.timer]]
+id = "dominique_incite"
+name = "Incite"
+duration_secs = 31.0
+color = [46, 194, 126, 255]
+icon_ability_id = 4590654319493120
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4594657229012992]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "dominique_kick"
+name = "Kick"
+duration_secs = 8.0
+color = [150, 100, 200, 255]
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4590654319493120]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "dominique_1st_detonator_spawn"
+name = "Detonator Spawn"
+duration_secs = 20.0
+color = [229, 165, 10, 255]
+icon_ability_id = 4594992236462080
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "phase_entered"
+phase_id = "dominique_dom_generators"
+
+[[boss.timer]]
+id = "dominique_next_detonator_spawn"
+name = "Detonator Spawn"
+duration_secs = 30.0
+color = [229, 165, 10, 255]
+icon_ability_id = 4594992236462080
+difficulties = ["story", "veteran"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4595108200579072]
+source = "boss"
+target = "boss"
+
+[boss.timer.cancel_trigger]
+type = "phase_ended"
+phase_id = "dominique_dom_generators"
+
+[[boss.timer]]
+id = "dominique_watchdog_appears"
+name = "Watchdog appears"
+duration_secs = 30.0
+is_alert = true
+color = [200, 0, 255, 255]
+difficulties = ["veteran"]
+
+[boss.timer.trigger]
+type = "phase_entered"
+phase_id = "dominique_watchdog"
+
+[[boss.timer]]
+id = "dominique_wd_colors"
+name = "Wd colors"
+duration_secs = 22.0
+color = [200, 0, 255, 255]
+icon_ability_id = 4597371648344064
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "phase_entered"
+phase_id = "dominique_watchdog"
+
+[[boss.timer]]
+id = "dominique_wd_beam"
+name = "Wd beam"
+duration_secs = 10.0
+color = [200, 0, 255, 255]
+icon_ability_id = 4596912086843392
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4471486156898304]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "phase_entered"
+phase_id = "dominique_dom_attractors"
+
+[[boss.timer]]
+id = "dominique_1st_recursive"
+name = "1st Recursive"
+display_text = "Recursive"
+duration_secs = 6.0
+color = [255, 128, 0, 255]
+icon_ability_id = 4603328767983616
+difficulties = ["veteran"]
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4598754627813376]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "dominique_recursives"
+name = "Recursives"
+duration_secs = 30.0
+color = [255, 128, 0, 255]
+icon_ability_id = 4603328767983616
+difficulties = ["story", "veteran"]
+can_be_refreshed = true
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "effect_applied"
+effects = [4603328767983616]
+source = "any"
+target = "any"
+
+[[boss.timer.trigger.conditions]]
+type = "effect_applied"
+effects = [4599643686043648]
+source = "boss"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "any_of"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "ability_cast"
+abilities = [4606249345744896, 4606253640712192]
+source = "any"
+target = "any"
+
+[[boss.timer.cancel_trigger.conditions]]
+type = "effect_applied"
+effects = [4599643686043648]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "dominique_rec_after_2nd_unify"
+name = "Rec after 2nd unitfy"
+display_text = "Recursive"
+duration_secs = 16.0
+color = [255, 128, 0, 255]
+icon_ability_id = 4603328767983616
+difficulties = ["veteran", "story"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4606249345744896]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "timer_started"
+timer_id = "dominique_recursives"
+
+[[boss.timer]]
+id = "dominique_rec_after_3rd_unify"
+name = "Rec after 3rd unify"
+display_text = "Recursive"
+duration_secs = 14.0
+color = [255, 128, 0, 255]
+icon_ability_id = 4603328767983616
+difficulties = ["veteran", "story"]
+show_at_secs = 10.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4606253640712192]
+source = "any"
+target = "any"
+
+[boss.timer.cancel_trigger]
+type = "timer_started"
+timer_id = "dominique_recursives"
+
+[[boss.timer]]
+id = "dominique_burn_start"
+name = "Burn Start"
+duration_secs = 30.0
+is_alert = true
+alert_text = "BURN"
+color = [165, 29, 45, 255]
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "phase_entered"
+phase_id = "dominique_burn"
+
+[[boss.timer]]
+id = "dominique_1st_monstrosities"
+name = "1st Monstrosities"
+display_text = "Monstrosities"
+duration_secs = 48.0
+color = [200, 0, 0, 255]
+icon_ability_id = 4479436141363471
+difficulties = ["veteran"]
+show_at_secs = 15.0
+
+[boss.timer.trigger]
+type = "ability_cast"
+abilities = [4605540676141056]
+source = "any"
+target = "any"
+
+[[boss.timer]]
+id = "dominique_monstrosities"
+name = "Monstrosities"
+duration_secs = 40.0
+color = [200, 0, 0, 255]
+icon_ability_id = 4479436141363471
+difficulties = ["veteran"]
+show_at_secs = 15.0
+
+[boss.timer.trigger]
+type = "any_of"
+
+[[boss.timer.trigger.conditions]]
+type = "timer_expires"
+timer_id = "dominique_1st_monstrosities"
+
+[[boss.timer.trigger.conditions]]
+type = "timer_expires"
+timer_id = "dominique_monstrosities"
+
+[[boss.timer]]
+id = "dominique_targeted_by_reaper"
+name = "Repear Targets Local Player"
+display_text = "Repear on You!"
+duration_secs = 30.0
+is_alert = true
+color = [0, 255, 238, 255]
+difficulties = ["story", "veteran"]
+
+[boss.timer.trigger]
+type = "effect_applied"
+effects = [4594975056592896]
+source = "any"
+target = "any"
