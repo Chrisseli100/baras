@@ -2,7 +2,7 @@
 
 Many timer definitions are being refined and updated. This is an incremental process and it will take time to verify every one is accurate. Please report any timer issues on discord.
 
-Look for more refinements to timer/boss definitions in the future.
+Expect timer updates to be the main focus of coming patches.
 
 ## General
 
