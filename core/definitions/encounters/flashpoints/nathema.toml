@@ -1,0 +1,54 @@
+[area]
+name = "Nathema"
+area_id = 833571547775764
+area_type = "flashpoint"
+
+[[boss]]
+id = "voreclaw"
+name = "Voreclaw"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Voreclaw"
+ids = [4157176155209728]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+id = "guardian_droid"
+name = "Ancient Guardian Droid"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Ancient Guardian Droid"
+ids = [4152640669745152]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+id = "gemini"
+name = "Gemini 16"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Gemini 16"
+ids = [4158834012585984]
+is_boss = true
+is_kill_target = true
+
+[[boss]]
+id = "vin_zil"
+name = "Vinn Atrius & Zildrog"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Vinn Atrius"
+ids = [4158872667291648]
+is_boss = true
+is_kill_target = true
+
+[[boss.entities]]
+name = "Vinn Atrius"
+ids = [4159276394217472]
+is_boss = true
+is_kill_target = true
