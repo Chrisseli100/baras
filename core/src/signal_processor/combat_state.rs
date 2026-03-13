@@ -196,8 +196,12 @@ fn handle_in_combat(
                 let is_boss_encounter = enc.active_boss_idx().is_some();
                 // For boss encounters, check if kill targets are still alive (wipe)
                 // For trash encounters, always end (no kill targets to check)
+                // For victory-trigger bosses where victory hasn't fired: medcenter revive
+                // is definitionally a wipe — the only success path is the victory trigger,
+                // so if the player is reviving at medcenter it can only mean a wipe.
                 let should_end = if is_boss_encounter {
                     enc.is_likely_wipe()
+                        || (enc.has_active_victory_trigger() && !enc.victory_triggered)
                 } else {
                     true // Always end trash encounters after revive timeout
                 };
@@ -324,7 +328,9 @@ fn handle_in_combat(
             .map_or(false, |enc| enc.has_active_victory_trigger());
 
         if has_victory_trigger {
-            // Victory-trigger encounters: always ignore EnterCombat (treated as rejoin)
+            // Victory-trigger encounters: always ignore EnterCombat (treated as rejoin).
+            // Wipes on these encounters are split earlier via the revive immunity timeout
+            // path, so by the time a new EnterCombat fires the encounter is already split.
             tracing::info!(
                 "[ENCOUNTER] EnterCombat during InCombat at {} - victory-trigger encounter, ignoring (rejoin)",
                 timestamp
