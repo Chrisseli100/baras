@@ -825,6 +825,31 @@ impl CombatEncounter {
     // Combat Time
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// Compute the `combat_time_secs` value to store for a given event timestamp.
+    ///
+    /// Once combat has ended (either via kill-target death, victory trigger, wipe, or
+    /// timeout), the value is capped at `effective_end_time()` so that grace-period
+    /// events accumulated after the exit do not inflate `MAX(combat_time_secs)` beyond
+    /// the actual encounter end.  Without this cap the query layer derives an inflated
+    /// duration (e.g. 6:21 instead of 6:17), skewing DPS/HPS denominators and the
+    /// timeline scrubber end position.
+    ///
+    /// While combat is still active (`effective_end_time()` is `None`) the raw elapsed
+    /// time is returned unchanged.
+    ///
+    /// Returns `None` when combat has not yet started (`enter_combat_time` is unset).
+    pub fn compute_combat_time_secs(&self, event_timestamp: NaiveDateTime) -> Option<f32> {
+        self.enter_combat_time.map(|start| {
+            // Cap at the effective end time when set so grace-period events don't
+            // extend the duration seen by the query layer.
+            let effective_ts = self
+                .effective_end_time()
+                .map(|end| event_timestamp.min(end))
+                .unwrap_or(event_timestamp);
+            (effective_ts - start).num_milliseconds() as f32 / 1000.0
+        })
+    }
+
     /// Update combat time and return (old_time, new_time) for threshold checking
     pub fn update_combat_time(&mut self, current_timestamp: NaiveDateTime) -> (f32, f32) {
         let old_time = self.combat_time_secs;

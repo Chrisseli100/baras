@@ -2,8 +2,8 @@
 
 use arrow::array::{
     ArrayBuilder, ArrayRef, BooleanBuilder, Float32Builder, Int32Builder, Int64Builder, ListArray,
-    StringBuilder, StructArray, TimestampMillisecondBuilder, UInt8Builder, UInt32Builder,
-    UInt64Builder,
+    StringBuilder, StructArray, TimestampMillisecondBuilder, UInt32Builder, UInt64Builder,
+    UInt8Builder,
 };
 use arrow::buffer::{NullBuffer, OffsetBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, TimeUnit};
@@ -189,13 +189,10 @@ impl EventMetadata {
         let boss_def = enc.and_then(|e| e.active_boss_definition());
         let current_phase = enc.and_then(|e| e.current_phase.clone());
 
-        // Calculate elapsed combat time from combat start
-        let combat_time_secs = enc.and_then(|e| {
-            e.enter_combat_time.map(|start| {
-                let duration = event_timestamp - start;
-                duration.num_milliseconds() as f32 / 1000.0
-            })
-        });
+        // Calculate elapsed combat time from combat start.
+        // Capped at victory_triggered_at (if set) so grace-period events don't
+        // inflate MAX(combat_time_secs) beyond the effective encounter end time.
+        let combat_time_secs = enc.and_then(|e| e.compute_combat_time_secs(event_timestamp));
 
         Self {
             encounter_idx,

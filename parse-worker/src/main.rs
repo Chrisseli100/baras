@@ -223,12 +223,9 @@ impl FastEncounterWriter {
         // Borrow phase reference to avoid cloning on every event
         let current_phase = enc.and_then(|e| e.current_phase.as_deref());
 
-        let combat_time = enc.and_then(|e| {
-            e.enter_combat_time.map(|start| {
-                let duration = event.timestamp - start;
-                duration.num_milliseconds() as f32 / 1000.0
-            })
-        });
+        // Capped at victory_triggered_at (if set) so grace-period events don't
+        // inflate MAX(combat_time_secs) beyond the effective encounter end time.
+        let combat_time = enc.and_then(|e| e.compute_combat_time_secs(event.timestamp));
 
         self.encounter_idx.append_value(encounter_idx);
         self.combat_time_secs.append_option(combat_time);
