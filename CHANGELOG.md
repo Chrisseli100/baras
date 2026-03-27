@@ -1,4 +1,8 @@
-#v2026.3.23
+# v2026.3.23001 Hotfix
+
+- Huntmaster clears will now properly detect encounter end
+
+# v2026.3.23
 
 - Operations timer has been overhauled and now works with flashpoints and PvP areas.
 - Added parsely upload option to tag all guild members
