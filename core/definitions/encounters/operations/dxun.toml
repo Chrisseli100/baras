@@ -549,7 +549,6 @@ victory_conditions = [
     ] },
   ] },
 ]
-victory_trigger_difficulties = ["veteran", "master"]
 
 [[boss.counter]]
 id = "huntmaster_adrenaline_rush"
