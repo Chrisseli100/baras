@@ -133,10 +133,11 @@ pub struct CombatEncounter {
     pub local_player_ooc_revive_time: Option<NaiveDateTime>,
 
     // ─── Boss Shield State ────────────────────────────────────────────────
-    /// Active boss shield state: (npc_log_id, shield_def_index) → (remaining, effective_total)
-    /// Keyed by log_id (unique per-instance) so multiple NPCs of the same class each
-    /// have independent shield state. Both HP values are in raw units.
-    pub boss_shields: HashMap<(i64, usize), (i64, i64)>,
+    /// Active boss shield state: (npc_log_id, entity_name, shield_def_index) → (remaining, effective_total)
+    /// Keyed by (log_id, entity_name, shield_idx) so that two different entity definitions
+    /// with the same shield slot index (e.g. "Melee Add" slot 0 and "Ranged Add" slot 0)
+    /// have independent shield state and cannot cross-deactivate each other.
+    pub boss_shields: HashMap<(i64, String, usize), (i64, i64)>,
 
     // ─── Effect Stack Tracking (for effect stack counters) ────────────────
     /// Per-entity effect stack counts: effect_id → (entity_id → stack_count)
@@ -396,25 +397,25 @@ impl CombatEncounter {
     // ═══════════════════════════════════════════════════════════════════════
 
     /// Activate a boss shield with its difficulty-resolved HP value.
-    /// Keyed by log_id (unique NPC instance) so multiple NPCs of the same class
-    /// each have independent shield state.
-    pub fn activate_shield(&mut self, npc_log_id: i64, shield_idx: usize, total: i64) {
-        self.boss_shields.insert((npc_log_id, shield_idx), (total, total));
+    /// Keyed by (log_id, entity_name, shield_idx) so that shields on different entity
+    /// definitions with the same slot index remain independent.
+    pub fn activate_shield(&mut self, npc_log_id: i64, entity_name: &str, shield_idx: usize, total: i64) {
+        self.boss_shields.insert((npc_log_id, entity_name.to_string(), shield_idx), (total, total));
     }
 
-    /// Deactivate a specific boss shield by NPC instance.
-    pub fn deactivate_shield(&mut self, npc_log_id: i64, shield_idx: usize) {
-        self.boss_shields.remove(&(npc_log_id, shield_idx));
+    /// Deactivate a specific boss shield by NPC instance and entity definition name.
+    pub fn deactivate_shield(&mut self, npc_log_id: i64, entity_name: &str, shield_idx: usize) {
+        self.boss_shields.remove(&(npc_log_id, entity_name.to_string(), shield_idx));
     }
 
     /// Absorb damage across all active shields for a given NPC instance.
     /// Decrements remaining HP and removes depleted shields.
     pub fn absorb_shield_damage(&mut self, npc_log_id: i64, amount: i64) {
-        let keys: Vec<(i64, usize)> = self
+        let keys: Vec<(i64, String, usize)> = self
             .boss_shields
             .keys()
-            .filter(|(id, _)| *id == npc_log_id)
-            .copied()
+            .filter(|(id, _, _)| *id == npc_log_id)
+            .cloned()
             .collect();
 
         for key in keys {
@@ -472,7 +473,7 @@ impl CombatEncounter {
                             .enumerate()
                             .filter_map(|(idx, shield_def)| {
                                 self.boss_shields
-                                    .get(&(npc.log_id, idx))
+                                    .get(&(npc.log_id, e.name.clone(), idx))
                                     .map(|&(remaining, effective_total)| super::ActiveShield {
                                         label: shield_def.label.clone(),
                                         remaining,

@@ -812,19 +812,19 @@ impl EventProcessor {
 
         // Collect all shield state changes before mutating.
         // Each item is either:
-        //   ShieldChange::Activate(npc_class_id, shield_idx, effective_total)
-        //   ShieldChange::Deactivate(npc_class_id, shield_idx)
-        //   ShieldChange::Absorb(npc_class_id, amount)
+        //   ShieldChange::Activate(npc_log_id, entity_name, shield_idx, effective_total)
+        //   ShieldChange::Deactivate(npc_log_id, entity_name, shield_idx)
+        //   ShieldChange::Absorb(npc_log_id, amount)
         enum ShieldChange {
-            Activate(i64, usize, i64),
-            Deactivate(i64, usize),
+            Activate(i64, String, usize, i64),
+            Deactivate(i64, String, usize),
             Absorb(i64, i64),
         }
 
         // Snapshot active shield keys before mutation so end triggers can scan them.
-        let active_shield_keys: Vec<(i64, usize)> = cache
+        let active_shield_keys: Vec<(i64, String, usize)> = cache
             .current_encounter()
-            .map(|enc| enc.boss_shields.keys().copied().collect())
+            .map(|enc| enc.boss_shields.keys().cloned().collect())
             .unwrap_or_default();
 
         let mut changes: Vec<ShieldChange> = Vec::new();
@@ -852,19 +852,30 @@ impl EventProcessor {
                             if shield_signal_matches(&shield.start_trigger, signal, entities) {
                                 if let Some(log_id) = signal_npc_log_id(signal) {
                                     let total = shield.effective_total(difficulty);
-                                    changes.push(ShieldChange::Activate(log_id, shield_idx, total));
+                                    changes.push(ShieldChange::Activate(
+                                        log_id,
+                                        entity.name.clone(),
+                                        shield_idx,
+                                        total,
+                                    ));
                                 }
                             }
 
-                            // ── End trigger: deactivate ALL active instances of this shield ──
-                            // Don't infer which instance from the signal — scan the active map
-                            // and deactivate every currently-active instance of this shield.
-                            // This correctly handles phase/counter/non-NPC-specific triggers,
-                            // and triggers where the signalling NPC differs from the shielded one.
+                            // ── End trigger: deactivate active instances of this shield ──
+                            // Scoped to the entity definition whose end_trigger matched,
+                            // so "Melee Add : slot 0" and "Ranged Add : slot 0" are independent
+                            // and one firing its end trigger does not deactivate the other.
+                            // Phase/counter/non-NPC triggers still correctly deactivate all
+                            // instances of the matching entity's shields because those trigger
+                            // types iterate all entities in the outer loop independently.
                             if shield_signal_matches(&shield.end_trigger, signal, entities) {
-                                for &(log_id, idx) in &active_shield_keys {
-                                    if idx == shield_idx {
-                                        changes.push(ShieldChange::Deactivate(log_id, idx));
+                                for (log_id, entity_name, idx) in &active_shield_keys {
+                                    if *idx == shield_idx && entity_name == &entity.name {
+                                        changes.push(ShieldChange::Deactivate(
+                                            *log_id,
+                                            entity_name.clone(),
+                                            *idx,
+                                        ));
                                     }
                                 }
                             }
@@ -883,11 +894,11 @@ impl EventProcessor {
         };
         for change in changes {
             match change {
-                ShieldChange::Activate(npc_id, idx, total) => {
-                    enc.activate_shield(npc_id, idx, total);
+                ShieldChange::Activate(npc_id, entity_name, idx, total) => {
+                    enc.activate_shield(npc_id, &entity_name, idx, total);
                 }
-                ShieldChange::Deactivate(npc_id, idx) => {
-                    enc.deactivate_shield(npc_id, idx);
+                ShieldChange::Deactivate(npc_id, entity_name, idx) => {
+                    enc.deactivate_shield(npc_id, &entity_name, idx);
                 }
                 ShieldChange::Absorb(npc_id, amount) => {
                     enc.absorb_shield_damage(npc_id, amount);
