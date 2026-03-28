@@ -561,6 +561,13 @@ pub struct HpMarker {
     /// Difficulty tiers this marker applies to. Empty = all difficulties.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub difficulties: Vec<String>,
+    /// Group size this marker applies to (None = all sizes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_size: Option<u8>,
+    /// Encounter state conditions that must ALL be true for this marker to appear.
+    /// Empty = always shown.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
 }
 
 /// Per-difficulty HP entry for a shield (mirrors baras_core::dsl::ShieldHpEntry)

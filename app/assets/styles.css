@@ -821,6 +821,12 @@ button:active {
   font-size: 0.8em;
 }
 
+.btn-xs {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 0.75em;
+  line-height: 1;
+}
+
 .btn-lg {
   padding: var(--space-md) var(--space-lg);
   font-size: 1em;

@@ -455,12 +455,19 @@ impl CombatEncounter {
                         e.hp_markers
                             .iter()
                             .filter(|m| {
-                                m.difficulties.is_empty()
+                                // Difficulty tier filter (empty = all)
+                                (m.difficulties.is_empty()
                                     || self.difficulty.as_ref().map_or(true, |d| {
                                         m.difficulties
                                             .iter()
                                             .any(|key| d.matches_config_key(key))
-                                    })
+                                    }))
+                                // Group size filter (None = all sizes)
+                                && m.group_size.map_or(true, |req_size| {
+                                    self.difficulty.map_or(true, |d| d.group_size() == req_size)
+                                })
+                                // Encounter state conditions (empty = always shown)
+                                && self.evaluate_conditions(&m.conditions)
                             })
                             .cloned()
                             .collect()

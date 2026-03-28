@@ -104,6 +104,13 @@ pub struct HpMarker {
     /// Empty = all difficulties.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub difficulties: Vec<String>,
+    /// Group size this marker applies to (None = all sizes, Some(8) = 8-man only, etc.).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_size: Option<u8>,
+    /// Encounter state conditions that must ALL be true for this marker to appear.
+    /// Empty = always shown (subject to difficulty/group_size filters above).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
 }
 
 /// Per-difficulty HP entry for a shield.

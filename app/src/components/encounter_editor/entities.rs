@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 use crate::api;
 use crate::types::{BossWithPath, EncounterItem, EntityDefinition, EntityFilter, Trigger};
 
+use super::conditions::ConditionsEditor;
 use super::tabs::EncounterData;
 use super::triggers::ComposableTriggerEditor;
 use super::{DifficultiesEditor, InlineNameCreator, NpcIdChipEditor};
@@ -437,6 +438,8 @@ fn EntityEditForm(
                                 hp_percent: 50.0,
                                 label: String::new(),
                                 difficulties: vec![],
+                                group_size: None,
+                                conditions: vec![],
                             });
                             draft.set(d);
                         },
@@ -445,57 +448,114 @@ fn EntityEditForm(
                 }
                 div { class: "text-xs text-muted mb-xs", "Visual indicators on the HP bar at key thresholds" }
                 for (i, marker) in draft().hp_markers.iter().cloned().enumerate() {
-                    div { class: "flex-col gap-xs mb-xs",
-                        div { class: "form-row-hz", style: "align-items: center;",
-                            input {
-                                class: "input-inline",
-                                style: "width: 60px;",
-                                r#type: "number",
-                                step: "1",
-                                min: "0",
-                                max: "100",
-                                value: "{marker.hp_percent}",
-                                oninput: move |e| {
-                                    let mut d = draft();
-                                    if let Ok(v) = e.value().parse::<f32>() {
-                                        d.hp_markers[i].hp_percent = v;
-                                        draft.set(d);
+                    {
+                        let mut conditions_expanded = use_signal(|| false);
+                        let condition_count = marker.conditions.len();
+                        let enc_data = encounter_data.clone();
+                        rsx! {
+                            div { class: "flex-col gap-xs mb-xs",
+                                // Row 1: hp%, label, conditions toggle, remove
+                                div { class: "form-row-hz", style: "align-items: center;",
+                                    input {
+                                        class: "input-inline",
+                                        style: "width: 60px;",
+                                        r#type: "number",
+                                        step: "1",
+                                        min: "0",
+                                        max: "100",
+                                        value: "{marker.hp_percent}",
+                                        oninput: move |e| {
+                                            let mut d = draft();
+                                            if let Ok(v) = e.value().parse::<f32>() {
+                                                d.hp_markers[i].hp_percent = v;
+                                                draft.set(d);
+                                            }
+                                        }
+                                    }
+                                    span { class: "text-xs text-muted", "%" }
+                                    input {
+                                        class: "input-inline",
+                                        style: "width: 120px;",
+                                        placeholder: "Label...",
+                                        value: "{marker.label}",
+                                        oninput: move |e| {
+                                            let mut d = draft();
+                                            d.hp_markers[i].label = e.value();
+                                            draft.set(d);
+                                        }
+                                    }
+                                    // Conditions toggle button
+                                    button {
+                                        class: if conditions_expanded() { "btn btn-xs btn-active" } else { "btn btn-xs" },
+                                        title: "Toggle conditions editor",
+                                        onclick: move |_| conditions_expanded.set(!conditions_expanded()),
+                                        if condition_count > 0 && !conditions_expanded() {
+                                            "{{ }} {condition_count}"
+                                        } else {
+                                            "{{ }}"
+                                        }
+                                    }
+                                    button {
+                                        class: "btn btn-danger btn-xs",
+                                        onclick: move |_| {
+                                            let mut d = draft();
+                                            d.hp_markers.remove(i);
+                                            draft.set(d);
+                                        },
+                                        "×"
+                                    }
+                                }
+                                // Row 2: Difficulties
+                                div { class: "form-row-hz", style: "align-items: center; padding-left: 4px;",
+                                    span { class: "text-xs text-muted", style: "min-width: 70px;", "Difficulties" }
+                                    DifficultiesEditor {
+                                        difficulties: marker.difficulties.clone(),
+                                        on_change: move |updated: Vec<String>| {
+                                            let mut d = draft();
+                                            d.hp_markers[i].difficulties = updated;
+                                            draft.set(d);
+                                        }
+                                    }
+                                    span { class: "text-xs text-muted", "(empty = all)" }
+                                }
+                                // Row 3: Group size
+                                div { class: "form-row-hz", style: "align-items: center; padding-left: 4px;",
+                                    span { class: "text-xs text-muted", style: "min-width: 70px;", "Size" }
+                                    div { class: "flex gap-xs",
+                                        for (size_label, size_val) in [("All", None), ("4-man", Some(4u8)), ("8-man", Some(8u8)), ("16-man", Some(16u8))] {
+                                            {
+                                                let is_active = marker.group_size == size_val;
+                                                rsx! {
+                                                    button {
+                                                        class: if is_active { "toggle-btn active" } else { "toggle-btn" },
+                                                        onclick: move |_| {
+                                                            let mut d = draft();
+                                                            d.hp_markers[i].group_size = size_val;
+                                                            draft.set(d);
+                                                        },
+                                                        "{size_label}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // Row 4: Conditions (collapsible)
+                                if conditions_expanded() {
+                                    div { class: "flex-col gap-xs", style: "padding-left: 4px; margin-top: 4px;",
+                                        div { class: "text-xs text-muted font-bold", "Conditions" }
+                                        ConditionsEditor {
+                                            conditions: marker.conditions.clone(),
+                                            encounter_data: enc_data,
+                                            on_change: move |updated: Vec<crate::types::Condition>| {
+                                                let mut d = draft();
+                                                d.hp_markers[i].conditions = updated;
+                                                draft.set(d);
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            span { class: "text-xs text-muted", "%" }
-                            input {
-                                class: "input-inline",
-                                style: "width: 120px;",
-                                placeholder: "Label...",
-                                value: "{marker.label}",
-                                oninput: move |e| {
-                                    let mut d = draft();
-                                    d.hp_markers[i].label = e.value();
-                                    draft.set(d);
-                                }
-                            }
-                            button {
-                                class: "btn btn-danger btn-xs",
-                                onclick: move |_| {
-                                    let mut d = draft();
-                                    d.hp_markers.remove(i);
-                                    draft.set(d);
-                                },
-                                "×"
-                            }
-                        }
-                        div { class: "form-row-hz", style: "align-items: center; padding-left: 4px;",
-                            span { class: "text-xs text-muted", style: "min-width: 70px;", "Difficulties" }
-                            DifficultiesEditor {
-                                difficulties: marker.difficulties.clone(),
-                                on_change: move |updated: Vec<String>| {
-                                    let mut d = draft();
-                                    d.hp_markers[i].difficulties = updated;
-                                    draft.set(d);
-                                }
-                            }
-                            span { class: "text-xs text-muted", "(empty = all)" }
                         }
                     }
                 }
