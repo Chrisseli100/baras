@@ -908,7 +908,10 @@ impl BossEncounterDefinition {
             Self::collect_condition_timer_refs(counter_cond, &mut relevant);
         }
 
-        // Transitive closure: follow timer trigger/cancel/chain references
+        // Transitive closure: follow timer trigger/cancel/chain references,
+        // and timer conditions (e.g. TimerTimeRemaining guards on another
+        // timer's active state — that timer must also be loaded or its
+        // condition will always fail in the parse worker).
         let mut prev_size = 0;
         while relevant.len() != prev_size {
             prev_size = relevant.len();
@@ -916,13 +919,15 @@ impl BossEncounterDefinition {
 
             for timer in &self.timers {
                 if relevant.contains(&timer.id) {
-                    // This timer is relevant — check if it references other timers
                     timer.trigger.collect_timer_refs(&mut new_refs);
                     if let Some(ref cancel) = timer.cancel_trigger {
                         cancel.collect_timer_refs(&mut new_refs);
                     }
                     if let Some(ref chain) = timer.chains_to {
                         new_refs.insert(chain.clone());
+                    }
+                    for cond in &timer.conditions {
+                        Self::collect_condition_timer_refs(cond, &mut new_refs);
                     }
                 }
             }
