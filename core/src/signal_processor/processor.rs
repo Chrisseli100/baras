@@ -1123,7 +1123,7 @@ impl EventProcessor {
                 });
             }
             effect_type_id::REMOVEEFFECT => {
-                if event.source_entity.entity_type == EntityType::Empty {
+                if event.target_entity.entity_type == EntityType::Empty {
                     return;
                 }
                 out.push(GameSignal::EffectRemoved {
