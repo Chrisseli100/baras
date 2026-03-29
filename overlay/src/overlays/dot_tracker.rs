@@ -419,25 +419,6 @@ impl DotTrackerOverlay {
                     );
                 }
 
-                // Stack count - prominent display when stacks exist
-                if dot.stacks >= 1 {
-                    let stack_text = format!("{}", dot.stacks);
-                    let stack_font_size = time_font_size * 1.2;
-                    // Position at bottom-right corner
-                    let stack_x = icon_x + icon_size
-                        - self.frame.measure_text(&stack_text, stack_font_size).0
-                        - 1.0;
-                    let stack_y = y + icon_size - 2.0;
-
-                    self.frame.draw_text_glowed(
-                        &stack_text,
-                        stack_x,
-                        stack_y,
-                        stack_font_size,
-                        colors::icon_countdown(),
-                    );
-                }
-
                 icon_x += icon_size + icon_spacing;
             }
 
@@ -553,24 +534,6 @@ impl DotTrackerOverlay {
                     time_font_size,
                     colors::white(),
                 );
-
-                // Stack count in bottom-right corner
-                if *stacks >= 1 {
-                    let stack_text = format!("{}", stacks);
-                    let stack_font_size = time_font_size * 1.2;
-                    let stack_x = icon_x + icon_size
-                        - self.frame.measure_text(&stack_text, stack_font_size).0
-                        - 1.0;
-                    let stack_y = y + icon_size - 2.0;
-
-                    self.frame.draw_text_glowed(
-                        &stack_text,
-                        stack_x,
-                        stack_y,
-                        stack_font_size,
-                        colors::icon_countdown(),
-                    );
-                }
 
                 icon_x += icon_size + icon_spacing;
             }
