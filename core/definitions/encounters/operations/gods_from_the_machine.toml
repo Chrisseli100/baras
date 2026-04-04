@@ -3555,6 +3555,13 @@ is_kill_target = false
 hp_percent = 97.0
 label = "Phase 2"
 difficulties = ["veteran", "master"]
+group_size = 8
+
+[[boss.entities.hp_markers]]
+hp_percent = 96.0
+label = "Phase 2"
+difficulties = ["veteran", "master"]
+group_size = 16
 
 [[boss.entities.hp_markers]]
 hp_percent = 80.0
