@@ -1309,9 +1309,12 @@ impl EventProcessor {
     /// Emit signals for threat modification events (MODIFYTHREAT and TAUNT).
     /// Pure transformation - no encounter state modification.
     fn emit_threat_signals(&self, event: &CombatEvent, out: &mut Vec<GameSignal>) {
-        if event.effect.type_id != effect_type_id::APPLYEFFECT
-            || (event.effect.effect_id != effect_id::MODIFYTHREAT
-                && event.effect.effect_id != effect_id::TAUNT)
+        // MODIFYTHREAT and TAUNT are EVENT type events distinguished by effect_id
+        if event.effect.type_id != effect_type_id::EVENT {
+            return;
+        }
+        if event.effect.effect_id != effect_id::MODIFYTHREAT
+            && event.effect.effect_id != effect_id::TAUNT
         {
             return;
         }
