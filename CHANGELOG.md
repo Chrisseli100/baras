@@ -1,27 +1,47 @@
-# v2026.4.15
+# v2026.4.27
+
+## macOS Support
+
+All features should now be working on macOS
+
+- Overlays now show over the game window
+- Application icon now shows in system tray
+- Installing the application now displays a message saying it's unsigned, rather than damaged
+
+## Linux Support
+
+- Updated monitor ID on Linux Wayland to always include connector port
 
 ## Overlays
 
-- Added ability to display tracked effects on multiple target overlays
-- Effects can now be displayed on the Boss HP Overlay
-- Effects A/B and Cooldown overlays now have a `Bar Mode` option to display them in a traditional bar format
-- Metrics overlays now have the option to display discipline icons
-- Metrics overlays now have an option to color individual bars colored based on the player's class
-- Added experimental Ability Queue overlay for tracking upcoming ability casts of bosses non-static rotations
-- The local player's entry in metrics overlays is now bolded
+- Switched over overlay font to bundled `Inter` font
+- All text is now rendered with text glow for enhanced readability
+- Improved formatting of discipline icons on metrics overlays
+- Updated Text/icon formatting of challenges overlay to match regular metrics overlays
+- Reduced the amount of spacing between text and HP bar on HP overlay
+- Major improvements to boss ability queue overlay, though feature is still in beta
+- Entities with shields will always appear on HP overlay, even if HP bar is full
+- Added option to display timers on multiple overlays simultaneously
+
+## Encounters
+
+- Definition files have been added for all remaining flashpoints (thanks Sinrai)
+- Dxun II and III are now detected immediately on encounter start
+- NAHUT is now detected when a player picks up the candle
+- Olok encounter is now detected on Wealthy Buyer
+- Added EV Pylons encounter (lol)
+- Corruptor Zero gravity timer should now be accurate
+- Operator IX phase timers should now be accurate without requiring the player to direct cast on the hologram
+- Added Styrak timers
+- Added Master and Blaster Timers
+- Various updates to TFB and DF timers
+
+## Parsely
+
+- Parsely upload now supports multiple guilds
 
 ## Bugfixes
 
-- Role based profile switching should now behave properly
-- Fixed issue causing DoTs failing to refresh in tracker when recast close to expiration time
-- Changes to the global audio volume setting should now properly update without requiring the application to be restarted
-- Updated parser to prevent panic from occurring in rare cases where SWTOR writes invalid log output
-- Trailing metric events will now accumulate in challenges
-
-## Other
-
-- Added optional mitigation field for `DamageTaken` trigger type
-- Added `Threat Modified` encounter trigger type
-- Minor tweaks to fight definitions
-- Users can now resize the width of columns in the combat log by dragging the headers to the left or right
-- The challenge system can now track player interrupts on specific abilities
+- Operation timer is no longer reset upon re-entering an operation area
+- When multiple shields of the same name are active, the application now checks for the proper entity before removing them
+- Various rendering performance fixes and optimizations
