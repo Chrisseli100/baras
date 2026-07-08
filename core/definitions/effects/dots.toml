@@ -411,7 +411,7 @@ target = "any"
 id = "corrosive_dart_marksman"
 name = "Corrosive Dart Marksman"
 refresh_abilities = [
-  { ability = 3394699201085440, on_first_damage = true },
+  { ability = 3394699201085440, trigger = "damage" },
   { ability = 3465720780292096, on_first_damage = true },
   { ability = 2300994369093632, trigger = "damage" },
 ]
@@ -433,7 +433,7 @@ id = "vital_shot_sharpshooter"
 name = "Vital Shot (Sharpshooter)"
 refresh_abilities = [
   { ability = 2115340112756736, on_first_damage = true },
-  { ability = 3404435891945472, on_first_damage = true },
+  { ability = 3404435891945472, trigger = "damage" },
   { ability = 807157498904848, trigger = "damage" },
 ]
 duration_secs = 18.0
