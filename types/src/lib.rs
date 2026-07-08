@@ -2351,13 +2351,10 @@ pub struct DotTrackerConfig {
     /// Icon size in pixels
     #[serde(default = "default_small_icon")]
     pub icon_size: u8,
-    /// How many seconds to keep a target after last DOT expires
-    #[serde(default = "default_prune_delay")]
-    pub prune_delay_secs: f32,
     /// Font color for target names
     #[serde(default = "default_font_color")]
     pub font_color: Color,
-    /// Show DOT names alongside icons
+    /// Show DOT names in bar labels (bar layout only)
     #[serde(default)]
     pub show_effect_names: bool,
     /// Show source name (who applied)
@@ -2378,6 +2375,19 @@ pub struct DotTrackerConfig {
     /// When true, entries stack from the bottom of the overlay window
     #[serde(default)]
     pub stack_from_bottom: bool,
+    /// Render DOTs as stacked progress bars grouped under target names
+    #[serde(default)]
+    pub layout_bar: bool,
+    /// When true (and in bar layout), draw an outline around each entry
+    #[serde(default = "default_true")]
+    pub show_border: bool,
+    /// Color of the per-entry border outline (bar layout only)
+    #[serde(default = "default_overlay_border_color")]
+    pub border_color: Color,
+    /// Fade each bar's fill from its color (left) to a darkened version (right).
+    /// Bar layout only.
+    #[serde(default)]
+    pub bar_gradient: bool,
 }
 
 fn default_max_targets() -> u8 {
@@ -2386,16 +2396,12 @@ fn default_max_targets() -> u8 {
 fn default_small_icon() -> u8 {
     20
 }
-fn default_prune_delay() -> f32 {
-    2.0
-}
 
 impl Default for DotTrackerConfig {
     fn default() -> Self {
         Self {
             max_targets: 6,
             icon_size: 20,
-            prune_delay_secs: 2.0,
             font_color: overlay_colors::WHITE,
             show_effect_names: false,
             show_source_name: false,
@@ -2404,6 +2410,10 @@ impl Default for DotTrackerConfig {
             font_scale: 1.0,
             dynamic_background: false,
             stack_from_bottom: false,
+            layout_bar: false,
+            show_border: true,
+            border_color: default_overlay_border_color(),
+            bar_gradient: false,
         }
     }
 }

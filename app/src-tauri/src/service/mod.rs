@@ -3939,7 +3939,6 @@ async fn build_dot_tracker_data(
     icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
 ) -> Option<DotTrackerData> {
     use std::sync::Arc as StdArc;
-    use std::time::Instant;
 
     let session_guard = shared.session.read().await;
     let session = session_guard.as_ref()?;
@@ -3992,7 +3991,6 @@ async fn build_dot_tracker_data(
                         remaining_secs,
                         total_secs,
                         color: effect.color,
-                        stacks: effect.stacks,
                         source_name: resolve(effect.source_name).to_string(),
                         target_name: resolve(effect.target_name).to_string(),
                         icon,
@@ -4009,7 +4007,6 @@ async fn build_dot_tracker_data(
                 entity_id: target_id,
                 name: target_name,
                 dots,
-                last_updated: Instant::now(),
             })
         })
         .collect();

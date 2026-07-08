@@ -1,4 +1,4 @@
-//! Example showing the new overlay types with mock data and icons
+//! Example showing the overlay types with mock data and icons
 //!
 //! Run with: cargo run -p baras-overlay --example new_overlays
 
@@ -9,9 +9,8 @@ use std::time::Instant;
 use baras_overlay::icons::IconCache;
 use baras_overlay::overlays::{
     CooldownConfig, CooldownData, CooldownEntry, CooldownOverlay, DotEntry, DotTarget,
-    DotTrackerConfig, DotTrackerData, DotTrackerOverlay, Overlay, OverlayData, PersonalBuff,
-    PersonalBuffsConfig, PersonalBuffsData, PersonalBuffsOverlay, PersonalDebuff,
-    PersonalDebuffsConfig, PersonalDebuffsData, PersonalDebuffsOverlay,
+    DotTrackerConfig, DotTrackerData, DotTrackerOverlay, EffectABEntry, EffectsABConfig,
+    EffectsABData, EffectsABOverlay, EffectsLayout, Overlay, OverlayData,
 };
 use baras_overlay::platform::OverlayConfig;
 
@@ -45,28 +44,18 @@ fn main() {
         y: 100,
         width: 350,
         height: 80,
-        namespace: "personal_buffs_example".to_string(),
+        namespace: "effects_a_example".to_string(),
         click_through: true,
         target_monitor_id: None,
     };
 
-    // Second buffs overlay with stack_priority mode
-    let buffs_stack_config = OverlayConfig {
+    // Effects in bar layout (timer-style stacked bars)
+    let effects_bar_config = OverlayConfig {
         x: 460,
         y: 100,
-        width: 200,
-        height: 80,
-        namespace: "personal_buffs_stack_example".to_string(),
-        click_through: true,
-        target_monitor_id: None,
-    };
-
-    let debuffs_config = OverlayConfig {
-        x: 100,
-        y: 200,
-        width: 350,
-        height: 80,
-        namespace: "personal_debuffs_example".to_string(),
+        width: 300,
+        height: 200,
+        namespace: "effects_bar_example".to_string(),
         click_through: true,
         target_monitor_id: None,
     };
@@ -91,38 +80,44 @@ fn main() {
         target_monitor_id: None,
     };
 
+    // DOT tracker in bar mode (grouped bars under target names)
+    let dots_bar_config = OverlayConfig {
+        x: 660,
+        y: 300,
+        width: 320,
+        height: 400,
+        namespace: "dot_tracker_bar_example".to_string(),
+        click_through: true,
+        target_monitor_id: None,
+    };
+
     // Create overlays with show_effect_names enabled
-    let mut buffs_cfg = PersonalBuffsConfig::default();
+    let mut buffs_cfg = EffectsABConfig::default();
     buffs_cfg.show_effect_names = true;
     buffs_cfg.icon_size = 40;
 
-    // Stack priority config - big centered stacks, timer secondary
-    let mut buffs_stack_cfg = PersonalBuffsConfig::default();
-    buffs_stack_cfg.show_effect_names = true;
-    buffs_stack_cfg.icon_size = 48;
-    buffs_stack_cfg.stack_priority = true;
-
-    let mut debuffs_cfg = PersonalDebuffsConfig::default();
-    debuffs_cfg.show_effect_names = true;
-    debuffs_cfg.icon_size = 40;
+    let mut effects_bar_cfg = EffectsABConfig::default();
+    effects_bar_cfg.layout = EffectsLayout::Bar;
+    effects_bar_cfg.show_effect_names = true;
+    effects_bar_cfg.bar_gradient = true;
 
     let mut cooldowns_cfg = CooldownConfig::default();
     cooldowns_cfg.show_ability_names = true;
     cooldowns_cfg.icon_size = 36;
 
     let mut dots_cfg = DotTrackerConfig::default();
-    dots_cfg.show_effect_names = false; // Names in label, not on icons
     dots_cfg.icon_size = 24;
 
-    let mut buffs_overlay = PersonalBuffsOverlay::new(buffs_config, buffs_cfg, 180)
-        .expect("Failed to create buffs overlay");
+    let mut dots_bar_cfg = DotTrackerConfig::default();
+    dots_bar_cfg.layout_bar = true;
+    dots_bar_cfg.bar_gradient = true;
 
-    let mut buffs_stack_overlay =
-        PersonalBuffsOverlay::new(buffs_stack_config, buffs_stack_cfg, 180)
-            .expect("Failed to create stack priority buffs overlay");
+    let mut buffs_overlay = EffectsABOverlay::new(buffs_config, buffs_cfg, 180, "Effects A")
+        .expect("Failed to create effects overlay");
 
-    let mut debuffs_overlay = PersonalDebuffsOverlay::new(debuffs_config, debuffs_cfg, 180)
-        .expect("Failed to create debuffs overlay");
+    let mut effects_bar_overlay =
+        EffectsABOverlay::new(effects_bar_config, effects_bar_cfg, 180, "Effects Bar")
+            .expect("Failed to create bar effects overlay");
 
     let mut cooldowns_overlay = CooldownOverlay::new(cooldowns_config, cooldowns_cfg, 180)
         .expect("Failed to create cooldowns overlay");
@@ -130,16 +125,19 @@ fn main() {
     let mut dots_overlay = DotTrackerOverlay::new(dots_config, dots_cfg, 180)
         .expect("Failed to create DOT tracker overlay");
 
+    let mut dots_bar_overlay = DotTrackerOverlay::new(dots_bar_config, dots_bar_cfg, 180)
+        .expect("Failed to create bar mode DOT tracker overlay");
+
     // Pre-load icons once (avoid allocations every frame)
     let icons = CachedIcons::load(icon_cache.as_ref());
     let start_time = Instant::now();
 
     // Test one overlay at a time - comment/uncomment to test each
     const TEST_BUFFS: bool = true;
-    const TEST_BUFFS_STACK: bool = true;
-    const TEST_DEBUFFS: bool = true;
+    const TEST_EFFECTS_BAR: bool = true;
     const TEST_COOLDOWNS: bool = true;
     const TEST_DOTS: bool = true;
+    const TEST_DOTS_BAR: bool = true;
 
     // Debug: skip rendering to test data update overhead
     const SKIP_RENDER: bool = false;
@@ -149,8 +147,8 @@ fn main() {
 
         // Update and render only enabled overlays
         if TEST_BUFFS {
-            let buffs_data = create_mock_buffs(elapsed, &icons);
-            buffs_overlay.update_data(OverlayData::PersonalBuffs(buffs_data));
+            let buffs_data = create_mock_effects(elapsed, &icons);
+            buffs_overlay.update_data(OverlayData::EffectsA(buffs_data));
             if !SKIP_RENDER {
                 buffs_overlay.render();
             }
@@ -159,25 +157,13 @@ fn main() {
             }
         }
 
-        // Stack priority buffs (Supercharge-style)
-        if TEST_BUFFS_STACK {
-            let stack_buffs_data = create_mock_stack_buffs(elapsed, &icons);
-            buffs_stack_overlay.update_data(OverlayData::PersonalBuffs(stack_buffs_data));
+        if TEST_EFFECTS_BAR {
+            let effects_data = create_mock_effects(elapsed, &icons);
+            effects_bar_overlay.update_data(OverlayData::EffectsB(effects_data));
             if !SKIP_RENDER {
-                buffs_stack_overlay.render();
+                effects_bar_overlay.render();
             }
-            if !buffs_stack_overlay.poll_events() {
-                break;
-            }
-        }
-
-        if TEST_DEBUFFS {
-            let debuffs_data = create_mock_debuffs(elapsed, &icons);
-            debuffs_overlay.update_data(OverlayData::PersonalDebuffs(debuffs_data));
-            if !SKIP_RENDER {
-                debuffs_overlay.render();
-            }
-            if !debuffs_overlay.poll_events() {
+            if !effects_bar_overlay.poll_events() {
                 break;
             }
         }
@@ -204,6 +190,17 @@ fn main() {
             }
         }
 
+        if TEST_DOTS_BAR {
+            let dots_data = create_mock_dots(elapsed, &icons);
+            dots_bar_overlay.update_data(OverlayData::DotTracker(dots_data));
+            if !SKIP_RENDER {
+                dots_bar_overlay.render();
+            }
+            if !dots_bar_overlay.poll_events() {
+                break;
+            }
+        }
+
         // 100ms = 10 FPS
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -221,8 +218,6 @@ struct CachedIcons {
     enrage: IconData,
     shield: IconData,
     bleeding: IconData,
-    shock: IconData,
-    stunned: IconData,
     orbital: IconData,
     heroic: IconData,
     maul: IconData,
@@ -230,8 +225,6 @@ struct CachedIcons {
     alacrity: IconData,
     shatter: IconData,
     ap_cell: IconData,
-    supercharge: IconData,
-    tactical_surge: IconData,
 }
 
 impl CachedIcons {
@@ -249,8 +242,6 @@ impl CachedIcons {
             enrage: load(2877168526819328),
             shield: load(2882571595677696),
             bleeding: load(1460787096846593),
-            shock: load(3362023089897472),
-            stunned: load(3362023089897763),
             orbital: load(3221088033046528),
             heroic: load(3659741632921600),
             maul: load(2022405610405888),
@@ -258,218 +249,182 @@ impl CachedIcons {
             alacrity: load(3417509772394496),
             shatter: load(1460787096846336),
             ap_cell: load(828301622902784),
-            supercharge: load(801671729430528), // Supercharged Celerity / Combat Support Cell
-            tactical_surge: load(3244358165856256), // Reuse power surge icon
         }
     }
 }
 
-fn create_mock_buffs(elapsed: f32, icons: &CachedIcons) -> PersonalBuffsData {
-    PersonalBuffsData {
-        buffs: vec![
-            PersonalBuff {
-                effect_id: 3244358165856256,
-                icon_ability_id: 3244358165856256,
-                name: "Power Surge".to_string(),
-                remaining_secs: 15.0 - (elapsed % 15.0),
-                total_secs: 15.0,
-                color: [80, 200, 220, 200],
-                stacks: ((elapsed / 2.0) as u8 % 3) + 1,
-                source_name: "Player".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.power_surge.clone(),
-            },
-            PersonalBuff {
-                effect_id: 3648192465862656,
-                icon_ability_id: 3648192465862656,
-                name: "Focused Def".to_string(),
-                remaining_secs: 10.0 - (elapsed % 10.0),
-                total_secs: 10.0,
-                color: [220, 180, 50, 200],
-                stacks: 0,
-                source_name: "Player".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.focused_def.clone(),
-            },
-            PersonalBuff {
-                effect_id: 2877168526819328,
-                icon_ability_id: 2877168526819328,
-                name: "Enrage".to_string(),
-                remaining_secs: 20.0 - (elapsed % 20.0),
-                total_secs: 20.0,
-                color: [200, 80, 80, 200],
-                stacks: 0,
-                source_name: "Player".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.enrage.clone(),
-            },
-            PersonalBuff {
-                effect_id: 2882571595677696,
-                icon_ability_id: 2882571595677696,
-                name: "Shield".to_string(),
-                remaining_secs: 12.0 - ((elapsed + 3.0) % 12.0),
-                total_secs: 12.0,
-                color: [80, 140, 220, 200],
-                stacks: 0,
-                source_name: "Player".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.shield.clone(),
-            },
-        ],
+fn make_effect(
+    effect_id: u64,
+    name: &str,
+    remaining_secs: f32,
+    total_secs: f32,
+    color: [u8; 4],
+    stacks: u8,
+    icon: &IconData,
+) -> EffectABEntry {
+    EffectABEntry {
+        effect_id,
+        icon_ability_id: effect_id,
+        name: name.to_string(),
+        display_text: String::new(),
+        remaining_secs,
+        total_secs,
+        color,
+        stacks,
+        source_name: "Player".to_string(),
+        target_name: "Player".to_string(),
+        icon: icon.clone(),
+        show_icon: true,
+        display_source: false,
+        max_total_secs: None,
+        max_remaining_secs: None,
     }
 }
 
-/// Create mock buffs for stack_priority mode (Supercharge-style)
-fn create_mock_stack_buffs(elapsed: f32, icons: &CachedIcons) -> PersonalBuffsData {
-    // Simulate building stacks over time (cycles 1-10 every 10 seconds)
-    let supercharge_stacks = ((elapsed % 10.0) as u8) + 1;
-    let tactical_stacks = ((elapsed / 1.5) as u8 % 5) + 1;
-
-    PersonalBuffsData {
-        buffs: vec![
-            PersonalBuff {
-                effect_id: 801671729430528,
-                icon_ability_id: 801671729430528,
-                name: "Supercharge".to_string(),
-                remaining_secs: 45.0 - (elapsed % 45.0), // Long duration, not the focus
-                total_secs: 45.0,
-                color: [80, 200, 220, 200],
-                stacks: supercharge_stacks.min(10), // Building to 10
-                source_name: "Player".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.supercharge.clone(),
-            },
-            PersonalBuff {
-                effect_id: 3244358165856257,
-                icon_ability_id: 3244358165856256,
-                name: "Tact Surge".to_string(),
-                remaining_secs: 30.0 - (elapsed % 30.0),
-                total_secs: 30.0,
-                color: [220, 180, 50, 200],
-                stacks: tactical_stacks, // Building to 5
-                source_name: "Player".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.tactical_surge.clone(),
-            },
-        ],
-    }
-}
-
-fn create_mock_debuffs(elapsed: f32, icons: &CachedIcons) -> PersonalDebuffsData {
-    PersonalDebuffsData {
-        debuffs: vec![
-            PersonalDebuff {
-                effect_id: 1460787096846593,
-                icon_ability_id: 1460787096846593,
-                name: "Bleeding".to_string(),
-                remaining_secs: 6.0 - (elapsed % 6.0),
-                total_secs: 6.0,
-                color: [255, 100, 50, 200],
-                stacks: 3,
-                is_cleansable: true,
-                source_name: "Dread Master Styrak".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.bleeding.clone(),
-            },
-            PersonalDebuff {
-                effect_id: 3362023089897472,
-                icon_ability_id: 3362023089897472,
-                name: "Shock".to_string(),
-                remaining_secs: 8.0 - (elapsed % 8.0),
-                total_secs: 8.0,
-                color: [180, 80, 200, 200],
-                stacks: 0,
-                is_cleansable: true,
-                source_name: "Dread Guard".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.shock.clone(),
-            },
-            PersonalDebuff {
-                effect_id: 3362023089897763,
-                icon_ability_id: 3362023089897763,
-                name: "Stunned".to_string(),
-                remaining_secs: 4.0 - (elapsed % 4.0),
-                total_secs: 4.0,
-                color: [100, 100, 100, 200],
-                stacks: 0,
-                is_cleansable: false,
-                source_name: "Brontes".to_string(),
-                target_name: "Player".to_string(),
-                icon: icons.stunned.clone(),
-            },
+fn create_mock_effects(elapsed: f32, icons: &CachedIcons) -> EffectsABData {
+    EffectsABData {
+        effects: vec![
+            make_effect(
+                3244358165856256,
+                "Power Surge",
+                15.0 - (elapsed % 15.0),
+                15.0,
+                [80, 200, 220, 200],
+                ((elapsed / 2.0) as u8 % 3) + 1,
+                &icons.power_surge,
+            ),
+            make_effect(
+                3648192465862656,
+                "Focused Def",
+                10.0 - (elapsed % 10.0),
+                10.0,
+                [220, 180, 50, 200],
+                0,
+                &icons.focused_def,
+            ),
+            make_effect(
+                2877168526819328,
+                "Enrage",
+                20.0 - (elapsed % 20.0),
+                20.0,
+                [200, 80, 80, 200],
+                0,
+                &icons.enrage,
+            ),
+            make_effect(
+                2882571595677696,
+                "Shield",
+                12.0 - ((elapsed + 3.0) % 12.0),
+                12.0,
+                [80, 140, 220, 200],
+                0,
+                &icons.shield,
+            ),
         ],
     }
 }
 
 fn create_mock_cooldowns(elapsed: f32, icons: &CachedIcons) -> CooldownData {
+    let make = |ability_id: u64,
+                name: &str,
+                remaining_secs: f32,
+                total_secs: f32,
+                charges: u8,
+                max_charges: u8,
+                color: [u8; 4],
+                icon: &IconData| CooldownEntry {
+        ability_id,
+        name: name.to_string(),
+        remaining_secs,
+        total_secs,
+        icon_ability_id: ability_id,
+        charges,
+        max_charges,
+        color,
+        source_name: "Player".to_string(),
+        target_name: String::new(),
+        icon: icon.clone(),
+        show_icon: true,
+        display_source: false,
+        is_in_ready_state: remaining_secs <= 0.0,
+    };
+
     CooldownData {
         entries: vec![
-            CooldownEntry {
-                ability_id: 3221088033046528,
-                name: "Orbital Strike".to_string(),
-                remaining_secs: (60.0 - (elapsed % 60.0)).max(0.0),
-                total_secs: 60.0,
-                icon_ability_id: 3221088033046528,
-                charges: 1,
-                max_charges: 1,
-                color: [200, 100, 50, 200],
-                source_name: "Player".to_string(),
-                target_name: "".to_string(),
-                icon: icons.orbital.clone(),
-            },
-            CooldownEntry {
-                ability_id: 3659741632921600,
-                name: "Heroic Moment".to_string(),
-                remaining_secs: (300.0 - (elapsed % 300.0)).max(0.0),
-                total_secs: 300.0,
-                icon_ability_id: 3659741632921600,
-                charges: 1,
-                max_charges: 1,
-                color: [220, 180, 50, 200],
-                source_name: "Player".to_string(),
-                target_name: "".to_string(),
-                icon: icons.heroic.clone(),
-            },
-            CooldownEntry {
-                ability_id: 2022405610405888,
-                name: "Maul".to_string(),
-                remaining_secs: (9.0 - (elapsed % 9.0)).max(0.0),
-                total_secs: 9.0,
-                icon_ability_id: 2022405610405888,
-                charges: 2,
-                max_charges: 2,
-                color: [180, 80, 200, 200],
-                source_name: "Player".to_string(),
-                target_name: "".to_string(),
-                icon: icons.maul.clone(),
-            },
-            CooldownEntry {
-                ability_id: 2748083284738048,
-                name: "Cleave".to_string(),
-                remaining_secs: 0.0,
-                total_secs: 6.0,
-                icon_ability_id: 2748083284738048,
-                charges: 1,
-                max_charges: 1,
-                color: [80, 200, 80, 200],
-                source_name: "Player".to_string(),
-                target_name: "".to_string(),
-                icon: icons.cleave.clone(),
-            },
-            CooldownEntry {
-                ability_id: 3417509772394496,
-                name: "Alacrity".to_string(),
-                remaining_secs: (120.0 - (elapsed % 120.0)).max(0.0),
-                total_secs: 120.0,
-                icon_ability_id: 3417509772394496,
-                charges: 1,
-                max_charges: 1,
-                color: [80, 180, 220, 200],
-                source_name: "Player".to_string(),
-                target_name: "".to_string(),
-                icon: icons.alacrity.clone(),
-            },
+            make(
+                3221088033046528,
+                "Orbital Strike",
+                (60.0 - (elapsed % 60.0)).max(0.0),
+                60.0,
+                1,
+                1,
+                [200, 100, 50, 200],
+                &icons.orbital,
+            ),
+            make(
+                3659741632921600,
+                "Heroic Moment",
+                (300.0 - (elapsed % 300.0)).max(0.0),
+                300.0,
+                1,
+                1,
+                [220, 180, 50, 200],
+                &icons.heroic,
+            ),
+            make(
+                2022405610405888,
+                "Maul",
+                (9.0 - (elapsed % 9.0)).max(0.0),
+                9.0,
+                2,
+                2,
+                [180, 80, 200, 200],
+                &icons.maul,
+            ),
+            make(
+                2748083284738048,
+                "Cleave",
+                0.0,
+                6.0,
+                1,
+                1,
+                [80, 200, 80, 200],
+                &icons.cleave,
+            ),
+            make(
+                3417509772394496,
+                "Alacrity",
+                (120.0 - (elapsed % 120.0)).max(0.0),
+                120.0,
+                1,
+                1,
+                [80, 180, 220, 200],
+                &icons.alacrity,
+            ),
         ],
+    }
+}
+
+fn make_dot(
+    effect_id: u64,
+    name: &str,
+    remaining_secs: f32,
+    total_secs: f32,
+    color: [u8; 4],
+    target_name: &str,
+    icon: &IconData,
+) -> DotEntry {
+    DotEntry {
+        effect_id,
+        icon_ability_id: effect_id,
+        name: name.to_string(),
+        remaining_secs,
+        total_secs,
+        color,
+        source_name: "Player".to_string(),
+        target_name: target_name.to_string(),
+        icon: icon.clone(),
+        show_icon: true,
     }
 }
 
@@ -480,80 +435,62 @@ fn create_mock_dots(elapsed: f32, icons: &CachedIcons) -> DotTrackerData {
                 entity_id: 100,
                 name: "Dread Master Styrak".to_string(),
                 dots: vec![
-                    DotEntry {
-                        effect_id: 1460787096846336,
-                        icon_ability_id: 1460787096846336,
-                        name: "Shatter".to_string(),
-                        remaining_secs: 18.0 - (elapsed % 18.0),
-                        total_secs: 18.0,
-                        color: [180, 80, 200, 200],
-                        stacks: 0,
-                        source_name: "Player".to_string(),
-                        target_name: "Dread Master Styrak".to_string(),
-                        icon: icons.shatter.clone(),
-                    },
-                    DotEntry {
-                        effect_id: 1460787096846593,
-                        icon_ability_id: 1460787096846593,
-                        name: "Bleed".to_string(),
-                        remaining_secs: 18.0 - ((elapsed + 6.0) % 18.0),
-                        total_secs: 18.0,
-                        color: [200, 50, 50, 200],
-                        stacks: 0,
-                        source_name: "Player".to_string(),
-                        target_name: "Dread Master Styrak".to_string(),
-                        icon: icons.bleeding.clone(),
-                    },
+                    make_dot(
+                        1460787096846336,
+                        "Shatter",
+                        18.0 - (elapsed % 18.0),
+                        18.0,
+                        [180, 80, 200, 200],
+                        "Dread Master Styrak",
+                        &icons.shatter,
+                    ),
+                    make_dot(
+                        1460787096846593,
+                        "Bleed",
+                        18.0 - ((elapsed + 6.0) % 18.0),
+                        18.0,
+                        [200, 50, 50, 200],
+                        "Dread Master Styrak",
+                        &icons.bleeding,
+                    ),
                 ],
-                last_updated: Instant::now(),
             },
             DotTarget {
                 entity_id: 101,
                 name: "Dread Guard".to_string(),
-                dots: vec![DotEntry {
-                    effect_id: 1460787096846336,
-                    icon_ability_id: 1460787096846336,
-                    name: "Shatter".to_string(),
-                    remaining_secs: 18.0 - ((elapsed + 3.0) % 18.0),
-                    total_secs: 18.0,
-                    color: [180, 80, 200, 200],
-                    stacks: 0,
-                    source_name: "Player".to_string(),
-                    target_name: "Dread Guard".to_string(),
-                    icon: icons.shatter.clone(),
-                }],
-                last_updated: Instant::now(),
+                dots: vec![make_dot(
+                    1460787096846336,
+                    "Shatter",
+                    18.0 - ((elapsed + 3.0) % 18.0),
+                    18.0,
+                    [180, 80, 200, 200],
+                    "Dread Guard",
+                    &icons.shatter,
+                )],
             },
             DotTarget {
                 entity_id: 102,
                 name: "Kell Dragon".to_string(),
                 dots: vec![
-                    DotEntry {
-                        effect_id: 1460787096846593,
-                        icon_ability_id: 1460787096846593,
-                        name: "Bleed".to_string(),
-                        remaining_secs: 18.0 - ((elapsed + 9.0) % 18.0),
-                        total_secs: 18.0,
-                        color: [200, 50, 50, 200],
-                        stacks: 0,
-                        source_name: "Player".to_string(),
-                        target_name: "Kell Dragon".to_string(),
-                        icon: icons.bleeding.clone(),
-                    },
-                    DotEntry {
-                        effect_id: 828301622902784,
-                        icon_ability_id: 828301622902784,
-                        name: "AP Cell".to_string(),
-                        remaining_secs: 6.0 - (elapsed % 6.0),
-                        total_secs: 6.0,
-                        color: [220, 220, 80, 200],
-                        stacks: 5,
-                        source_name: "Player".to_string(),
-                        target_name: "Kell Dragon".to_string(),
-                        icon: icons.ap_cell.clone(),
-                    },
+                    make_dot(
+                        1460787096846593,
+                        "Bleed",
+                        18.0 - ((elapsed + 9.0) % 18.0),
+                        18.0,
+                        [200, 50, 50, 200],
+                        "Kell Dragon",
+                        &icons.bleeding,
+                    ),
+                    make_dot(
+                        828301622902784,
+                        "AP Cell",
+                        6.0 - (elapsed % 6.0),
+                        6.0,
+                        [220, 220, 80, 200],
+                        "Kell Dragon",
+                        &icons.ap_cell,
+                    ),
                 ],
-                last_updated: Instant::now(),
             },
         ],
     }

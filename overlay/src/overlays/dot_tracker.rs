@@ -2,16 +2,15 @@
 //!
 //! Displays DOTs on enemy targets as rows of icons per target.
 //! Each row shows the target name followed by DOT icons with countdowns.
-//! Supports tracking multiple targets (6-8) with automatic pruning.
+//! Supports tracking multiple targets (6-8).
 
 use std::sync::Arc;
-use std::time::Instant;
 
 use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::{color_from_rgba, shared_scaled_icons};
-use crate::widgets::colors;
+use crate::widgets::{colors, ProgressBar};
 use crate::widgets::Header;
 
 /// A single DOT entry on a target
@@ -29,8 +28,6 @@ pub struct DotEntry {
     pub total_secs: f32,
     /// Color (RGBA) - used as fallback if no icon
     pub color: [u8; 4],
-    /// Stack count (0 = don't show)
-    pub stacks: u8,
     /// Source entity name (who applied)
     pub source_name: String,
     /// Target entity name
@@ -65,8 +62,6 @@ pub struct DotTarget {
     pub name: String,
     /// Active DOTs on this target
     pub dots: Vec<DotEntry>,
-    /// Last time this target was updated (for pruning)
-    pub last_updated: Instant,
 }
 
 /// Data sent from service to DOT tracker overlay
@@ -80,7 +75,6 @@ pub struct DotTrackerData {
 pub struct DotTrackerConfig {
     pub max_targets: u8,
     pub icon_size: u8,
-    pub prune_delay_secs: f32,
     pub show_effect_names: bool,
     pub show_source_name: bool,
     /// Show header title above overlay
@@ -93,6 +87,14 @@ pub struct DotTrackerConfig {
     pub dynamic_background: bool,
     /// When true, target rows stack from the bottom of the overlay window
     pub stack_from_bottom: bool,
+    /// Render DOTs as stacked progress bars grouped under target names
+    pub layout_bar: bool,
+    /// When true (and in bar layout), draw an outline around each entry
+    pub show_border: bool,
+    /// Color of the per-entry border outline (bar layout only)
+    pub border_color: [u8; 4],
+    /// Fade each bar's fill from its color (left) to a darkened version (right).
+    pub bar_gradient: bool,
 }
 
 impl Default for DotTrackerConfig {
@@ -100,7 +102,6 @@ impl Default for DotTrackerConfig {
         Self {
             max_targets: 6,
             icon_size: 20,
-            prune_delay_secs: 2.0,
             show_effect_names: false,
             show_source_name: false,
             show_header: false,
@@ -108,6 +109,10 @@ impl Default for DotTrackerConfig {
             font_scale: 1.0,
             dynamic_background: true,
             stack_from_bottom: false,
+            layout_bar: false,
+            show_border: true,
+            border_color: [128, 128, 128, 255],
+            bar_gradient: false,
         }
     }
 }
@@ -122,6 +127,9 @@ const BASE_FONT_SIZE: f32 = 10.0;
 const BASE_NAME_WIDTH: f32 = 100.0;
 /// Max characters per line before wrapping
 const NAME_WRAP_CHARS: usize = 16;
+/// Bar mode dimensions (matches timer overlay style)
+const BASE_BAR_HEIGHT: f32 = 38.0;
+const BASE_BAR_FONT_SIZE: f32 = 17.0;
 
 /// DOT tracker overlay - rows of targets with DOT icons
 pub struct DotTrackerOverlay {
@@ -129,8 +137,10 @@ pub struct DotTrackerOverlay {
     config: DotTrackerConfig,
     background_alpha: u8,
     data: DotTrackerData,
-    /// Last rendered state for dirty checking: Vec of (target_id, Vec of (effect_id, time_string, stacks))
-    last_rendered: Vec<(i64, Vec<(u64, String, u8)>)>,
+    /// Last rendered state for dirty checking: Vec of (target_id, Vec of (effect_id, time_string))
+    last_rendered: Vec<(i64, Vec<(u64, String)>)>,
+    /// Last rendered state for bar mode: includes remaining_secs bits so bar fill updates each frame
+    last_rendered_bar: Vec<(i64, Vec<(u64, String, u32)>)>,
     european_number_format: bool,
 }
 
@@ -151,6 +161,7 @@ impl DotTrackerOverlay {
             background_alpha,
             data: DotTrackerData::default(),
             last_rendered: Vec::new(),
+            last_rendered_bar: Vec::new(),
             european_number_format: false,
         })
     }
@@ -158,6 +169,9 @@ impl DotTrackerOverlay {
     /// Update the config
     pub fn set_config(&mut self, config: DotTrackerConfig) {
         self.config = config;
+        // Force re-render — a layout/config change invalidates the dirty-check state
+        self.last_rendered.clear();
+        self.last_rendered_bar.clear();
     }
 
     /// Update background alpha
@@ -168,7 +182,15 @@ impl DotTrackerOverlay {
 
     /// Update the data and pre-cache icons
     pub fn set_data(&mut self, data: DotTrackerData) {
-        let icon_size = self.frame.scaled(self.config.icon_size as f32) as u32;
+        // Bar mode scales the icon (and thus the bar) by font_scale as well
+        let icon_size = if self.config.layout_bar {
+            let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+            self.frame
+                .scaled(self.config.icon_size as f32 * font_scale)
+                .round() as u32
+        } else {
+            self.frame.scaled(self.config.icon_size as f32) as u32
+        };
 
         // Pre-cache icons at display size in the shared cache
         let cache = shared_scaled_icons();
@@ -189,30 +211,37 @@ impl DotTrackerOverlay {
     pub fn render(&mut self) {
         // In move mode, always render preview (bypass dirty check)
         if self.frame.is_in_move_mode() {
-            self.render_preview();
+            if self.config.layout_bar {
+                self.render_preview_bar();
+            } else {
+                self.render_preview();
+            }
             return;
         }
 
+        if self.config.layout_bar {
+            self.render_bar_mode();
+        } else {
+            self.render_icon_mode();
+        }
+    }
+
+    /// Render icon mode (rows of target name + DOT icons)
+    fn render_icon_mode(&mut self) {
         let max_targets = self.config.max_targets as usize;
 
         // Build current visible state for dirty check
-        let current_state: Vec<(i64, Vec<(u64, String, u8)>)> = self
+        let current_state: Vec<(i64, Vec<(u64, String)>)> = self
             .data
             .targets
             .iter()
             .take(max_targets)
             .filter(|t| !t.dots.is_empty())
             .map(|t| {
-                let dots: Vec<(u64, String, u8)> = t
+                let dots: Vec<(u64, String)> = t
                     .dots
                     .iter()
-                    .map(|d| {
-                        (
-                            d.effect_id,
-                            d.format_time(self.european_number_format),
-                            d.stacks,
-                        )
-                    })
+                    .map(|d| (d.effect_id, d.format_time(self.european_number_format)))
                     .collect();
                 (t.entity_id, dots)
             })
@@ -412,7 +441,7 @@ impl DotTrackerOverlay {
                     colors::white(),
                 );
 
-                // Font size for countdown/stack text
+                // Font size for countdown text
                 let time_font_size = font_size * 0.95;
 
                 // Countdown text centered (if enabled)
@@ -445,6 +474,375 @@ impl DotTrackerOverlay {
         self.frame.end_frame();
     }
 
+    /// Render bar mode (progress bars grouped under target-name headers)
+    fn render_bar_mode(&mut self) {
+        let max_targets = self.config.max_targets as usize;
+
+        // Dirty check — include remaining_secs bits so bar fill updates each frame
+        let current_state: Vec<(i64, Vec<(u64, String, u32)>)> = self
+            .data
+            .targets
+            .iter()
+            .take(max_targets)
+            .filter(|t| !t.dots.is_empty())
+            .map(|t| {
+                let dots = t
+                    .dots
+                    .iter()
+                    .map(|d| {
+                        (
+                            d.effect_id,
+                            d.format_time(self.european_number_format),
+                            d.remaining_secs.to_bits(),
+                        )
+                    })
+                    .collect();
+                (t.entity_id, dots)
+            })
+            .collect();
+
+        if current_state == self.last_rendered_bar && !self.last_rendered_bar.is_empty() {
+            return;
+        }
+        self.last_rendered_bar = current_state;
+
+        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let scale = self.frame.scale_factor();
+
+        // Bar height wraps the icon; icon_size config controls overall bar scale
+        let icon_size = self
+            .frame
+            .scaled(self.config.icon_size as f32 * font_scale)
+            .round();
+        let bar_height = icon_size + 4.0 * scale;
+        let font_size = bar_height * (BASE_BAR_FONT_SIZE / BASE_BAR_HEIGHT);
+        let name_font_size = font_size * 0.85;
+        let entry_spacing = self.frame.scaled(BASE_ROW_SPACING);
+        let padding = self.frame.scaled(BASE_PADDING);
+        let bar_radius = 3.0 * scale;
+        let content_width = self.frame.width() as f32 - 2.0 * padding;
+        let header_font_size = font_size * 1.4;
+
+        let icon_padding = 2.0 * scale;
+        let icon_size_u32 = icon_size as u32;
+
+        let header_space = if self.config.show_header {
+            header_font_size + entry_spacing + 2.0 + entry_spacing + 4.0 * scale
+        } else {
+            0.0
+        };
+
+        // Group layout: target name line, then one bar per DOT
+        let name_line_height = name_font_size + entry_spacing;
+        let group_spacing = entry_spacing * 2.0;
+
+        let total_groups_height: f32 = {
+            let mut total = 0.0;
+            let mut num_groups = 0usize;
+            for t in self.data.targets.iter().take(max_targets) {
+                let n = t.dots.len();
+                if n == 0 {
+                    continue;
+                }
+                total += name_line_height
+                    + n as f32 * bar_height
+                    + (n - 1) as f32 * entry_spacing;
+                num_groups += 1;
+            }
+            total + num_groups.saturating_sub(1) as f32 * group_spacing
+        };
+        let num_visible = self
+            .data
+            .targets
+            .iter()
+            .take(max_targets)
+            .filter(|t| !t.dots.is_empty())
+            .count();
+        let content_height = if num_visible > 0 {
+            padding * 2.0 + header_space + total_groups_height
+        } else if self.config.show_header {
+            padding * 2.0 + header_space
+        } else {
+            0.0
+        };
+
+        let window_height = self.frame.height() as f32;
+        let groups_start_y = if self.config.stack_from_bottom && num_visible > 0 {
+            (window_height - padding - total_groups_height).max(padding + header_space)
+        } else {
+            padding + header_space
+        };
+        let header_y = if self.config.stack_from_bottom && num_visible > 0 {
+            (groups_start_y - header_space).max(padding)
+        } else {
+            padding
+        };
+
+        if self.config.dynamic_background {
+            if self.config.stack_from_bottom && num_visible > 0 {
+                let content_y = (header_y - padding).max(0.0);
+                self.frame
+                    .begin_frame_with_content_rect(content_y, content_height);
+            } else {
+                self.frame.begin_frame_with_content_height(content_height);
+            }
+        } else {
+            self.frame.begin_frame();
+        }
+
+        if self.config.show_header {
+            Header::new("DOT Tracker")
+                .with_color(colors::white())
+                .render(
+                    &mut self.frame,
+                    padding,
+                    header_y,
+                    content_width,
+                    header_font_size,
+                    entry_spacing,
+                );
+        }
+
+        if num_visible == 0 {
+            self.frame.end_frame();
+            return;
+        }
+
+        let mut y = groups_start_y;
+
+        for target in self.data.targets.iter().take(max_targets) {
+            if target.dots.is_empty() {
+                continue;
+            }
+
+            // Target name header line
+            self.frame.draw_text_glowed(
+                &target.name,
+                padding,
+                y + name_font_size,
+                name_font_size,
+                colors::white(),
+            );
+            y += name_line_height;
+
+            for dot in &target.dots {
+                let has_icon = dot.show_icon && dot.icon.is_some();
+
+                // Name in the label is optional, but always shown when there's
+                // no icon to identify the DOT
+                let mut label = String::new();
+                if self.config.show_effect_names || !has_icon {
+                    label.push_str(&dot.name);
+                }
+                if self.config.show_source_name && !dot.source_name.is_empty() {
+                    label.push_str(&format!(" ({})", dot.source_name));
+                }
+
+                let mut bar = ProgressBar::new(&label, dot.progress())
+                    .with_fill_color(color_from_rgba(dot.color))
+                    .with_bg_color(colors::dps_bar_bg())
+                    .with_text_color(colors::white())
+                    .with_bold_text()
+                    .with_gradient(self.config.bar_gradient)
+                    .with_text_glow();
+
+                if self.config.show_countdown {
+                    bar = bar.with_right_text(dot.format_time(self.european_number_format));
+                }
+                if has_icon {
+                    bar = bar.with_label_offset(icon_size + icon_padding);
+                }
+
+                bar.render(&mut self.frame, padding, y, content_width, bar_height, font_size, bar_radius);
+
+                // Per-entry border outline (user-configurable colour, toggleable)
+                if self.config.show_border {
+                    self.frame.stroke_rounded_rect(
+                        padding,
+                        y,
+                        content_width,
+                        bar_height,
+                        bar_radius,
+                        0.8 * scale,
+                        color_from_rgba(self.config.border_color),
+                    );
+                }
+
+                // Draw icon with glow border (identical to timer overlay pattern)
+                if has_icon {
+                    let icon_x = padding + icon_padding;
+                    let icon_y = y + icon_padding;
+                    let icon_drawn = if let Some(scaled_icon) =
+                        shared_scaled_icons().get(dot.icon_ability_id, icon_size_u32)
+                    {
+                        self.frame.draw_image(
+                            &scaled_icon,
+                            icon_size_u32,
+                            icon_size_u32,
+                            icon_x,
+                            icon_y,
+                            icon_size,
+                            icon_size,
+                        );
+                        true
+                    } else if let Some(ref icon_arc) = dot.icon {
+                        let (img_w, img_h, ref rgba) = **icon_arc;
+                        self.frame
+                            .draw_image(rgba, img_w, img_h, icon_x, icon_y, icon_size, icon_size);
+                        true
+                    } else {
+                        false
+                    };
+
+                    if icon_drawn {
+                        let icon_radius = 2.0 * scale;
+                        let glow_expand = 1.0 * scale;
+                        let outer_glow = tiny_skia::Color::from_rgba(1.0, 1.0, 1.0, 0.25).unwrap();
+                        self.frame.stroke_rounded_rect(
+                            icon_x - glow_expand,
+                            icon_y - glow_expand,
+                            icon_size + glow_expand * 2.0,
+                            icon_size + glow_expand * 2.0,
+                            icon_radius + glow_expand,
+                            1.5 * scale,
+                            outer_glow,
+                        );
+                        let inner_border = tiny_skia::Color::from_rgba(1.0, 1.0, 1.0, 0.6).unwrap();
+                        self.frame.stroke_rounded_rect(
+                            icon_x,
+                            icon_y,
+                            icon_size,
+                            icon_size,
+                            icon_radius,
+                            1.0 * scale,
+                            inner_border,
+                        );
+                    }
+                }
+
+                y += bar_height + entry_spacing;
+            }
+
+            // Swap the trailing bar spacing for the larger group gap
+            y += group_spacing - entry_spacing;
+        }
+
+        self.frame.end_frame();
+    }
+
+    /// Render bar mode preview (grouped bars with placeholder targets)
+    fn render_preview_bar(&mut self) {
+        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let scale = self.frame.scale_factor();
+        let icon_size = self
+            .frame
+            .scaled(self.config.icon_size as f32 * font_scale)
+            .round();
+        let bar_height = icon_size + 4.0 * scale;
+        let font_size = bar_height * (BASE_BAR_FONT_SIZE / BASE_BAR_HEIGHT);
+        let name_font_size = font_size * 0.85;
+        let entry_spacing = self.frame.scaled(BASE_ROW_SPACING);
+        let padding = self.frame.scaled(BASE_PADDING);
+        let bar_radius = 3.0 * scale;
+        let content_width = self.frame.width() as f32 - 2.0 * padding;
+        let header_font_size = font_size * 1.4;
+
+        let header_space = if self.config.show_header {
+            header_font_size + entry_spacing + 2.0 + entry_spacing + 4.0 * scale
+        } else {
+            0.0
+        };
+
+        let name_line_height = name_font_size + entry_spacing;
+        let group_spacing = entry_spacing * 2.0;
+
+        self.frame.begin_frame();
+
+        // Sample preview data: 2 targets with 2 DOTs each
+        let label = if self.config.show_effect_names { "DOT Name" } else { "" };
+        let targets = [
+            ("Target 1", [(label, "12.3", 0.75_f32), (label, "8.5", 0.40)]),
+            ("Target 2", [(label, "5.2", 0.55), (label, "3.1", 0.10)]),
+        ];
+
+        let window_height = self.frame.height() as f32;
+        let n_groups = targets.len();
+        let bars_per_group = 2usize;
+        let group_height = name_line_height
+            + bars_per_group as f32 * bar_height
+            + (bars_per_group - 1) as f32 * entry_spacing;
+        let total_groups_height =
+            n_groups as f32 * group_height + (n_groups - 1) as f32 * group_spacing;
+
+        let groups_start_y = if self.config.stack_from_bottom {
+            (window_height - padding - total_groups_height).max(padding + header_space)
+        } else {
+            padding + header_space
+        };
+        let header_y = if self.config.stack_from_bottom {
+            (groups_start_y - header_space).max(padding)
+        } else {
+            padding
+        };
+
+        if self.config.show_header {
+            Header::new("DOT Tracker")
+                .with_color(colors::white())
+                .render(
+                    &mut self.frame,
+                    padding,
+                    header_y,
+                    content_width,
+                    header_font_size,
+                    entry_spacing,
+                );
+        }
+
+        let mut y = groups_start_y;
+
+        for (target_name, dots) in &targets {
+            self.frame.draw_text_glowed(
+                target_name,
+                padding,
+                y + name_font_size,
+                name_font_size,
+                colors::white(),
+            );
+            y += name_line_height;
+
+            for (name, time_text, progress) in dots {
+                let mut bar = ProgressBar::new(*name, *progress)
+                    .with_fill_color(colors::effect_icon_bg())
+                    .with_bg_color(colors::dps_bar_bg())
+                    .with_text_color(colors::white())
+                    .with_bold_text()
+                    .with_text_glow();
+                if self.config.show_countdown {
+                    bar = bar.with_right_text(*time_text);
+                }
+                bar.render(&mut self.frame, padding, y, content_width, bar_height, font_size, bar_radius);
+
+                if self.config.show_border {
+                    self.frame.stroke_rounded_rect(
+                        padding,
+                        y,
+                        content_width,
+                        bar_height,
+                        bar_radius,
+                        0.8 * scale,
+                        color_from_rgba(self.config.border_color),
+                    );
+                }
+
+                y += bar_height + entry_spacing;
+            }
+
+            y += group_spacing - entry_spacing;
+        }
+
+        self.frame.end_frame();
+    }
+
     /// Render preview placeholders in move mode
     fn render_preview(&mut self) {
         let padding = self.frame.scaled(BASE_PADDING);
@@ -469,8 +867,8 @@ impl DotTrackerOverlay {
 
         // Sample preview data: 2 targets with 3 DOTs each
         let targets = [
-            ("Target 1", [("12.3", 2u8), ("8.5", 1u8), ("45", 0u8)]),
-            ("Target 2", [("5.2", 3u8), ("18", 1u8), ("3.1", 0u8)]),
+            ("Target 1", ["12.3", "8.5", "45"]),
+            ("Target 2", ["5.2", "18", "3.1"]),
         ];
 
         let window_height = self.frame.height() as f32;
@@ -529,7 +927,7 @@ impl DotTrackerOverlay {
             // DOT icons after name
             let mut icon_x = x + name_width;
 
-            for (time_text, _stacks) in dots {
+            for time_text in dots {
                 // Placeholder icon background
                 self.frame.fill_rounded_rect(
                     icon_x,

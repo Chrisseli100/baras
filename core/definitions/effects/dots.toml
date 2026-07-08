@@ -434,7 +434,10 @@ target = "any"
 [[effect]]
 id = "corrosive_dart"
 name = "Corrosive Dart Viru"
-refresh_abilities = [{ ability = 1703989619982932, on_first_damage = true }]
+refresh_abilities = [
+  { ability = 1703989619982932, on_first_damage = true },
+  { ability = 2115340112756736, on_first_damage = true },
+]
 duration_secs = 24.0
 is_affected_by_alacrity = true
 color = [145, 64, 98, 255]
@@ -444,7 +447,7 @@ track_outside_combat = false
 
 [effect.trigger]
 type = "effect_applied"
-effects = [1703989619982932]
+effects = [1703989619982932, 2115340112756736]
 source = "local_player"
 target = "any"
 

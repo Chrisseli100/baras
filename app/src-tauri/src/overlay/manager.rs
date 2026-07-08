@@ -466,7 +466,6 @@ impl OverlayManager {
                 let dot_config = DotTrackerConfig {
                     max_targets: cfg.max_targets,
                     icon_size: cfg.icon_size,
-                    prune_delay_secs: cfg.prune_delay_secs,
                     show_effect_names: cfg.show_effect_names,
                     show_source_name: cfg.show_source_name,
                     show_header: cfg.show_header,
@@ -474,6 +473,10 @@ impl OverlayManager {
                     font_scale: cfg.font_scale,
                     dynamic_background: cfg.dynamic_background,
                     stack_from_bottom: cfg.stack_from_bottom,
+                    layout_bar: cfg.layout_bar,
+                    show_border: cfg.show_border,
+                    border_color: cfg.border_color,
+                    bar_gradient: cfg.bar_gradient,
                 };
                 OverlayConfigUpdate::DotTracker(dot_config, settings.dot_tracker_opacity, eu)
             }

@@ -973,7 +973,6 @@ pub fn create_dot_tracker_overlay(
     let overlay_config = DotTrackerConfig {
         max_targets: dot_config.max_targets,
         icon_size: dot_config.icon_size,
-        prune_delay_secs: dot_config.prune_delay_secs,
         show_effect_names: dot_config.show_effect_names,
         show_source_name: dot_config.show_source_name,
         show_header: dot_config.show_header,
@@ -981,6 +980,10 @@ pub fn create_dot_tracker_overlay(
         font_scale: dot_config.font_scale,
         dynamic_background: dot_config.dynamic_background,
         stack_from_bottom: dot_config.stack_from_bottom,
+        layout_bar: dot_config.layout_bar,
+        show_border: dot_config.show_border,
+        border_color: dot_config.border_color,
+        bar_gradient: dot_config.bar_gradient,
     };
 
     let factory = move || {

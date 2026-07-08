@@ -1902,21 +1902,20 @@ pub fn SettingsPanel(
                         }
                     }
 
-                    Slider {
-                        label: "Prune Delay",
-                        value: current_settings.dot_tracker.prune_delay_secs as f64,
-                        min: 0.0,
-                        max: 10.0,
-                        step: 0.5,
-                        suffix: "s",
-                        on_change: move |v: f64| {
-                            let mut new_settings = draft_settings();
-                            new_settings.dot_tracker.prune_delay_secs = (v as f32).clamp(0.0, 10.0);
-                            update_draft(new_settings);
-                        },
-                    }
-
                     h4 { style: "margin-top: 16px;", "Display Options" }
+
+                    div { class: "setting-row",
+                        label { "Bar Mode" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.dot_tracker.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.dot_tracker.layout_bar = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
 
                     div { class: "setting-row",
                         label { "Show Header" }
@@ -1932,10 +1931,11 @@ pub fn SettingsPanel(
                     }
 
                     div { class: "setting-row",
-                        label { "Show Effect Names" }
+                        label { "Show Effect Names (bar layout)" }
                         input {
                             r#type: "checkbox",
                             checked: current_settings.dot_tracker.show_effect_names,
+                            disabled: !current_settings.dot_tracker.layout_bar,
                             onchange: move |e: Event<FormData>| {
                                 let mut new_settings = draft_settings();
                                 new_settings.dot_tracker.show_effect_names = e.checked();
@@ -2007,6 +2007,48 @@ pub fn SettingsPanel(
                                 let mut new_settings = draft_settings();
                                 new_settings.dot_tracker.stack_from_bottom = e.checked();
                                 update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Gradient Bars (bar layout)" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.dot_tracker.bar_gradient,
+                            disabled: !current_settings.dot_tracker.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.dot_tracker.bar_gradient = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Show Border (bar layout)" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.dot_tracker.show_border,
+                            disabled: !current_settings.dot_tracker.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.dot_tracker.show_border = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Border Color" }
+                        input {
+                            r#type: "color",
+                            value: "{color_to_hex(&current_settings.dot_tracker.border_color)}",
+                            class: "color-picker",
+                            disabled: !(current_settings.dot_tracker.layout_bar && current_settings.dot_tracker.show_border),
+                            oninput: move |e: Event<FormData>| {
+                                if let Some(color) = parse_hex_color(&e.value()) {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.dot_tracker.border_color = color;
+                                    update_draft(new_settings);
+                                }
                             }
                         }
                     }
