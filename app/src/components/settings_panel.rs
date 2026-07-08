@@ -1234,7 +1234,7 @@ pub fn SettingsPanel(
                     }
 
                     Slider {
-                        label: "Icon Size",
+                        label: "Icon/Bar Size",
                         value: current_settings.effects_a.icon_size as f64,
                         min: 16.0,
                         max: 64.0,
@@ -1456,7 +1456,7 @@ pub fn SettingsPanel(
                     }
 
                     Slider {
-                        label: "Icon Size",
+                        label: "Icon/Bar Size",
                         value: current_settings.effects_b.icon_size as f64,
                         min: 16.0,
                         max: 64.0,
@@ -1678,7 +1678,7 @@ pub fn SettingsPanel(
                     }
 
                     Slider {
-                        label: "Icon Size",
+                        label: "Icon/Bar Size",
                         value: current_settings.cooldown_tracker.icon_size as f64,
                         min: 16.0,
                         max: 64.0,
@@ -1872,7 +1872,7 @@ pub fn SettingsPanel(
                     }
 
                     Slider {
-                        label: "Icon Size",
+                        label: "Icon/Bar Size",
                         value: current_settings.dot_tracker.icon_size as f64,
                         min: 12.0,
                         max: 48.0,
