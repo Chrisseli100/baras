@@ -549,13 +549,14 @@ target = "any"
 
 [[effect]]
 id = "corrosive_dart_concealment"
-name = "Corrosive Dart Concealment"
+name = "Corrosive Dart Concealment/Medicine"
+display_text = "Corrosve Dart"
 refresh_abilities = [{ ability = 3465720780292096, on_first_damage = true }]
 duration_secs = 18.0
 is_affected_by_alacrity = true
 color = [80, 200, 80, 255]
 display_targets = ["dot_tracker"]
-disciplines = ["Concealment"]
+disciplines = ["Concealment", "Medicine"]
 track_outside_combat = false
 
 [effect.trigger]
