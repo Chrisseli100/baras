@@ -290,7 +290,7 @@ impl PersonalOverlay {
         let width = self.frame.width() as f32;
 
         let padding = self.frame.scaled(BASE_PADDING);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let line_spacing = self.config.line_spacing.clamp(0.7, 1.5);
         let line_height = self.frame.scaled(BASE_LINE_HEIGHT) * line_spacing;

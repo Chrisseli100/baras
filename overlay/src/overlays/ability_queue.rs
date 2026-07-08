@@ -151,7 +151,7 @@ impl AbilityQueueOverlay {
         let bar_h = self.frame.scaled(BASE_BAR_HEIGHT);
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING);
         let gcd_gap = self.frame.scaled(BASE_GCD_GAP);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let font_color = color_from_rgba(self.config.font_color);
         let gcd_fill = color_from_rgba(self.config.gcd_color);
@@ -243,7 +243,7 @@ impl AbilityQueueOverlay {
         let bar_h = self.frame.scaled(BASE_BAR_HEIGHT);
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING);
         let gcd_gap = self.frame.scaled(BASE_GCD_GAP);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let font_color = color_from_rgba(self.config.font_color);
         let gcd_color = self.config.gcd_color;

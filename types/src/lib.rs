@@ -1676,7 +1676,7 @@ pub struct PersonalOverlayConfig {
     pub font_color: Color,
     #[serde(default = "default_font_color")]
     pub label_color: Color,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -1848,7 +1848,7 @@ pub struct BossHealthConfig {
     /// When true, show the current HP value (e.g. "1.90M") inline on the bar
     #[serde(default = "default_true")]
     pub show_hp_value: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -1909,7 +1909,7 @@ pub struct TimerOverlayConfig {
     /// Sort by remaining time (vs. activation order)
     #[serde(default = "default_true")]
     pub sort_by_remaining: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -2067,7 +2067,7 @@ pub struct ChallengeOverlayConfig {
     /// When true, show grey background bar behind each player's fill bar
     #[serde(default)]
     pub show_background_bar: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -2139,7 +2139,7 @@ pub struct EffectsAConfig {
     /// Show header title above overlay
     #[serde(default)]
     pub show_header: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -2215,7 +2215,7 @@ pub struct EffectsBConfig {
     /// Show header title above overlay
     #[serde(default)]
     pub show_header: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -2289,7 +2289,7 @@ pub struct CooldownTrackerConfig {
     /// Show header title above overlay
     #[serde(default)]
     pub show_header: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -2366,7 +2366,7 @@ pub struct DotTrackerConfig {
     /// Show countdown timers on icons
     #[serde(default = "default_true")]
     pub show_countdown: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
@@ -2459,7 +2459,7 @@ pub struct CombatTimeOverlayConfig {
     /// Whether to show the "Combat Time" title and separator
     #[serde(default = "default_true")]
     pub show_title: bool,
-    /// Font scale multiplier (0.5 - 3.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// Font color (RGBA)
@@ -2495,7 +2495,7 @@ pub struct OperationTimerOverlayConfig {
     /// Whether to show the title (operation name or "Op Timer") and separator
     #[serde(default = "default_true")]
     pub show_title: bool,
-    /// Font scale multiplier (0.5 - 3.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
     /// Font color (RGBA)
@@ -2622,7 +2622,7 @@ pub struct OverlaySettings {
     pub metric_stack_from_bottom: bool,
     #[serde(default = "default_scaling_factor")]
     pub metric_scaling_factor: f32,
-    /// Font scale multiplier for metric overlays (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier for metric overlays (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub metric_font_scale: f32,
     /// How strongly metric bar fills darken toward their trailing edge when the

@@ -81,7 +81,7 @@ pub struct DotTrackerConfig {
     pub show_header: bool,
     /// Show countdown timers on icons
     pub show_countdown: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
     pub dynamic_background: bool,
@@ -127,8 +127,7 @@ const BASE_FONT_SIZE: f32 = 10.0;
 const BASE_NAME_WIDTH: f32 = 100.0;
 /// Max characters per line before wrapping
 const NAME_WRAP_CHARS: usize = 16;
-/// Bar mode dimensions (matches timer overlay style)
-const BASE_BAR_HEIGHT: f32 = 38.0;
+/// Bar mode font size (matches timer overlay style)
 const BASE_BAR_FONT_SIZE: f32 = 17.0;
 
 /// DOT tracker overlay - rows of targets with DOT icons
@@ -182,15 +181,7 @@ impl DotTrackerOverlay {
 
     /// Update the data and pre-cache icons
     pub fn set_data(&mut self, data: DotTrackerData) {
-        // Bar mode scales the icon (and thus the bar) by font_scale as well
-        let icon_size = if self.config.layout_bar {
-            let font_scale = self.config.font_scale.clamp(1.0, 2.0);
-            self.frame
-                .scaled(self.config.icon_size as f32 * font_scale)
-                .round() as u32
-        } else {
-            self.frame.scaled(self.config.icon_size as f32) as u32
-        };
+        let icon_size = self.frame.scaled(self.config.icon_size as f32) as u32;
 
         // Pre-cache icons at display size in the shared cache
         let cache = shared_scaled_icons();
@@ -256,7 +247,7 @@ impl DotTrackerOverlay {
         let padding = self.frame.scaled(BASE_PADDING);
         let row_spacing = self.frame.scaled(BASE_ROW_SPACING);
         let icon_spacing = self.frame.scaled(BASE_ICON_SPACING);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let name_width = self.frame.scaled(BASE_NAME_WIDTH * font_scale);
@@ -506,16 +497,13 @@ impl DotTrackerOverlay {
         }
         self.last_rendered_bar = current_state;
 
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let scale = self.frame.scale_factor();
 
-        // Bar height wraps the icon; icon_size config controls overall bar scale
-        let icon_size = self
-            .frame
-            .scaled(self.config.icon_size as f32 * font_scale)
-            .round();
+        // Bar height wraps the icon (icon_size = geometry); font_scale = text only
+        let icon_size = self.frame.scaled(self.config.icon_size as f32).round();
         let bar_height = icon_size + 4.0 * scale;
-        let font_size = bar_height * (BASE_BAR_FONT_SIZE / BASE_BAR_HEIGHT);
+        let font_size = self.frame.scaled(BASE_BAR_FONT_SIZE * font_scale);
         let name_font_size = font_size * 0.85;
         let entry_spacing = self.frame.scaled(BASE_ROW_SPACING);
         let padding = self.frame.scaled(BASE_PADDING);
@@ -732,14 +720,11 @@ impl DotTrackerOverlay {
 
     /// Render bar mode preview (grouped bars with placeholder targets)
     fn render_preview_bar(&mut self) {
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let scale = self.frame.scale_factor();
-        let icon_size = self
-            .frame
-            .scaled(self.config.icon_size as f32 * font_scale)
-            .round();
+        let icon_size = self.frame.scaled(self.config.icon_size as f32).round();
         let bar_height = icon_size + 4.0 * scale;
-        let font_size = bar_height * (BASE_BAR_FONT_SIZE / BASE_BAR_HEIGHT);
+        let font_size = self.frame.scaled(BASE_BAR_FONT_SIZE * font_scale);
         let name_font_size = font_size * 0.85;
         let entry_spacing = self.frame.scaled(BASE_ROW_SPACING);
         let padding = self.frame.scaled(BASE_PADDING);
@@ -848,7 +833,7 @@ impl DotTrackerOverlay {
         let padding = self.frame.scaled(BASE_PADDING);
         let row_spacing = self.frame.scaled(BASE_ROW_SPACING);
         let icon_spacing = self.frame.scaled(BASE_ICON_SPACING);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let name_width = self.frame.scaled(BASE_NAME_WIDTH * font_scale);

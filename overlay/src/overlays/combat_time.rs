@@ -21,7 +21,7 @@ use crate::widgets::Header;
 pub struct CombatTimeConfig {
     /// Whether to show the "Combat Time" title and separator
     pub show_title: bool,
-    /// Font scale multiplier (0.5 - 3.0) — applies to the time digits only
+    /// Font scale multiplier (0.3 - 3.0) — applies to the time digits only
     pub font_scale: f32,
     /// Font color (RGBA)
     pub font_color: [u8; 4],

@@ -765,12 +765,12 @@ pub fn SettingsPanel(
                                 label: "Font Scale",
                                 value: (current_settings.metric_font_scale * 100.0) as i32 as f64,
                                 min: 30.0,
-                                max: 200.0,
+                                max: 300.0,
                                 step: 5.0,
                                 suffix: "%",
                                 on_change: move |v: f64| {
                                     let mut new_settings = draft_settings();
-                                    new_settings.metric_font_scale = (v as f32 / 100.0).clamp(0.3, 2.0);
+                                    new_settings.metric_font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                                     update_draft(new_settings);
                                 },
                             }
@@ -884,12 +884,12 @@ pub fn SettingsPanel(
                         label: "Font Scale",
                         value: (current_settings.boss_health.font_scale * 100.0) as i32 as f64,
                         min: 30.0,
-                        max: 200.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.boss_health.font_scale = (v as f32 / 100.0).clamp(0.3, 2.0);
+                            new_settings.boss_health.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -1006,13 +1006,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.timers_a_overlay.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.timers_a_overlay.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.timers_a_overlay.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -1129,13 +1129,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.timers_b_overlay.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.timers_b_overlay.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.timers_b_overlay.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -1349,13 +1349,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.effects_a.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.effects_a.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.effects_a.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -1571,13 +1571,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.effects_b.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.effects_b.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.effects_b.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -1765,13 +1765,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.cooldown_tracker.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.cooldown_tracker.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.cooldown_tracker.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -1976,13 +1976,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.dot_tracker.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.dot_tracker.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.dot_tracker.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -2195,12 +2195,12 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.combat_time.font_scale * 100.0) as i32 as f64,
-                        min: 50.0,
+                        min: 30.0,
                         max: 300.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.combat_time.font_scale = (v as f32 / 100.0).clamp(0.5, 3.0);
+                            new_settings.combat_time.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -2279,12 +2279,12 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.operation_timer.font_scale * 100.0) as i32 as f64,
-                        min: 50.0,
+                        min: 30.0,
                         max: 300.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.operation_timer.font_scale = (v as f32 / 100.0).clamp(0.5, 3.0);
+                            new_settings.operation_timer.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -2492,13 +2492,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.challenge_overlay.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.challenge_overlay.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.challenge_overlay.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }
@@ -2967,13 +2967,13 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.personal_overlay.font_scale * 100.0) as i32 as f64,
-                        min: 100.0,
-                        max: 200.0,
+                        min: 30.0,
+                        max: 300.0,
                         step: 10.0,
                         suffix: "%",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.personal_overlay.font_scale = (v as f32 / 100.0).clamp(1.0, 2.0);
+                            new_settings.personal_overlay.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
                             update_draft(new_settings);
                         },
                     }

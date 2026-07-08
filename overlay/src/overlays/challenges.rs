@@ -176,7 +176,7 @@ impl ChallengeOverlay {
         // closely matches the legacy fixed 3px gap at the 18px base bar height.
         let spacing_ratio = self.config.bar_spacing_ratio.clamp(0.0, 0.6);
         let mut bar_spacing = bar_height * spacing_ratio;
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let mut font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let mut header_font_size = self.frame.scaled(BASE_HEADER_FONT_SIZE * font_scale);
         let mut duration_font_size = self.frame.scaled(BASE_DURATION_FONT_SIZE * font_scale);

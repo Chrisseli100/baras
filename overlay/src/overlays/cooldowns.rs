@@ -83,7 +83,7 @@ pub struct CooldownConfig {
     pub show_target_name: bool,
     /// Show header title above overlay
     pub show_header: bool,
-    /// Font scale multiplier (1.0 - 2.0, default 1.0)
+    /// Font scale multiplier (0.3 - 3.0, default 1.0)
     pub font_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
     pub dynamic_background: bool,
@@ -128,7 +128,6 @@ const BASE_ROW_SPACING: f32 = 2.0;
 const BASE_FONT_SIZE: f32 = 11.0;
 
 /// Bar mode dimensions (matches effects bar mode)
-const BASE_BAR_HEIGHT: f32 = 24.0;
 const BASE_BAR_FONT_SIZE: f32 = 11.0;
 
 /// Light-blue border for ready-state bars
@@ -182,12 +181,7 @@ impl CooldownOverlay {
 
     /// Update the data and pre-cache icons
     pub fn set_data(&mut self, mut data: CooldownData) {
-        let icon_size = if self.config.layout_bar {
-            let bar_h = self.frame.scaled(BASE_BAR_HEIGHT * self.config.font_scale.clamp(1.0, 2.0));
-            (bar_h - 4.0 * self.frame.scale_factor()).round() as u32
-        } else {
-            self.frame.scaled(self.config.icon_size as f32) as u32
-        };
+        let icon_size = self.frame.scaled(self.config.icon_size as f32) as u32;
 
         // Pre-cache icons at display size in the process-wide shared cache
         let cache = shared_scaled_icons();
@@ -255,7 +249,7 @@ impl CooldownOverlay {
 
         let padding = self.frame.scaled(BASE_PADDING);
         let row_spacing = self.frame.scaled(BASE_ROW_SPACING);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let row_height = icon_size + row_spacing;
@@ -649,18 +643,20 @@ impl CooldownOverlay {
         }
         self.last_rendered_bar = current_state;
 
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
-        let bar_height = self.frame.scaled(BASE_BAR_HEIGHT * font_scale);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
+        let scale = self.frame.scale_factor();
+
+        // Bar height wraps the icon (icon_size = geometry); font_scale = text only
+        let icon_size = self.frame.scaled(self.config.icon_size as f32).round();
+        let bar_height = icon_size + 4.0 * scale;
         let font_size = self.frame.scaled(BASE_BAR_FONT_SIZE * font_scale);
         let entry_spacing = self.frame.scaled(BASE_ROW_SPACING);
         let padding = self.frame.scaled(BASE_PADDING);
-        let bar_radius = 3.0 * self.frame.scale_factor();
+        let bar_radius = 3.0 * scale;
         let content_width = self.frame.width() as f32 - 2.0 * padding;
-        let scale = self.frame.scale_factor();
         let header_font_size = font_size * 1.4;
-        let icon_size = bar_height - 4.0 * scale;
         let icon_padding = 2.0 * scale;
-        let icon_size_u32 = icon_size.round() as u32;
+        let icon_size_u32 = icon_size as u32;
 
         let header_space = if self.config.show_header {
             header_font_size + entry_spacing + 2.0 + entry_spacing + 4.0 * scale
@@ -826,8 +822,9 @@ impl CooldownOverlay {
     fn render_preview_bar(&mut self) {
         let padding = self.frame.scaled(BASE_PADDING);
         let entry_spacing = self.frame.scaled(BASE_ROW_SPACING);
-        let font_scale = self.config.font_scale.clamp(1.0, 2.0);
-        let bar_height = self.frame.scaled(BASE_BAR_HEIGHT * font_scale);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
+        let bar_height =
+            self.frame.scaled(self.config.icon_size as f32).round() + 4.0 * self.frame.scale_factor();
         let font_size = self.frame.scaled(BASE_BAR_FONT_SIZE * font_scale);
         let bar_radius = 3.0 * self.frame.scale_factor();
         let content_width = self.frame.width() as f32 - 2.0 * padding;

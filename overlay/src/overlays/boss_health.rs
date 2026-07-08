@@ -347,7 +347,7 @@ impl BossHealthOverlay {
     /// Calculate compression factor to fit entries in available height
     fn compression_factor(&self, entries: &[OverlayHealthEntry]) -> f32 {
         let height = self.frame.height() as f32;
-        let font_scale = self.config.font_scale.clamp(0.3, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let padding = self.frame.scaled(BASE_PADDING);
         let bar_height = self.frame.scaled(BASE_BAR_HEIGHT);
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING);
@@ -384,7 +384,7 @@ impl BossHealthOverlay {
 
     /// Pre-compute the total content height for all visible entries.
     fn compute_content_height(&self, entries: &[OverlayHealthEntry], compression: f32) -> f32 {
-        let font_scale = self.config.font_scale.clamp(0.3, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let padding = self.frame.scaled(BASE_PADDING);
         let bar_height = self.frame.scaled(BASE_BAR_HEIGHT) * compression;
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING) * compression;
@@ -438,7 +438,7 @@ impl BossHealthOverlay {
     fn render_preview(&mut self) {
         let width = self.frame.width() as f32;
 
-        let font_scale = self.config.font_scale.clamp(0.3, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
         let padding = self.frame.scaled(BASE_PADDING);
         let bar_height = self.frame.scaled(BASE_BAR_HEIGHT);
         let font_size = self.frame.scaled(BASE_FONT_SIZE) * font_scale;
@@ -564,7 +564,7 @@ impl BossHealthOverlay {
         let compression = self.compression_factor(&entries);
 
         // Clamp font_scale to sensible range
-        let font_scale = self.config.font_scale.clamp(0.3, 2.0);
+        let font_scale = self.config.font_scale.clamp(0.3, 3.0);
 
         // Apply compression to entry-specific dimensions
         let padding = self.frame.scaled(BASE_PADDING);

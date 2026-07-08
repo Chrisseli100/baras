@@ -148,7 +148,7 @@ pub struct MetricOverlay {
     stack_from_bottom: bool,
     scaling_factor: f32,
     icon_mode: ClassIconMode,
-    /// Global font scale for metric bar text (0.3 - 2.0)
+    /// Global font scale for metric bar text (0.3 - 3.0)
     font_scale: f32,
     /// Global gradient darkening intensity for metric bars (0.0 - 1.0)
     gradient_intensity: f32,
@@ -197,7 +197,7 @@ impl MetricOverlay {
             stack_from_bottom,
             scaling_factor: scaling_factor.clamp(0.3, 2.0),
             icon_mode,
-            font_scale: font_scale.clamp(0.3, 2.0),
+            font_scale: font_scale.clamp(0.3, 3.0),
             gradient_intensity: gradient_intensity.clamp(0.0, 1.0),
             dynamic_background,
             show_background_bar,
@@ -283,7 +283,7 @@ impl MetricOverlay {
         // Base font size for the header (NOT affected by font_scale or scaling_factor)
         let base_font_size = self.frame.scaled(BASE_FONT_SIZE);
         // Font scale from global metric settings — affects bar text and footer, not header
-        let font_scale = self.font_scale.clamp(0.3, 2.0);
+        let font_scale = self.font_scale.clamp(0.3, 3.0);
         let bar_font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
         let scaled_bar_height = BASE_BAR_HEIGHT * self.scaling_factor;
         let ideal_bar_height = self.frame.scaled(scaled_bar_height);
