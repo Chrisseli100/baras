@@ -454,7 +454,7 @@ target = "any"
 id = "corrosive_dart"
 name = "Corrosive Dart Viru"
 display_text = "Corrosive Dart"
-refresh_abilities = [{ ability = 1703989619982932, on_first_damage = true }]
+refresh_abilities = [{ ability = 3465720780292096, on_first_damage = true }]
 duration_secs = 24.0
 is_affected_by_alacrity = true
 color = [145, 64, 98, 255]
