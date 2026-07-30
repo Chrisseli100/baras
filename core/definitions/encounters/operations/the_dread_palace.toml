@@ -2278,6 +2278,7 @@ phase_id = "raptus_challenges"
 id = "dread_council"
 name = "Dread Council"
 area_type = "operation"
+is_final_boss = true
 
 [[boss.entities]]
 name = "Dread Master Bestia"
