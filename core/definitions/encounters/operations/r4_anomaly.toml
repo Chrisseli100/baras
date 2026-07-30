@@ -1651,6 +1651,7 @@ phase_ids = ["dominique_burn"]
 [[boss.timer]]
 id = "dominique_orange_circle"
 name = "Orange Circle dropping"
+is_alert = true
 duration_secs = 8.0
 alert_on = "on_apply"
 alert_text = "Orange on you"
@@ -1668,6 +1669,7 @@ target = "local_player"
 [[boss.timer]]
 id = "dominique_yellow_circle"
 name = "Yellow Circle knockback"
+is_alert = true
 duration_secs = 8.0
 alert_on = "on_apply"
 alert_text = "Yellow on you"
