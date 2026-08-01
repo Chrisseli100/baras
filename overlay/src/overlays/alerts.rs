@@ -279,8 +279,24 @@ impl AlertsOverlay {
         let entry_spacing = self.frame.scaled(BASE_ENTRY_SPACING);
         let font_size = self.frame.scaled(self.config.font_size as f32);
 
+        let max_display = self.config.max_display as usize;
+
+        // Compute content height for dynamic background
+        let num_entries = self.entries.len().min(max_display);
+        let content_height = if num_entries > 0 {
+            padding * 2.0
+                + num_entries as f32 * line_height
+                + (num_entries - 1) as f32 * entry_spacing
+        } else {
+            0.0
+        };
+
         // Begin frame (clear, background, border)
-        self.frame.begin_frame();
+        if self.config.dynamic_background {
+            self.frame.begin_frame_with_content_height(content_height);
+        } else {
+            self.frame.begin_frame();
+        }
 
         // Nothing to render if no alerts
         if self.entries.is_empty() {
@@ -288,7 +304,6 @@ impl AlertsOverlay {
             return;
         }
 
-        let max_display = self.config.max_display as usize;
         let fade_duration = self.config.fade_duration;
         let show_icons = self.config.show_icons;
         let icon_size = font_size;

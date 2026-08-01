@@ -1982,6 +1982,9 @@ pub struct AlertsOverlayConfig {
     /// Show ability icon to the left of alert text (default true)
     #[serde(default = "default_true")]
     pub show_icons: bool,
+    /// When true, background shrinks to fit content instead of filling the window
+    #[serde(default)]
+    pub dynamic_background: bool,
 }
 
 fn default_alerts_font_size() -> u8 {
@@ -2005,6 +2008,7 @@ impl Default for AlertsOverlayConfig {
             default_duration: default_alerts_duration(),
             fade_duration: default_alerts_fade_duration(),
             show_icons: true,
+            dynamic_background: false,
         }
     }
 }
