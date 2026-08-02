@@ -54,7 +54,7 @@ trigger = { type = "combat_start" }
 color = [219, 93, 28, 255]
 duration_secs = 60.0
 icon_ability_id = 4250067707887616
-difficulties = ["verteran", "master"]
+difficulties = ["veteran", "master"]
 
 [[boss.timer]]
 id = "red_bull_gives_u_wings"
@@ -63,7 +63,7 @@ trigger = { type = "timer_expires", timer_id = "red_bull_cs" }
 color = [219, 93, 28, 255]
 duration_secs = 60.0
 icon_ability_id = 4250067707887616
-difficulties = ["verteran", "master"]
+difficulties = ["veteran", "master"]
 chains_to = "red_enrage_bull"
 repeats = 5
 
