@@ -971,7 +971,8 @@ impl TimerManager {
             def.display_targets.clone(),
             alert_on_expire,
             def.alert_text.clone(),
-            def.alert_countdown_secs,
+            def.alert_countdown_secs
+                .filter(|_| matches!(def.alert_on, baras_types::AlertTrigger::Countdown)),
             role_hidden,
             def.queue_on_expire,
             def.queue_priority,
