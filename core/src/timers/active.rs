@@ -365,19 +365,16 @@ impl ActiveTimer {
     /// Check if the audio should fire at the configured offset
     ///
     /// Returns true (and marks as fired) when:
-    /// - audio_file is Some
     /// - audio_offset > 0 (offset of 0 means fire on expiration, handled separately)
     /// - remaining time just crossed below the offset threshold
     /// - hasn't already fired
     ///
+    /// A timer without an audio file still fires — the audio service falls
+    /// back to TTS when the alert carries no custom sound.
+    ///
     /// `remaining` is the pre-computed remaining seconds from the manager's
     /// interpolated game time (computed once per tick for all timers).
     pub fn check_audio_offset(&mut self, remaining: f32) -> bool {
-        // No audio file configured
-        if self.audio_file.is_none() {
-            return false;
-        }
-
         // offset=0 means fire on expiration, not here
         if self.audio_offset == 0 {
             return false;

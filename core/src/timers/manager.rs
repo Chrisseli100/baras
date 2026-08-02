@@ -1334,7 +1334,7 @@ impl TimerManager {
                     self.expired_this_tick.push(key.definition_id.clone());
                     self.queued_this_tick.push(key.definition_id.clone());
 
-                    let should_fire_audio = !timer.role_hidden && timer.audio_enabled && timer.audio_file.is_some() && timer.audio_offset == 0;
+                    let should_fire_audio = !timer.role_hidden && timer.audio_enabled && timer.audio_offset == 0;
                     let should_fire_expire_alert = !timer.role_hidden && timer.alert_on_expire;
                     if should_fire_audio || should_fire_expire_alert {
                         let raw_text = timer.alert_text.as_deref().unwrap_or(&timer.name);
@@ -1372,10 +1372,10 @@ impl TimerManager {
                 // Record expiration (move from key since we're done with it)
                 self.expired_this_tick.push(key.definition_id);
                 // Fire expiration alert if:
-                // 1. Audio is configured with offset=0 (play sound on expire), OR
+                // 1. Audio is enabled with offset=0 (sound on expire; no file = TTS), OR
                 // 2. alert_on_expire is true (alert text notification on expire)
                 let has_chain = timer.triggers_timer.is_some();
-                let should_fire_audio = !timer.role_hidden && timer.audio_enabled && timer.audio_file.is_some() && timer.audio_offset == 0;
+                let should_fire_audio = !timer.role_hidden && timer.audio_enabled && timer.audio_offset == 0;
                 let should_fire_expire_alert = !timer.role_hidden && timer.alert_on_expire;
 
                 if should_fire_audio || should_fire_expire_alert {
