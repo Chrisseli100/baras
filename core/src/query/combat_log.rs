@@ -173,7 +173,7 @@ impl EncounterQuery<'_> {
                 target_class_id{coord_select}
             FROM events
             WHERE {where_clause}
-            ORDER BY {order_col} {order_dir}, combat_time_secs
+            ORDER BY {order_col} {order_dir}, combat_time_secs {order_dir}, line_number {order_dir}
             LIMIT {limit} OFFSET {offset}
         "#
             ))
@@ -473,7 +473,7 @@ impl EncounterQuery<'_> {
                 WITH numbered AS (
                     SELECT
                         line_number,
-                        CAST(ROW_NUMBER() OVER (ORDER BY {order_col} {order_dir}, combat_time_secs) - 1 AS BIGINT) as pos,
+                        CAST(ROW_NUMBER() OVER (ORDER BY {order_col} {order_dir}, combat_time_secs {order_dir}, line_number {order_dir}) - 1 AS BIGINT) as pos,
                         source_name as src,
                         target_name as tgt,
                         ability_name as abl,
