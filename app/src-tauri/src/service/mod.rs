@@ -3333,11 +3333,12 @@ async fn build_boss_health_data(
                     let icons: Vec<BossEffectIcon> = effects
                         .into_iter()
                         .filter_map(|effect| {
-                            let remaining_secs = calculate_remaining_secs(effect, interp_time)?;
-                            let total_secs = effect.duration?.as_secs_f32();
-                            if !effect.is_visible(remaining_secs) {
+                            let remaining_total = calculate_remaining_secs(effect, interp_time)?;
+                            if !effect.is_visible(remaining_total) {
                                 return None;
                             }
+                            let remaining_secs = calculate_base_remaining_secs(effect, interp_time)?;
+                            let total_secs = base_total_secs(effect)?;
                             let icon = icon_cache.and_then(|cache| {
                                 cache
                                     .get_icon(effect.icon_ability_id)
@@ -3770,15 +3771,16 @@ fn convert_to_raid_effect(
         .with_charges(effect.stacks)
         .with_color_rgba(effect.color);
 
-    // Compute expiry Instant from game-time remaining
+    // Compute expiry Instant from game-time remaining (base duration only —
+    // the cooldown ready-state tail is a cooldowns-overlay concept)
     if let Some(dur) = effect.duration {
-        let remaining_secs = interp_time
-            .and_then(|t| effect.remaining_secs(t))
-            .unwrap_or(0.0);
+        let remaining_secs = calculate_base_remaining_secs(effect, interp_time).unwrap_or(0.0);
         if remaining_secs > 0.0 {
+            let base_dur =
+                dur.saturating_sub(std::time::Duration::from_secs_f32(effect.cooldown_ready_secs));
             let remaining_dur = std::time::Duration::from_secs_f32(remaining_secs);
             let expires_at = std::time::Instant::now() + remaining_dur;
-            raid_effect = raid_effect.with_duration(dur).with_expiry(expires_at);
+            raid_effect = raid_effect.with_duration(base_dur).with_expiry(expires_at);
         }
     }
 
@@ -3807,6 +3809,28 @@ fn calculate_remaining_secs(
     } else {
         Some(remaining)
     }
+}
+
+/// Like `calculate_remaining_secs` but excludes the cooldown ready-state tail.
+/// Non-cooldown overlays use this so an effect that also displays on the
+/// cooldowns overlay disappears when its base duration ends instead of
+/// lingering (with inflated time) through the ready state.
+fn calculate_base_remaining_secs(
+    effect: &ActiveEffect,
+    interp_time: Option<chrono::NaiveDateTime>,
+) -> Option<f32> {
+    let remaining = interp_time
+        .and_then(|t| effect.remaining_secs(t))
+        .unwrap_or(0.0);
+    let base = effect.remaining_base_secs(remaining);
+    if base <= 0.0 { None } else { Some(base) }
+}
+
+/// Base total duration in seconds (excludes the cooldown ready-state tail)
+fn base_total_secs(effect: &ActiveEffect) -> Option<f32> {
+    effect
+        .duration
+        .map(|d| (d.as_secs_f32() - effect.cooldown_ready_secs).max(0.0))
 }
 
 /// Build effects A overlay data from active effects
@@ -3842,8 +3866,8 @@ async fn build_effects_a_data(
             if !effect.is_visible(remaining_total) {
                 return None;
             }
-            let total_secs = effect.duration?.as_secs_f32();
-            let remaining_secs = calculate_remaining_secs(effect, interp_time)?;
+            let total_secs = base_total_secs(effect)?;
+            let remaining_secs = calculate_base_remaining_secs(effect, interp_time)?;
 
             // Load icon from cache
             let icon = icon_cache.and_then(|cache| {
@@ -3915,8 +3939,8 @@ async fn build_effects_b_data(
             if !effect.is_visible(remaining_total) {
                 return None;
             }
-            let total_secs = effect.duration?.as_secs_f32();
-            let remaining_secs = calculate_remaining_secs(effect, interp_time)?;
+            let total_secs = base_total_secs(effect)?;
+            let remaining_secs = calculate_base_remaining_secs(effect, interp_time)?;
 
             // Load icon from cache
             let icon = icon_cache.and_then(|cache| {
@@ -4089,8 +4113,8 @@ async fn build_dot_tracker_data(
                     if !effect.is_visible(remaining_total) {
                         return None;
                     }
-                    let total_secs = effect.duration?.as_secs_f32();
-                    let remaining_secs = calculate_remaining_secs(effect, interp_time)?;
+                    let total_secs = base_total_secs(effect)?;
+                    let remaining_secs = calculate_base_remaining_secs(effect, interp_time)?;
 
                     // Load icon from cache
                     let icon = icon_cache.and_then(|cache| {
