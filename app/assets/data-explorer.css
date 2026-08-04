@@ -1191,6 +1191,14 @@
   z-index: 1;
 }
 
+.effect-table th.sortable {
+  cursor: pointer;
+}
+
+.effect-table th.sortable:hover {
+  color: var(--text-primary);
+}
+
 .effect-table th.num,
 .effect-table td.num {
   text-align: right;

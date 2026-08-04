@@ -12,6 +12,16 @@ use crate::components::ability_icon::AbilityIcon;
 use crate::utils::js_set;
 use baras_types::formatting;
 
+/// Sort column for the effects table.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+enum EffectSort {
+    Name,
+    Applications,
+    Uptime,
+    #[default]
+    Pct,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ECharts JS Interop
 // ─────────────────────────────────────────────────────────────────────────────
@@ -902,6 +912,8 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
     // Effect data
     let mut active_effects = use_signal(Vec::<EffectChartData>::new);
     let mut passive_effects = use_signal(Vec::<EffectChartData>::new);
+    let mut effect_sort_col = use_signal(EffectSort::default);
+    let mut effect_sort_asc = use_signal(|| false);
     // Multiple selected effects with assigned colors
     let mut selected_effects = use_signal(Vec::<(i64, &'static str)>::new);
     // (effect_id, window, color) - includes effect_id for grouping/stacking
@@ -1279,9 +1291,24 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
         dispose_chart("chart-hp");
     });
 
-    let active = active_effects.read().clone();
-    let passive = passive_effects.read().clone();
     let current_effects = selected_effects.read().clone();
+    let sorted_effects = {
+        let active = active_effects.read();
+        let passive = passive_effects.read();
+        let mut all: Vec<EffectChartData> = active.iter().chain(passive.iter()).cloned().collect();
+        let col = *effect_sort_col.read();
+        let asc = *effect_sort_asc.read();
+        all.sort_by(|a, b| {
+            let ord = match col {
+                EffectSort::Name => a.effect_name.cmp(&b.effect_name),
+                EffectSort::Applications => a.count.cmp(&b.count),
+                EffectSort::Uptime => a.total_duration_secs.total_cmp(&b.total_duration_secs),
+                EffectSort::Pct => a.uptime_pct.total_cmp(&b.uptime_pct),
+            };
+            if asc { ord } else { ord.reverse() }
+        });
+        all
+    };
 
     let is_live = props.encounter_idx.is_none();
     let dps_empty = dps_data.read().is_empty();
@@ -1398,21 +1425,41 @@ pub fn ChartsPanel(props: ChartsPanelProps) -> Element {
                 // Combined effects table (active abilities + passive effects)
                 div { class: "effects-section",
                     h4 { "Effects" }
-                    if active.is_empty() && passive.is_empty() {
+                    if sorted_effects.is_empty() {
                         div { class: "effects-empty", "No effects" }
                     } else {
                         div { class: "effect-table-wrapper",
                             table { class: "effect-table",
                                 thead {
-                                    tr {
-                                        th { "Effect" }
-                                        th { class: "num", "Applications" }
-                                        th { class: "num", "Uptime" }
-                                        th { class: "num", "%" }
+                                    {
+                                        let cur = *effect_sort_col.read();
+                                        let asc = *effect_sort_asc.read();
+                                        let arrow = |col: EffectSort| -> &'static str {
+                                            if cur == col { if asc { " \u{25B2}" } else { " \u{25BC}" } } else { "" }
+                                        };
+                                        let sort_click = move |col: EffectSort| {
+                                            move |_: MouseEvent| {
+                                                if *effect_sort_col.read() == col {
+                                                    let was_asc = *effect_sort_asc.peek();
+                                                    effect_sort_asc.set(!was_asc);
+                                                } else {
+                                                    effect_sort_col.set(col);
+                                                    effect_sort_asc.set(col == EffectSort::Name);
+                                                }
+                                            }
+                                        };
+                                        rsx! {
+                                            tr {
+                                                th { class: "sortable", onclick: sort_click(EffectSort::Name), "Effect{arrow(EffectSort::Name)}" }
+                                                th { class: "num sortable", onclick: sort_click(EffectSort::Applications), "Applications{arrow(EffectSort::Applications)}" }
+                                                th { class: "num sortable", onclick: sort_click(EffectSort::Uptime), "Uptime{arrow(EffectSort::Uptime)}" }
+                                                th { class: "num sortable", onclick: sort_click(EffectSort::Pct), "%{arrow(EffectSort::Pct)}" }
+                                            }
+                                        }
                                     }
                                 }
                                 tbody {
-                                    for effect in active.iter().chain(passive.iter()) {
+                                    for effect in sorted_effects.iter() {
                                         {
                                             let eid = effect.effect_id;
                                             let icon_id = effect.ability_id.unwrap_or(effect.effect_id);
