@@ -81,6 +81,9 @@ pub struct RaidEffect {
     pub is_buff: bool,
     /// Pre-loaded icon RGBA data (width, height, rgba_bytes) - Arc for cheap cloning
     pub icon: Option<std::sync::Arc<(u32, u32, Vec<u8>)>>,
+    /// Per-effect icon toggle from the effect definition; combined with the
+    /// overlay-level `show_effect_icons` config (both must be true to render an icon)
+    pub show_icon: bool,
 }
 
 impl RaidEffect {
@@ -94,6 +97,7 @@ impl RaidEffect {
             color: Color::from_rgba8(100, 180, 255, 255),
             is_buff: true,
             icon: None,
+            show_icon: true,
         }
     }
 
@@ -139,6 +143,12 @@ impl RaidEffect {
     /// Set the icon data (RGBA pixels)
     pub fn with_icon(mut self, icon: std::sync::Arc<(u32, u32, Vec<u8>)>) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// Set the per-effect icon toggle
+    pub fn with_show_icon(mut self, show_icon: bool) -> Self {
+        self.show_icon = show_icon;
         self
     }
 
@@ -988,8 +998,8 @@ impl RaidOverlay {
             let ex = x + 3.0 + (i as f32 * (effect_size + spacing));
             let ey = y + vertical_offset;
 
-            // Draw icon or colored square
-            let has_icon = if self.config.show_effect_icons {
+            // Draw icon or colored square (overlay toggle AND per-effect flag)
+            let has_icon = if self.config.show_effect_icons && effect.show_icon {
                 if let Some(ref icon_arc) = effect.icon {
                     let (img_w, img_h, ref rgba) = **icon_arc;
                     self.frame

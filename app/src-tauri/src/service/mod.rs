@@ -3769,7 +3769,8 @@ fn convert_to_raid_effect(
     // Effects on raid frames are typically HoTs/shields (is_buff defaults to true in RaidEffect::new())
     let mut raid_effect = RaidEffect::new(effect.game_effect_id, effect.name.clone())
         .with_charges(effect.stacks)
-        .with_color_rgba(effect.color);
+        .with_color_rgba(effect.color)
+        .with_show_icon(effect.show_icon);
 
     // Compute expiry Instant from game-time remaining (base duration only —
     // the cooldown ready-state tail is a cooldowns-overlay concept)
