@@ -15,7 +15,7 @@ use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::combat_log::CombatEvent;
+use crate::combat_log::{CombatEvent, Position};
 use crate::context::resolve;
 use crate::encounter::ShieldContext;
 
@@ -34,6 +34,7 @@ pub struct EventRow {
     pub source_entity_type: &'static str,
     pub source_hp: i32,
     pub source_max_hp: i32,
+    pub source_pos: Option<Position>,
 
     // ─── Target Entity ───────────────────────────────────────────────────────
     pub target_id: i64,
@@ -42,6 +43,7 @@ pub struct EventRow {
     pub target_entity_type: &'static str,
     pub target_hp: i32,
     pub target_max_hp: i32,
+    pub target_pos: Option<Position>,
 
     // ─── Action ──────────────────────────────────────────────────────────────
     pub ability_id: i64,
@@ -100,6 +102,7 @@ impl EventRow {
             source_entity_type: entity_type_str(&event.source_entity.entity_type),
             source_hp: event.source_entity.health.0,
             source_max_hp: event.source_entity.health.1,
+            source_pos: event.source_entity.position,
 
             // Target entity
             target_id: event.target_entity.log_id,
@@ -108,6 +111,7 @@ impl EventRow {
             target_entity_type: entity_type_str(&event.target_entity.entity_type),
             target_hp: event.target_entity.health.0,
             target_max_hp: event.target_entity.health.1,
+            target_pos: event.target_entity.position,
 
             // Action
             ability_id: event.action.action_id,
@@ -287,6 +291,10 @@ impl EncounterWriter {
             Field::new("source_entity_type", DataType::Utf8, false),
             Field::new("source_hp", DataType::Int32, false),
             Field::new("source_max_hp", DataType::Int32, false),
+            Field::new("source_x", DataType::Float32, true),
+            Field::new("source_y", DataType::Float32, true),
+            Field::new("source_z", DataType::Float32, true),
+            Field::new("source_facing", DataType::Float32, true),
             // ─── Target Entity ───────────────────────────────────────────────
             Field::new("target_id", DataType::Int64, false),
             Field::new("target_name", DataType::Utf8, false),
@@ -294,6 +302,10 @@ impl EncounterWriter {
             Field::new("target_entity_type", DataType::Utf8, false),
             Field::new("target_hp", DataType::Int32, false),
             Field::new("target_max_hp", DataType::Int32, false),
+            Field::new("target_x", DataType::Float32, true),
+            Field::new("target_y", DataType::Float32, true),
+            Field::new("target_z", DataType::Float32, true),
+            Field::new("target_facing", DataType::Float32, true),
             // ─── Action ──────────────────────────────────────────────────────
             Field::new("ability_id", DataType::Int64, false),
             Field::new("ability_name", DataType::Utf8, false),
@@ -381,6 +393,10 @@ impl EncounterWriter {
         let mut source_entity_type = StringBuilder::with_capacity(len, len * 10);
         let mut source_hp = Int32Builder::with_capacity(len);
         let mut source_max_hp = Int32Builder::with_capacity(len);
+        let mut source_x = Float32Builder::with_capacity(len);
+        let mut source_y = Float32Builder::with_capacity(len);
+        let mut source_z = Float32Builder::with_capacity(len);
+        let mut source_facing = Float32Builder::with_capacity(len);
 
         // ─── Target Entity ───────────────────────────────────────────────────
         let mut target_id = Int64Builder::with_capacity(len);
@@ -389,6 +405,10 @@ impl EncounterWriter {
         let mut target_entity_type = StringBuilder::with_capacity(len, len * 10);
         let mut target_hp = Int32Builder::with_capacity(len);
         let mut target_max_hp = Int32Builder::with_capacity(len);
+        let mut target_x = Float32Builder::with_capacity(len);
+        let mut target_y = Float32Builder::with_capacity(len);
+        let mut target_z = Float32Builder::with_capacity(len);
+        let mut target_facing = Float32Builder::with_capacity(len);
 
         // ─── Action ──────────────────────────────────────────────────────────
         let mut ability_id = Int64Builder::with_capacity(len);
@@ -448,6 +468,10 @@ impl EncounterWriter {
             source_entity_type.append_value(row.source_entity_type);
             source_hp.append_value(row.source_hp);
             source_max_hp.append_value(row.source_max_hp);
+            source_x.append_option(row.source_pos.map(|p| p.x));
+            source_y.append_option(row.source_pos.map(|p| p.y));
+            source_z.append_option(row.source_pos.map(|p| p.z));
+            source_facing.append_option(row.source_pos.map(|p| p.facing));
 
             // Target entity
             target_id.append_value(row.target_id);
@@ -456,6 +480,10 @@ impl EncounterWriter {
             target_entity_type.append_value(row.target_entity_type);
             target_hp.append_value(row.target_hp);
             target_max_hp.append_value(row.target_max_hp);
+            target_x.append_option(row.target_pos.map(|p| p.x));
+            target_y.append_option(row.target_pos.map(|p| p.y));
+            target_z.append_option(row.target_pos.map(|p| p.z));
+            target_facing.append_option(row.target_pos.map(|p| p.facing));
 
             // Action
             ability_id.append_value(row.ability_id);
@@ -570,6 +598,10 @@ impl EncounterWriter {
             Arc::new(source_entity_type.finish()),
             Arc::new(source_hp.finish()),
             Arc::new(source_max_hp.finish()),
+            Arc::new(source_x.finish()),
+            Arc::new(source_y.finish()),
+            Arc::new(source_z.finish()),
+            Arc::new(source_facing.finish()),
             // Target entity
             Arc::new(target_id.finish()),
             Arc::new(target_name.finish()),
@@ -577,6 +609,10 @@ impl EncounterWriter {
             Arc::new(target_entity_type.finish()),
             Arc::new(target_hp.finish()),
             Arc::new(target_max_hp.finish()),
+            Arc::new(target_x.finish()),
+            Arc::new(target_y.finish()),
+            Arc::new(target_z.finish()),
+            Arc::new(target_facing.finish()),
             // Action
             Arc::new(ability_id.finish()),
             Arc::new(ability_name.finish()),
@@ -619,5 +655,67 @@ impl EncounterWriter {
 impl Default for EncounterWriter {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::combat_log::{Entity, EntityType, Position};
+    use crate::context::intern;
+    use arrow::array::{Array, Float32Array};
+
+    fn test_event(with_position: bool) -> CombatEvent {
+        let position = with_position.then_some(Position {
+            x: 137.28,
+            y: -120.98,
+            z: -8.85,
+            facing: 81.28,
+        });
+        CombatEvent {
+            line_number: 1,
+            timestamp: chrono::NaiveDateTime::default(),
+            source_entity: Entity {
+                name: intern("Source"),
+                log_id: 1,
+                entity_type: EntityType::Player,
+                position,
+                ..Default::default()
+            },
+            target_entity: Entity {
+                name: intern("Target"),
+                log_id: 2,
+                entity_type: EntityType::Npc,
+                ..Default::default()
+            },
+            action: Default::default(),
+            effect: Default::default(),
+            details: Default::default(),
+        }
+    }
+
+    /// Guards schema/column alignment — a mismatch only fails at runtime.
+    #[test]
+    fn record_batch_matches_schema_with_positions() {
+        let mut writer = EncounterWriter::new();
+        writer.push_event(&test_event(true), &EventMetadata::default());
+        writer.push_event(&test_event(false), &EventMetadata::default());
+
+        let batch = writer.to_record_batch().expect("batch should build");
+        assert_eq!(batch.schema(), EncounterWriter::schema());
+        assert_eq!(batch.num_rows(), 2);
+
+        let idx = batch.schema().index_of("source_x").unwrap();
+        let source_x = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap();
+        assert_eq!(source_x.value(0), 137.28);
+        assert!(source_x.is_null(1));
+
+        // Target had no position on either row
+        let idx = batch.schema().index_of("target_z").unwrap();
+        assert!(batch.column(idx).is_null(0));
     }
 }

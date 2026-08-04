@@ -576,11 +576,13 @@ fn EntityEditForm(
                                     effects: vec![],
                                     source: EntityFilter::Any,
                                     target: EntityFilter::Any,
+                                    position: vec![],
                                 },
                                 end_trigger: Trigger::EffectRemoved {
                                     effects: vec![],
                                     source: EntityFilter::Any,
                                     target: EntityFilter::Any,
+                                    position: vec![],
                                 },
                                 total: 0,
                                 hp: vec![],

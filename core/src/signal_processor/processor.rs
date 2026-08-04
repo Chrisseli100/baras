@@ -43,6 +43,12 @@ impl EventProcessor {
         // PHASE 1: Global Event Handlers (state-independent)
         // ═══════════════════════════════════════════════════════════════════════
 
+        // 1a'. Last-known entity positions (read by position-constrained triggers;
+        // must run first so all downstream evaluation sees this event's coordinates)
+        if let Some(enc) = cache.current_encounter_mut() {
+            enc.update_entity_positions(&event);
+        }
+
         // 1a. Player/discipline tracking
         self.handle_discipline_event(&event, cache, &mut signals);
 
@@ -668,6 +674,7 @@ impl EventProcessor {
                     local_player_id,
                     current_target_id: None,
                     boss_entity_ids: &empty_boss_ids,
+                    entity_positions: enc.entity_positions(),
                 };
                 if super::trigger_eval::check_event_trigger(trigger, event, Some(&filter_ctx)) {
                     if def.encounter_trigger_fallback_secs.is_some() {
@@ -1095,6 +1102,7 @@ impl EventProcessor {
             local_player_id,
             current_target_id,
             boss_entity_ids: boss_ids.as_ref(),
+            entity_positions: enc.entity_positions(),
         };
 
         // Check if trigger matches (needs immutable borrow)
@@ -1655,7 +1663,7 @@ fn shield_signal_matches(
             }
         }
 
-        Trigger::NpcAppears { selector } => {
+        Trigger::NpcAppears { selector, .. } => {
             if let GameSignal::NpcFirstSeen {
                 npc_id,
                 entity_name,
@@ -1669,7 +1677,7 @@ fn shield_signal_matches(
             }
         }
 
-        Trigger::EntityDeath { selector } => {
+        Trigger::EntityDeath { selector, .. } => {
             if let GameSignal::EntityDeath {
                 npc_id,
                 entity_name,

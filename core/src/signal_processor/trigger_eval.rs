@@ -30,6 +30,14 @@ pub struct FilterContext<'a> {
     pub local_player_id: Option<i64>,
     pub current_target_id: Option<i64>,
     pub boss_entity_ids: &'a HashSet<i64>,
+    /// Last-known entity positions from the encounter (for position constraints)
+    pub entity_positions: std::sync::Arc<hashbrown::HashMap<i64, crate::combat_log::Position>>,
+}
+
+impl FilterContext<'_> {
+    fn position_of(&self, entity_id: i64) -> Option<crate::combat_log::Position> {
+        self.entity_positions.get(&entity_id).copied()
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,12 +114,21 @@ pub fn check_signal_trigger(
         // ─── Entity Lifecycle ──────────────────────────────────────────────
         Trigger::NpcAppears { .. } => signals.iter().any(|s| {
             if let GameSignal::NpcFirstSeen {
+                entity_id,
                 npc_id,
                 entity_name,
                 ..
             } = s
             {
+                // Position constraints apply to the appearing NPC itself:
+                // its position satisfies both source and target constraints.
+                let npc_pos = filter_ctx.position_of(*entity_id);
                 trigger.matches_npc_appears(filter_ctx.entities, *npc_id, entity_name)
+                    && crate::dsl::triggers::matches_position_constraints(
+                        trigger.position_constraints(),
+                        npc_pos,
+                        npc_pos,
+                    )
             } else {
                 false
             }
@@ -119,12 +136,21 @@ pub fn check_signal_trigger(
 
         Trigger::EntityDeath { .. } => signals.iter().any(|s| {
             if let GameSignal::EntityDeath {
+                entity_id,
                 npc_id,
                 entity_name,
                 ..
             } = s
             {
+                // Position constraints apply to the dying entity itself:
+                // its position satisfies both source and target constraints.
+                let death_pos = filter_ctx.position_of(*entity_id);
                 trigger.matches_entity_death(filter_ctx.entities, *npc_id, entity_name)
+                    && crate::dsl::triggers::matches_position_constraints(
+                        trigger.position_constraints(),
+                        death_pos,
+                        death_pos,
+                    )
             } else {
                 false
             }
@@ -212,6 +238,8 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.position_of(*source_id),
+                    filter_ctx.position_of(*target_id),
                 )
             } else {
                 false
@@ -253,6 +281,8 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.position_of(*source_id),
+                    filter_ctx.position_of(*target_id),
                 )
             } else {
                 false
@@ -295,6 +325,8 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.position_of(*source_id),
+                    filter_ctx.position_of(*target_id),
                 )
             } else {
                 false
@@ -336,6 +368,8 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.position_of(*source_id),
+                    filter_ctx.position_of(*target_id),
                 )
             } else {
                 false
@@ -487,6 +521,16 @@ fn check_event_filters(
     event: &CombatEvent,
     filter_ctx: Option<&FilterContext>,
 ) -> bool {
+    // Position constraints read straight off the event; they apply even
+    // without a filter context.
+    if !crate::dsl::triggers::matches_position_constraints(
+        trigger.position_constraints(),
+        event.source_entity.position,
+        event.target_entity.position,
+    ) {
+        return false;
+    }
+
     let Some(ctx) = filter_ctx else {
         return true; // No context = no filtering
     };
@@ -505,6 +549,8 @@ fn check_event_filters(
         ctx.local_player_id,
         ctx.current_target_id,
         ctx.boss_entity_ids,
+        event.source_entity.position,
+        event.target_entity.position,
     )
 }
 

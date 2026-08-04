@@ -153,14 +153,14 @@ npc_id = 123456789                    # Optional: specific NPC
 | ------------------ | --------------------------------------- |
 | `combat_start`     | —                                       |
 | `combat_end`       | — (counter reset_on only)               |
-| `ability_cast`     | `abilities`, `source?`                  |
-| `effect_applied`   | `effects`, `source?`, `target?`         |
-| `effect_removed`   | `effects`, `source?`, `target?`         |
-| `damage_taken`     | `abilities`, `source?`, `target?`       |
+| `ability_cast`     | `abilities`, `source?`, `position?`     |
+| `effect_applied`   | `effects`, `source?`, `target?`, `position?` |
+| `effect_removed`   | `effects`, `source?`, `target?`, `position?` |
+| `damage_taken`     | `abilities`, `source?`, `target?`, `position?` |
 | `boss_hp_below`    | `hp_percent`, `selector?`               |
 | `boss_hp_above`    | `hp_percent`, `selector?` (phases only) |
-| `npc_appears`      | `selector` (required)                   |
-| `entity_death`     | `selector?`                             |
+| `npc_appears`      | `selector` (required), `position?`      |
+| `entity_death`     | `selector?`, `position?`                |
 | `target_set`       | `selector`, `target`                    |
 | `phase_entered`    | `phase_id`                              |
 | `phase_ended`      | `phase_id`                              |
@@ -173,6 +173,31 @@ npc_id = 123456789                    # Optional: specific NPC
 | `any_of`           | `conditions` (array of triggers)        |
 | `manual`           | — (debug)                               |
 | `never`            | — (disable reset)                       |
+
+### Position Constraints
+
+Event-driven triggers (`ability_cast`, `effect_applied`, `effect_removed`,
+`damage_taken`, `damage_dealt`, `healing_taken`, `npc_appears`, `entity_death`)
+accept an optional `position` array gating the trigger on the world coordinates
+of the event's entities. All constraints must pass (AND); an entity without
+coordinate data never matches. For `npc_appears` and `entity_death` the
+constraints apply to the subject NPC itself (whether it appeared as the source
+or target of the log event), so the `entity` field is effectively ignored.
+
+```toml
+# Only fire when the caster is inside the north-west quadrant
+position = [
+  { entity = "source", axis = "x", op = "between", min = 100.0, max = 150.0 },
+  { entity = "source", axis = "y", op = "gte", value = -220.0 },
+]
+```
+
+| Field    | Values                                              |
+| -------- | --------------------------------------------------- |
+| `entity` | `source` · `target`                                 |
+| `axis`   | `x` · `y` · `z` · `facing`                          |
+| `op`     | `gt` · `gte` · `lt` · `lte` · `between`             |
+| values   | `value` for comparisons; `min` + `max` for `between` (inclusive) |
 
 ### Entity Filters
 

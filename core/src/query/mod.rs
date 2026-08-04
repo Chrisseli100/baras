@@ -201,6 +201,15 @@ pub struct EncounterQuery<'a> {
 }
 
 impl EncounterQuery<'_> {
+    /// Check whether the registered events table has a column.
+    /// Used for schema evolution — older parquet files may lack newer columns.
+    async fn has_column(&self, name: &str) -> bool {
+        match self.ctx.table("events").await {
+            Ok(df) => df.schema().field_with_unqualified_name(name).is_ok(),
+            Err(_) => false,
+        }
+    }
+
     /// Execute SQL query, returning empty results if table doesn't exist.
     /// This prevents panics when queries are made before parquet data is loaded.
     async fn sql(&self, query: &str) -> Result<Vec<RecordBatch>, String> {

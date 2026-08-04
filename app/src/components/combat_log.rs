@@ -107,6 +107,14 @@ fn readable_event_type(row: &CombatLogRow) -> &'static str {
     }
 }
 
+/// Format entity coordinates for the hover tooltip; empty when unavailable.
+fn coord_tooltip(x: Option<f32>, y: Option<f32>, z: Option<f32>, facing: Option<f32>) -> String {
+    match (x, y, z, facing) {
+        (Some(x), Some(y), Some(z), Some(f)) => format!("x: {x:.2}, y: {y:.2}, z: {z:.2}, facing: {f:.2}"),
+        _ => String::new(),
+    }
+}
+
 /// Get readable defense/mitigation type.
 fn readable_defense_type(id: i64) -> &'static str {
     match id {
@@ -1177,6 +1185,7 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                                     }
                                 }
                                 div { class: "log-cell log-source", style: "width: {col_source}px; min-width: {col_source}px;",
+                                    title: "{coord_tooltip(row.source_x, row.source_y, row.source_z, row.source_facing)}",
                                     if show_ids_val && row.source_class_id != 0 {
                                         span { class: "log-id-prefix", "[{row.source_class_id}] " }
                                     }
@@ -1186,6 +1195,7 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                                     "{readable_event_type(&row)}"
                                 }
                                 div { class: "log-cell log-target", style: "width: {col_target}px; min-width: {col_target}px;",
+                                    title: "{coord_tooltip(row.target_x, row.target_y, row.target_z, row.target_facing)}",
                                     if show_ids_val && row.target_class_id != 0 {
                                         span { class: "log-id-prefix", "[{row.target_class_id}] " }
                                     }

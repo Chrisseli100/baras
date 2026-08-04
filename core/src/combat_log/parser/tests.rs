@@ -22,6 +22,12 @@ fn test_parse_entity_npc() {
     assert_eq!(entity.log_id, 5320000112163);
     assert_eq!(entity.entity_type, EntityType::Npc);
     assert_eq!(entity.health, (0, 19129210));
+
+    let pos = entity.position.unwrap();
+    assert_eq!(pos.x, 137.28);
+    assert_eq!(pos.y, -120.98);
+    assert_eq!(pos.z, -8.85);
+    assert_eq!(pos.facing, 81.28);
 }
 
 #[test]
@@ -38,6 +44,12 @@ fn test_parse_entity_player() {
     assert_eq!(entity.log_id, 690129185314118);
     assert_eq!(entity.entity_type, EntityType::Player);
     assert_eq!(entity.health, (1, 414851));
+
+    let pos = entity.position.unwrap();
+    assert_eq!(pos.x, -4700.43);
+    assert_eq!(pos.y, -4750.48);
+    assert_eq!(pos.z, 710.03);
+    assert_eq!(pos.facing, -0.71);
 }
 
 #[test]
@@ -76,6 +88,35 @@ fn test_parse_entity_empty() {
     let entity = result.unwrap();
 
     assert_eq!(entity.entity_type, EntityType::Empty);
+    assert!(entity.position.is_none());
+}
+
+// parse_position edge cases
+#[test]
+fn test_parse_position_whole_and_zero() {
+    let entity = test_parser()
+        .parse_entity("Training Dummy {123}:456|(0.00,4694.53,-8.00,3.14)|(100/100)")
+        .unwrap();
+    let pos = entity.position.unwrap();
+    assert_eq!(pos.x, 0.0);
+    assert_eq!(pos.y, 4694.53);
+    assert_eq!(pos.z, -8.0);
+    assert_eq!(pos.facing, 3.14);
+}
+
+#[test]
+fn test_parse_position_malformed_is_none() {
+    let parser = test_parser();
+    // Missing component
+    let entity = parser
+        .parse_entity("Training Dummy {123}:456|(1.00,2.00,3.00)|(100/100)")
+        .unwrap();
+    assert!(entity.position.is_none());
+    // Garbage segment still parses the entity
+    let entity = parser
+        .parse_entity("Training Dummy {123}:456|(a,b,c,d)|(100/100)")
+        .unwrap();
+    assert!(entity.position.is_none());
 }
 
 // parse_charges

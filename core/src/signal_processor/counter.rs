@@ -32,7 +32,7 @@ pub fn check_counter_increments(
     cache: &mut SessionCache,
     current_signals: &[GameSignal],
 ) -> Vec<GameSignal> {
-    let (definitions, def_idx, boss_ids, local_player_id, current_target_id) = {
+    let (definitions, def_idx, boss_ids, local_player_id, current_target_id, entity_positions) = {
         let Some(enc) = cache.current_encounter() else {
             return Vec::new();
         };
@@ -43,7 +43,7 @@ pub fn check_counter_increments(
         let local_player_id = Some(cache.player.id).filter(|&id| id != 0);
         let current_target_id =
             local_player_id.and_then(|pid| enc.local_player_target_id(pid));
-        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id)
+        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id, enc.entity_positions())
     };
     let def = &definitions[def_idx];
 
@@ -52,6 +52,7 @@ pub fn check_counter_increments(
         local_player_id,
         current_target_id,
         boss_entity_ids: boss_ids.as_ref(),
+        entity_positions,
     };
 
     let mut signals = Vec::new();
@@ -148,7 +149,7 @@ pub fn check_counter_signal_triggers(
         return Vec::new();
     }
 
-    let (definitions, def_idx, boss_ids, local_player_id, current_target_id) = {
+    let (definitions, def_idx, boss_ids, local_player_id, current_target_id, entity_positions) = {
         let Some(enc) = cache.current_encounter() else {
             return Vec::new();
         };
@@ -159,7 +160,7 @@ pub fn check_counter_signal_triggers(
         let local_player_id = Some(cache.player.id).filter(|&id| id != 0);
         let current_target_id =
             local_player_id.and_then(|pid| enc.local_player_target_id(pid));
-        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id)
+        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id, enc.entity_positions())
     };
     let def = &definitions[def_idx];
 
@@ -168,6 +169,7 @@ pub fn check_counter_signal_triggers(
         local_player_id,
         current_target_id,
         boss_entity_ids: boss_ids.as_ref(),
+        entity_positions,
     };
 
     let mut signals = Vec::new();

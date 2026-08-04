@@ -26,6 +26,10 @@ fn make_context(source_name: IStr, target_name: IStr) -> Option<TriggerContext> 
 }
 
 /// Get the entity roster from the current encounter, or empty slice if none.
+fn entity_pos(encounter: Option<&CombatEncounter>, id: i64) -> Option<crate::combat_log::Position> {
+    encounter.and_then(|e| e.entity_position(id))
+}
+
 fn get_entities(encounter: Option<&CombatEncounter>) -> &[EntityDefinition] {
     static EMPTY: &[EntityDefinition] = &[];
     let Some(enc) = encounter else {
@@ -53,6 +57,8 @@ pub(super) fn handle_ability(
     target_npc_id: i64,
     timestamp: NaiveDateTime,
 ) {
+    let source_pos = entity_pos(encounter, source_id);
+    let target_pos = entity_pos(encounter, target_id);
     let ability_id = ability_id as u64;
     let ability_name_str = crate::context::resolve(ability_name);
 
@@ -73,6 +79,8 @@ pub(super) fn handle_ability(
                     target_type,
                     target_name,
                     target_npc_id,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -99,6 +107,8 @@ pub(super) fn handle_ability(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_ability(ability_id, Some(ability_name_str)),
     );
     // Check queue_remove_trigger on ability cast (entity-filtered)
@@ -112,6 +122,8 @@ pub(super) fn handle_ability(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_ability(ability_id, Some(ability_name_str)),
     );
 }
@@ -132,6 +144,8 @@ pub(super) fn handle_effect_applied(
     target_npc_id: i64,
     timestamp: NaiveDateTime,
 ) {
+    let source_pos = entity_pos(encounter, source_id);
+    let target_pos = entity_pos(encounter, target_id);
     // Convert i64 to u64 for matching (game IDs are always positive)
     let effect_id = effect_id as u64;
 
@@ -152,6 +166,8 @@ pub(super) fn handle_effect_applied(
                     target_type,
                     target_name,
                     target_npc_id,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -178,6 +194,8 @@ pub(super) fn handle_effect_applied(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_effect_applied(effect_id, Some(effect_name)),
     );
     manager.remove_queued_matching_with_source_target(
@@ -190,6 +208,8 @@ pub(super) fn handle_effect_applied(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_effect_applied(effect_id, Some(effect_name)),
     );
 }
@@ -210,6 +230,8 @@ pub(super) fn handle_effect_removed(
     target_npc_id: i64,
     timestamp: NaiveDateTime,
 ) {
+    let source_pos = entity_pos(encounter, source_id);
+    let target_pos = entity_pos(encounter, target_id);
     // Convert i64 to u64 for matching (game IDs are always positive)
     let effect_id = effect_id as u64;
 
@@ -230,6 +252,8 @@ pub(super) fn handle_effect_removed(
                     target_type,
                     target_name,
                     target_npc_id,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -256,6 +280,8 @@ pub(super) fn handle_effect_removed(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_effect_removed(effect_id, Some(effect_name)),
     );
     manager.remove_queued_matching_with_source_target(
@@ -268,6 +294,8 @@ pub(super) fn handle_effect_removed(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_effect_removed(effect_id, Some(effect_name)),
     );
 }
@@ -434,16 +462,26 @@ pub(super) fn handle_counter_change(
 pub(super) fn handle_npc_first_seen(
     manager: &mut TimerManager,
     encounter: Option<&CombatEncounter>,
+    entity_id: i64,
     npc_id: i64,
     npc_name: &str,
     timestamp: NaiveDateTime,
 ) {
+    // Position constraints apply to the appearing NPC itself: its position
+    // satisfies both source and target constraints.
+    let npc_pos = entity_pos(encounter, entity_id);
+
     let matching: Vec<_> = manager
         .definitions_for_kind(TriggerKind::NpcAppears)
         .iter()
         .filter(|d| {
             d.matches_npc_appears(get_entities(encounter), npc_id, Some(npc_name))
                 && manager.is_definition_active(d, encounter)
+                && crate::dsl::triggers::matches_position_constraints(
+                    d.trigger.position_constraints(),
+                    npc_pos,
+                    npc_pos,
+                )
         })
         .cloned()
         .collect();
@@ -457,6 +495,11 @@ pub(super) fn handle_npc_first_seen(
     let npc_name_owned = npc_name.to_string();
     manager.cancel_timers_matching_with_entities(entities, |t, ents| {
         t.matches_npc_appears(ents, npc_id, &npc_name_owned)
+            && crate::dsl::triggers::matches_position_constraints(
+                t.position_constraints(),
+                npc_pos,
+                npc_pos,
+            )
     });
 }
 
@@ -464,16 +507,26 @@ pub(super) fn handle_npc_first_seen(
 pub(super) fn handle_entity_death(
     manager: &mut TimerManager,
     encounter: Option<&CombatEncounter>,
+    entity_id: i64,
     npc_id: i64,
     entity_name: &str,
     timestamp: NaiveDateTime,
 ) {
+    // Position constraints apply to the dying entity itself: its position
+    // satisfies both source and target constraints.
+    let death_pos = entity_pos(encounter, entity_id);
+
     let matching: Vec<_> = manager
         .definitions_for_kind(TriggerKind::EntityDeath)
         .iter()
         .filter(|d| {
             d.matches_entity_death(get_entities(encounter), npc_id, Some(entity_name))
                 && manager.is_definition_active(d, encounter)
+                && crate::dsl::triggers::matches_position_constraints(
+                    d.trigger.position_constraints(),
+                    death_pos,
+                    death_pos,
+                )
         })
         .cloned()
         .collect();
@@ -487,6 +540,11 @@ pub(super) fn handle_entity_death(
     let entity_name_owned = entity_name.to_string();
     manager.cancel_timers_matching_with_entities(entities, |t, ents| {
         t.matches_entity_death(ents, npc_id, &entity_name_owned)
+            && crate::dsl::triggers::matches_position_constraints(
+                t.position_constraints(),
+                death_pos,
+                death_pos,
+            )
     });
 }
 
@@ -502,6 +560,8 @@ pub(super) fn handle_target_set(
     target_name: IStr,
     timestamp: NaiveDateTime,
 ) {
+    let source_pos = entity_pos(encounter, source_entity_id);
+    let target_pos = entity_pos(encounter, target_id);
     let source_name_str = crate::context::resolve(source_name);
     let entities = get_entities(encounter);
 
@@ -522,6 +582,8 @@ pub(super) fn handle_target_set(
                     target_entity_type,
                     target_name,
                     0,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -556,6 +618,8 @@ pub(super) fn handle_damage_taken(
     timestamp: NaiveDateTime,
     defense_type_id: i64,
 ) {
+    let source_pos = entity_pos(encounter, source_id);
+    let target_pos = entity_pos(encounter, target_id);
     let ability_id = ability_id as u64;
     let ability_name_str = crate::context::resolve(ability_name);
 
@@ -576,6 +640,8 @@ pub(super) fn handle_damage_taken(
                     target_type,
                     target_name,
                     target_npc_id,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -602,6 +668,8 @@ pub(super) fn handle_damage_taken(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_damage_taken(ability_id, Some(&ability_name_str), defense_type_id),
     );
     manager.remove_queued_matching_with_source_target(
@@ -614,6 +682,8 @@ pub(super) fn handle_damage_taken(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_damage_taken(ability_id, Some(&ability_name_str), defense_type_id),
     );
 }
@@ -635,6 +705,8 @@ pub(super) fn handle_threat_modified(
     threat: f32,
     timestamp: NaiveDateTime,
 ) {
+    let source_pos = entity_pos(encounter, source_id);
+    let target_pos = entity_pos(encounter, target_id);
     let ability_id = ability_id as u64;
     let ability_name_str = crate::context::resolve(ability_name);
 
@@ -655,6 +727,8 @@ pub(super) fn handle_threat_modified(
                     target_type,
                     target_name,
                     target_npc_id,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -670,12 +744,16 @@ pub(super) fn handle_threat_modified(
         get_entities(encounter),
         source_id, source_type, source_name, source_npc_id,
         target_id, target_type, target_name, target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_threat_modified(ability_id, Some(&ability_name_str), threat),
     );
     manager.remove_queued_matching_with_source_target(
         get_entities(encounter),
         source_id, source_type, source_name, source_npc_id,
         target_id, target_type, target_name, target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_threat_modified(ability_id, Some(&ability_name_str), threat),
     );
 }
@@ -696,6 +774,8 @@ pub(super) fn handle_healing_taken(
     target_npc_id: i64,
     timestamp: NaiveDateTime,
 ) {
+    let source_pos = entity_pos(encounter, source_id);
+    let target_pos = entity_pos(encounter, target_id);
     let ability_id = ability_id as u64;
     let ability_name_str = crate::context::resolve(ability_name);
 
@@ -716,6 +796,8 @@ pub(super) fn handle_healing_taken(
                     target_type,
                     target_name,
                     target_npc_id,
+                    source_pos,
+                    target_pos,
                 )
         })
         .cloned()
@@ -742,6 +824,8 @@ pub(super) fn handle_healing_taken(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_healing_taken(ability_id, Some(&ability_name_str)),
     );
     manager.remove_queued_matching_with_source_target(
@@ -754,6 +838,8 @@ pub(super) fn handle_healing_taken(
         target_type,
         target_name,
         target_npc_id,
+        source_pos,
+        target_pos,
         |t| t.matches_healing_taken(ability_id, Some(&ability_name_str)),
     );
 }

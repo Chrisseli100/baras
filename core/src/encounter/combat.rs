@@ -14,7 +14,7 @@ use arrow::array::ArrowNativeTypeOp;
 use chrono::NaiveDateTime;
 use hashbrown::{HashMap, HashSet};
 
-use crate::combat_log::{CombatEvent, Entity, EntityType};
+use crate::combat_log::{CombatEvent, Entity, EntityType, Position};
 use crate::context::IStr;
 use crate::dsl::{BossEncounterDefinition, CounterCondition, CounterDefinition};
 use crate::game_data::{Difficulty, Discipline, SHIELD_EFFECT_IDS, defense_type, effect_id};
@@ -116,6 +116,11 @@ pub struct CombatEncounter {
     pub npcs: HashMap<i64, NpcInfo>,
     /// Buffered NPC targets from TargetSet events that arrived before InCombat
     pending_npc_targets: HashMap<i64, i64>,
+    /// Last-known world position per entity log_id (updated every event).
+    /// Arc so FilterContexts can hold a cheap refcount clone across
+    /// mutable-cache borrows; `Arc::make_mut` never copies in practice since
+    /// clones are transient within a single event's evaluation.
+    entity_positions: Arc<HashMap<i64, Position>>,
     /// NPC log_ids that were dead at the end of the prior encounter.
     /// Used to prevent stale dead NPCs from being re-registered when a new
     /// encounter starts quickly after the previous one.
@@ -230,6 +235,7 @@ impl CombatEncounter {
             players: HashMap::new(),
             npcs: HashMap::new(),
             pending_npc_targets: HashMap::new(),
+            entity_positions: Arc::new(HashMap::new()),
             prior_dead_npc_log_ids: HashSet::new(),
             all_players_dead: false,
             victory_triggered: false,
@@ -1162,6 +1168,39 @@ impl CombatEncounter {
         
         // Fall back to all_players_dead for non-boss encounters
         false
+    }
+
+    /// Update last-known positions for the event's entities.
+    /// Called once per event, before any trigger evaluation.
+    pub fn update_entity_positions(&mut self, event: &CombatEvent) {
+        let src = event
+            .source_entity
+            .position
+            .filter(|_| event.source_entity.log_id != 0);
+        let tgt = event
+            .target_entity
+            .position
+            .filter(|_| event.target_entity.log_id != 0);
+        if src.is_none() && tgt.is_none() {
+            return;
+        }
+        let map = Arc::make_mut(&mut self.entity_positions);
+        if let Some(pos) = src {
+            map.insert(event.source_entity.log_id, pos);
+        }
+        if let Some(pos) = tgt {
+            map.insert(event.target_entity.log_id, pos);
+        }
+    }
+
+    /// Last-known world position of an entity, if any event has carried one.
+    pub fn entity_position(&self, entity_id: i64) -> Option<Position> {
+        self.entity_positions.get(&entity_id).copied()
+    }
+
+    /// Cheap refcount clone of the last-known position map (for FilterContext).
+    pub fn entity_positions(&self) -> Arc<HashMap<i64, Position>> {
+        Arc::clone(&self.entity_positions)
     }
 
     pub fn track_event_entities(&mut self, event: &CombatEvent) {

@@ -322,6 +322,24 @@ pub struct CombatLogRow {
     pub source_class_id: i64,
     /// Target entity class_id for Show IDs feature (consistent across encounters)
     pub target_class_id: i64,
+    /// Source world position (None for empty entities or pre-coordinate parquet files)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_x: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_y: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_z: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_facing: Option<f32>,
+    /// Target world position (None for empty entities or pre-coordinate parquet files)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_x: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_y: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_z: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_facing: Option<f32>,
 }
 
 /// Filter options for combat log event types.
@@ -938,6 +956,103 @@ impl MitigationType {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Position Types (world coordinates + trigger constraints)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// World position from a combat log entity segment: `(x,y,z,facing)`.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct Position {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub facing: f32,
+}
+
+/// Which entity of the triggering event a position constraint applies to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PositionEntity {
+    Source,
+    Target,
+}
+
+/// Coordinate axis to compare.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PositionAxis {
+    X,
+    Y,
+    Z,
+    Facing,
+}
+
+/// Comparison applied to the axis value.
+///
+/// Exact float equality is intentionally not offered — use `Between` with a
+/// tight range instead.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "op")]
+pub enum PositionOp {
+    Gt { value: f32 },
+    Gte { value: f32 },
+    Lt { value: f32 },
+    Lte { value: f32 },
+    /// Inclusive on both ends.
+    Between { min: f32, max: f32 },
+}
+
+/// A single position constraint on a trigger.
+///
+/// ```toml
+/// position = [
+///   { entity = "source", axis = "x", op = "between", min = 100.0, max = 150.0 },
+/// ]
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PositionConstraint {
+    pub entity: PositionEntity,
+    pub axis: PositionAxis,
+    #[serde(flatten)]
+    pub op: PositionOp,
+}
+
+impl PositionConstraint {
+    /// Evaluate against the event's source/target positions.
+    /// Missing position data fails the constraint.
+    pub fn matches(&self, source: Option<Position>, target: Option<Position>) -> bool {
+        let pos = match self.entity {
+            PositionEntity::Source => source,
+            PositionEntity::Target => target,
+        };
+        let Some(pos) = pos else {
+            return false;
+        };
+        let v = match self.axis {
+            PositionAxis::X => pos.x,
+            PositionAxis::Y => pos.y,
+            PositionAxis::Z => pos.z,
+            PositionAxis::Facing => pos.facing,
+        };
+        match self.op {
+            PositionOp::Gt { value } => v > value,
+            PositionOp::Gte { value } => v >= value,
+            PositionOp::Lt { value } => v < value,
+            PositionOp::Lte { value } => v <= value,
+            PositionOp::Between { min, max } => v >= min && v <= max,
+        }
+    }
+}
+
+/// Check all constraints (AND semantics). An empty list always passes.
+pub fn matches_position_constraints(
+    constraints: &[PositionConstraint],
+    source: Option<Position>,
+    target: Option<Position>,
+) -> bool {
+    constraints.iter().all(|c| c.matches(source, target))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Trigger Types (shared across timers, phases, counters)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -968,6 +1083,9 @@ pub enum Trigger {
         source: EntityFilter,
         #[serde(default = "EntityFilter::default_any")]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Effect/buff is applied. [TPC]
@@ -978,6 +1096,9 @@ pub enum Trigger {
         source: EntityFilter,
         #[serde(default)]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Effect/buff is removed. [TPC]
@@ -988,6 +1109,9 @@ pub enum Trigger {
         source: EntityFilter,
         #[serde(default)]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Damage is taken from an ability. [TPC]
@@ -1003,6 +1127,9 @@ pub enum Trigger {
         /// Empty (default) matches any hit result.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         mitigation: Vec<MitigationType>,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Damage is dealt to a target. [TPC]
@@ -1015,6 +1142,9 @@ pub enum Trigger {
         target: EntityFilter,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         mitigation: Vec<MitigationType>,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Healing is received from an ability. [TPC]
@@ -1025,6 +1155,9 @@ pub enum Trigger {
         source: EntityFilter,
         #[serde(default)]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Another effect's charges/stacks change. [M only]
@@ -1074,12 +1207,20 @@ pub enum Trigger {
     NpcAppears {
         #[serde(default)]
         selector: Vec<EntitySelector>,
+        /// Coordinate constraints on the appearing NPC (AND semantics, empty = any).
+        /// The NPC's position is checked regardless of the constraint's `entity` field.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Entity dies. [TPC]
     EntityDeath {
         #[serde(default)]
         selector: Vec<EntitySelector>,
+        /// Coordinate constraints on the dying entity (AND semantics, empty = any).
+        /// The entity's position is checked regardless of the constraint's `entity` field.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// NPC sets its target. [T only]
@@ -1134,6 +1275,53 @@ pub enum Trigger {
 }
 
 impl Trigger {
+    /// Get the position constraints for event-driven triggers (empty otherwise).
+    pub fn position_constraints(&self) -> &[PositionConstraint] {
+        match self {
+            Self::AbilityCast { position, .. }
+            | Self::EffectApplied { position, .. }
+            | Self::EffectRemoved { position, .. }
+            | Self::DamageTaken { position, .. }
+            | Self::DamageDealt { position, .. }
+            | Self::HealingTaken { position, .. }
+            | Self::NpcAppears { position, .. }
+            | Self::EntityDeath { position, .. } => position,
+            _ => &[],
+        }
+    }
+
+    /// Whether this trigger variant supports position constraints.
+    pub fn supports_position(&self) -> bool {
+        matches!(
+            self,
+            Self::AbilityCast { .. }
+                | Self::EffectApplied { .. }
+                | Self::EffectRemoved { .. }
+                | Self::DamageTaken { .. }
+                | Self::DamageDealt { .. }
+                | Self::HealingTaken { .. }
+                | Self::NpcAppears { .. }
+                | Self::EntityDeath { .. }
+        )
+    }
+
+    /// Return this trigger with its position constraints replaced.
+    /// No-op for variants without position support.
+    pub fn with_position(mut self, constraints: Vec<PositionConstraint>) -> Self {
+        match &mut self {
+            Self::AbilityCast { position, .. }
+            | Self::EffectApplied { position, .. }
+            | Self::EffectRemoved { position, .. }
+            | Self::DamageTaken { position, .. }
+            | Self::DamageDealt { position, .. }
+            | Self::HealingTaken { position, .. }
+            | Self::NpcAppears { position, .. }
+            | Self::EntityDeath { position, .. } => *position = constraints,
+            _ => {}
+        }
+        self
+    }
+
     /// Returns a human-readable label for this trigger type.
     pub fn label(&self) -> &'static str {
         match self {

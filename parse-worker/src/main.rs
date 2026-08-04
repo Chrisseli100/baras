@@ -55,6 +55,10 @@ struct FastEncounterWriter {
     source_entity_type: StringBuilder,
     source_hp: Int32Builder,
     source_max_hp: Int32Builder,
+    source_x: Float32Builder,
+    source_y: Float32Builder,
+    source_z: Float32Builder,
+    source_facing: Float32Builder,
     // Target entity
     target_id: Int64Builder,
     target_name: StringBuilder,
@@ -62,6 +66,10 @@ struct FastEncounterWriter {
     target_entity_type: StringBuilder,
     target_hp: Int32Builder,
     target_max_hp: Int32Builder,
+    target_x: Float32Builder,
+    target_y: Float32Builder,
+    target_z: Float32Builder,
+    target_facing: Float32Builder,
     // Action
     ability_id: Int64Builder,
     ability_name: StringBuilder,
@@ -114,12 +122,20 @@ impl FastEncounterWriter {
             source_entity_type: StringBuilder::with_capacity(capacity, capacity * 8),
             source_hp: Int32Builder::with_capacity(capacity),
             source_max_hp: Int32Builder::with_capacity(capacity),
+            source_x: Float32Builder::with_capacity(capacity),
+            source_y: Float32Builder::with_capacity(capacity),
+            source_z: Float32Builder::with_capacity(capacity),
+            source_facing: Float32Builder::with_capacity(capacity),
             target_id: Int64Builder::with_capacity(capacity),
             target_name: StringBuilder::with_capacity(capacity, capacity * 16),
             target_class_id: Int64Builder::with_capacity(capacity),
             target_entity_type: StringBuilder::with_capacity(capacity, capacity * 8),
             target_hp: Int32Builder::with_capacity(capacity),
             target_max_hp: Int32Builder::with_capacity(capacity),
+            target_x: Float32Builder::with_capacity(capacity),
+            target_y: Float32Builder::with_capacity(capacity),
+            target_z: Float32Builder::with_capacity(capacity),
+            target_facing: Float32Builder::with_capacity(capacity),
             ability_id: Int64Builder::with_capacity(capacity),
             ability_name: StringBuilder::with_capacity(capacity, capacity * 24),
             effect_id: Int64Builder::with_capacity(capacity),
@@ -172,6 +188,11 @@ impl FastEncounterWriter {
         self.source_hp.append_value(event.source_entity.health.0);
         self.source_max_hp
             .append_value(event.source_entity.health.1);
+        let src_pos = event.source_entity.position;
+        self.source_x.append_option(src_pos.map(|p| p.x));
+        self.source_y.append_option(src_pos.map(|p| p.y));
+        self.source_z.append_option(src_pos.map(|p| p.z));
+        self.source_facing.append_option(src_pos.map(|p| p.facing));
 
         // Target entity
         self.target_id.append_value(event.target_entity.log_id);
@@ -184,6 +205,11 @@ impl FastEncounterWriter {
         self.target_hp.append_value(event.target_entity.health.0);
         self.target_max_hp
             .append_value(event.target_entity.health.1);
+        let tgt_pos = event.target_entity.position;
+        self.target_x.append_option(tgt_pos.map(|p| p.x));
+        self.target_y.append_option(tgt_pos.map(|p| p.y));
+        self.target_z.append_option(tgt_pos.map(|p| p.z));
+        self.target_facing.append_option(tgt_pos.map(|p| p.facing));
 
         // Action
         self.ability_id.append_value(event.action.action_id);
@@ -348,12 +374,20 @@ impl FastEncounterWriter {
             Arc::new(self.source_entity_type.finish()),
             Arc::new(self.source_hp.finish()),
             Arc::new(self.source_max_hp.finish()),
+            Arc::new(self.source_x.finish()),
+            Arc::new(self.source_y.finish()),
+            Arc::new(self.source_z.finish()),
+            Arc::new(self.source_facing.finish()),
             Arc::new(self.target_id.finish()),
             Arc::new(self.target_name.finish()),
             Arc::new(self.target_class_id.finish()),
             Arc::new(self.target_entity_type.finish()),
             Arc::new(self.target_hp.finish()),
             Arc::new(self.target_max_hp.finish()),
+            Arc::new(self.target_x.finish()),
+            Arc::new(self.target_y.finish()),
+            Arc::new(self.target_z.finish()),
+            Arc::new(self.target_facing.finish()),
             Arc::new(self.ability_id.finish()),
             Arc::new(self.ability_name.finish()),
             Arc::new(self.effect_id.finish()),
@@ -417,12 +451,20 @@ impl FastEncounterWriter {
             Field::new("source_entity_type", DataType::Utf8, false),
             Field::new("source_hp", DataType::Int32, false),
             Field::new("source_max_hp", DataType::Int32, false),
+            Field::new("source_x", DataType::Float32, true),
+            Field::new("source_y", DataType::Float32, true),
+            Field::new("source_z", DataType::Float32, true),
+            Field::new("source_facing", DataType::Float32, true),
             Field::new("target_id", DataType::Int64, false),
             Field::new("target_name", DataType::Utf8, false),
             Field::new("target_class_id", DataType::Int64, false),
             Field::new("target_entity_type", DataType::Utf8, false),
             Field::new("target_hp", DataType::Int32, false),
             Field::new("target_max_hp", DataType::Int32, false),
+            Field::new("target_x", DataType::Float32, true),
+            Field::new("target_y", DataType::Float32, true),
+            Field::new("target_z", DataType::Float32, true),
+            Field::new("target_facing", DataType::Float32, true),
             Field::new("ability_id", DataType::Int64, false),
             Field::new("ability_name", DataType::Utf8, false),
             Field::new("effect_id", DataType::Int64, false),

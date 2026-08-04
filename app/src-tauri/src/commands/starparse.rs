@@ -239,6 +239,7 @@ fn convert_trigger(xml: &XmlTrigger) -> Trigger {
             ),
             source,
             target,
+            position: vec![],
         },
         "EFFECT_LOST" => Trigger::EffectRemoved {
             effects: build_effect_selectors(
@@ -247,6 +248,7 @@ fn convert_trigger(xml: &XmlTrigger) -> Trigger {
             ),
             source,
             target,
+            position: vec![],
         },
         "DAMAGE" => Trigger::DamageTaken {
             abilities: build_ability_selectors(
@@ -256,6 +258,7 @@ fn convert_trigger(xml: &XmlTrigger) -> Trigger {
             source,
             target,
             mitigation: vec![],
+            position: vec![],
         },
         "HEAL" => Trigger::HealingTaken {
             abilities: build_ability_selectors(
@@ -264,6 +267,7 @@ fn convert_trigger(xml: &XmlTrigger) -> Trigger {
             ),
             source,
             target,
+            position: vec![],
         },
         "ABILITY_ACTIVATED" => Trigger::AbilityCast {
             abilities: build_ability_selectors(
@@ -272,6 +276,7 @@ fn convert_trigger(xml: &XmlTrigger) -> Trigger {
             ),
             source,
             target,
+            position: vec![],
         },
         "COMBAT_START" => Trigger::CombatStart,
         "TIMER_STARTED" => Trigger::TimerStarted {

@@ -16,6 +16,10 @@ impl Default for Action {
     }
 }
 
+// World position from the entity segment: `(x,y,z,facing)`.
+// Defined in baras-types so the WASM frontend and trigger DSL share it.
+pub use baras_types::Position;
+
 #[derive(Debug, Clone, PartialEq, Default, Copy)]
 pub enum EntityType {
     Player,
@@ -33,6 +37,8 @@ pub struct Entity {
     pub log_id: i64,
     pub entity_type: EntityType,
     pub health: (i32, i32),
+    /// World position, `None` for empty/self-reference entity segments.
+    pub position: Option<Position>,
 }
 
 impl Default for Entity {
@@ -43,6 +49,7 @@ impl Default for Entity {
             log_id: 0,
             entity_type: EntityType::default(),
             health: (0, 0),
+            position: None,
         }
     }
 }

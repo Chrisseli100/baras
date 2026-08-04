@@ -30,6 +30,7 @@ fn default_counter(name: String) -> CounterDefinition {
             abilities: vec![],
             source: EntityFilter::default(),
             target: EntityFilter::default(),
+            position: vec![],
         },
         decrement_on: None,
         reset_on: Trigger::CombatEnd,
@@ -680,6 +681,7 @@ fn CounterEditForm(
                                                         abilities: vec![],
                                                         source: EntityFilter::default(),
                                                         target: EntityFilter::default(),
+                                                        position: vec![],
                                                     })
                                                 };
                                                 draft.set(d);

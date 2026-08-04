@@ -115,6 +115,7 @@ fn test_instant_alert_effect_applied_fires_alert_no_active_effect() {
             effects: vec![EffectSelector::Id(12345)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         None,
     );
@@ -149,6 +150,7 @@ fn test_instant_alert_no_text_when_alert_text_is_none() {
             effects: vec![EffectSelector::Id(12345)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         None,
     );
@@ -182,6 +184,7 @@ fn test_instant_alert_carries_audio_config() {
             effects: vec![EffectSelector::Id(12345)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         None,
     );
@@ -212,6 +215,7 @@ fn test_instant_alert_ability_cast_fires_alert_no_active_effect() {
             abilities: vec![crate::dsl::AbilitySelector::Id(99999)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         None,
     );
@@ -245,6 +249,7 @@ fn test_non_instant_effect_creates_active_effect() {
             effects: vec![EffectSelector::Id(12345)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         Some(15.0),
     );
@@ -277,6 +282,7 @@ fn test_on_apply_alert_fires_for_ability_cast_trigger() {
             abilities: vec![crate::dsl::AbilitySelector::Id(99999)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         Some(10.0),
     );
@@ -414,6 +420,7 @@ fn test_kolto_shell_others_does_not_create_phantom_when_local_active() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -430,6 +437,7 @@ fn test_kolto_shell_others_does_not_create_phantom_when_local_active() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::OtherPlayers,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -487,6 +495,7 @@ fn test_kolto_shell_others_creates_normally_when_no_local_active() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -499,6 +508,7 @@ fn test_kolto_shell_others_creates_normally_when_no_local_active() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::OtherPlayers,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -541,6 +551,7 @@ fn test_refresh_does_not_resurrect_removed_effect() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(21.0),
     );
@@ -620,6 +631,7 @@ fn test_charges_from_other_player_do_not_update_local_effect() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(21.0),
     );
@@ -672,6 +684,7 @@ fn test_charges_from_local_player_do_update_local_effect() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(21.0),
     );
@@ -721,6 +734,7 @@ fn test_kolto_shell_others_refreshes_via_ability_activated() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -732,6 +746,7 @@ fn test_kolto_shell_others_refreshes_via_ability_activated() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::OtherPlayers,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -793,6 +808,7 @@ fn test_other_player_effect_late_registration_not_marked_local() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::OtherPlayers,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -836,6 +852,7 @@ fn test_local_player_cast_does_not_create_phantom_others_via_refresh() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );
@@ -851,6 +868,7 @@ fn test_local_player_cast_does_not_create_phantom_others_via_refresh() {
             effects: vec![EffectSelector::Id(effect_id)],
             source: EntityFilter::OtherPlayers,
             target: EntityFilter::AnyPlayer,
+            position: vec![],
         },
         Some(180.0),
     );

@@ -76,33 +76,39 @@ impl ModifierTriggerType {
                 abilities: vec![],
                 source: Default::default(),
                 target: Default::default(),
+                position: vec![],
             },
             Self::DamageTaken => Trigger::DamageTaken {
                 abilities: vec![],
                 source: Default::default(),
                 target: Default::default(),
                 mitigation: vec![],
+                position: vec![],
             },
             Self::DamageDealt => Trigger::DamageDealt {
                 abilities: vec![],
                 source: Default::default(),
                 target: Default::default(),
                 mitigation: vec![],
+                position: vec![],
             },
             Self::HealingTaken => Trigger::HealingTaken {
                 abilities: vec![],
                 source: Default::default(),
                 target: Default::default(),
+                position: vec![],
             },
             Self::EffectApplied => Trigger::EffectApplied {
                 effects: vec![],
                 source: Default::default(),
                 target: Default::default(),
+                position: vec![],
             },
             Self::EffectRemoved => Trigger::EffectRemoved {
                 effects: vec![],
                 source: Default::default(),
                 target: Default::default(),
+                position: vec![],
             },
             Self::ChargesChanged => Trigger::ChargesChanged {
                 effects: vec![],
@@ -147,6 +153,7 @@ pub fn ModifierListEditor(props: ModifierListEditorProps) -> Element {
                                     source: Default::default(),
                                     target: Default::default(),
                                     mitigation: vec![],
+                                    position: vec![],
                                 },
                                 adjust_duration_secs: -1.0,
                                 requires_crit: false,
@@ -399,6 +406,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                             abilities: new_abs,
                             source: Default::default(),
                             target: Default::default(),
+                            position: vec![],
                         };
                         on_update.call(m);
                     }
@@ -425,6 +433,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                                 source: Default::default(),
                                 target: Default::default(),
                                 mitigation: mitigation.clone(),
+                                position: vec![],
                             };
                             on_update.call(m);
                         }
@@ -457,6 +466,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                                                 source: Default::default(),
                                                 target: Default::default(),
                                                 mitigation: mits,
+                                                position: vec![],
                                             };
                                             on_update.call(m);
                                         }
@@ -489,6 +499,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                                 source: Default::default(),
                                 target: Default::default(),
                                 mitigation: mitigation.clone(),
+                                position: vec![],
                             };
                             on_update.call(m);
                         }
@@ -521,6 +532,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                                                 source: Default::default(),
                                                 target: Default::default(),
                                                 mitigation: mits,
+                                                position: vec![],
                                             };
                                             on_update.call(m);
                                         }
@@ -547,6 +559,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                             abilities: new_abs,
                             source: Default::default(),
                             target: Default::default(),
+                            position: vec![],
                         };
                         on_update.call(m);
                     }
@@ -567,6 +580,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                             effects: new_eff,
                             source: Default::default(),
                             target: Default::default(),
+                            position: vec![],
                         };
                         on_update.call(m);
                     }
@@ -587,6 +601,7 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                             effects: new_eff,
                             source: Default::default(),
                             target: Default::default(),
+                            position: vec![],
                         };
                         on_update.call(m);
                     }

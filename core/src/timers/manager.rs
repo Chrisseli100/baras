@@ -1123,6 +1123,8 @@ impl TimerManager {
         target_type: crate::combat_log::EntityType,
         target_name: crate::context::IStr,
         target_npc_id: i64,
+        source_pos: Option<crate::combat_log::Position>,
+        target_pos: Option<crate::combat_log::Position>,
         trigger_matches: F,
     ) where
         F: Fn(&TimerTrigger) -> bool,
@@ -1152,6 +1154,8 @@ impl TimerManager {
                         local_player_id,
                         current_target_id,
                         boss_entity_ids,
+                        source_pos,
+                        target_pos,
                     )
                 {
                     Some(key.clone())
@@ -1208,6 +1212,8 @@ impl TimerManager {
         target_type: crate::combat_log::EntityType,
         target_name: crate::context::IStr,
         target_npc_id: i64,
+        source_pos: Option<crate::combat_log::Position>,
+        target_pos: Option<crate::combat_log::Position>,
         trigger_matches: F,
     ) where
         F: Fn(&TimerTrigger) -> bool,
@@ -1240,6 +1246,8 @@ impl TimerManager {
                         local_player_id,
                         current_target_id,
                         boss_entity_ids,
+                        source_pos,
+                        target_pos,
                     )
                 {
                     Some(key.clone())
@@ -1579,6 +1587,8 @@ impl TimerManager {
         target_type: EntityType,
         target_name: IStr,
         target_npc_id: i64,
+        source_pos: Option<crate::combat_log::Position>,
+        target_pos: Option<crate::combat_log::Position>,
     ) -> bool {
         matches_source_target_filters(
             trigger,
@@ -1594,6 +1604,8 @@ impl TimerManager {
             self.local_player_id,
             self.current_target_id,
             &self.boss_entity_ids,
+            source_pos,
+            target_pos,
         )
     }
 }
@@ -1817,6 +1829,7 @@ impl SignalHandler for TimerManager {
 
             // CombatEnded handled in early context-setting section above
             GameSignal::EntityDeath {
+                entity_id,
                 npc_id,
                 entity_name,
                 timestamp,
@@ -1825,6 +1838,7 @@ impl SignalHandler for TimerManager {
                 signal_handlers::handle_entity_death(
                     self,
                     encounter,
+                    *entity_id,
                     *npc_id,
                     entity_name,
                     *timestamp,
@@ -1847,6 +1861,7 @@ impl SignalHandler for TimerManager {
                 signal_handlers::handle_npc_first_seen(
                     self,
                     encounter,
+                    *entity_id,
                     *npc_id,
                     entity_name,
                     *timestamp,

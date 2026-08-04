@@ -5,7 +5,8 @@
 use dioxus::prelude::*;
 
 use crate::types::{
-    AbilitySelector, EffectSelector, EntityFilter, EntitySelector, MitigationType, TimerTrigger,
+    AbilitySelector, EffectSelector, EntityFilter, EntitySelector, MitigationType, PositionAxis,
+    PositionConstraint, PositionEntity, PositionOp, TimerTrigger,
 };
 
 use super::tabs::EncounterData;
@@ -379,6 +380,24 @@ pub fn SimpleTriggerEditor(
 ) -> Element {
     let trigger_type = trigger.type_name();
 
+    // The per-field closures below rebuild trigger variants with `position: vec![]`.
+    // Re-attach the current constraints so editing other fields doesn't wipe them;
+    // the position editor itself calls `raw_on_change` to allow clearing.
+    let raw_on_change = on_change;
+    let preserved_position = trigger.position_constraints().to_vec();
+    let trigger_for_position = trigger.clone();
+    let on_change = EventHandler::new(move |t: TimerTrigger| {
+        let t = if t.supports_position()
+            && t.position_constraints().is_empty()
+            && !preserved_position.is_empty()
+        {
+            t.with_position(preserved_position.clone())
+        } else {
+            t
+        };
+        raw_on_change.call(t)
+    });
+
     rsx! {
         div { class: "flex-col gap-xs",
             select {
@@ -389,11 +408,11 @@ pub fn SimpleTriggerEditor(
                     let new_trigger = match e.value().as_str() {
                         "combat_start" => TimerTrigger::CombatStart,
                         "combat_end" => TimerTrigger::CombatEnd,
-                        "ability_cast" => TimerTrigger::AbilityCast { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default() },
-                        "effect_applied" => TimerTrigger::EffectApplied { effects: vec![], source: EntityFilter::default(), target: EntityFilter::default() },
-                        "effect_removed" => TimerTrigger::EffectRemoved { effects: vec![], source: EntityFilter::default(), target: EntityFilter::default() },
-                        "damage_taken" => TimerTrigger::DamageTaken { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default(), mitigation: vec![] },
-                        "healing_taken" => TimerTrigger::HealingTaken { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default() },
+                        "ability_cast" => TimerTrigger::AbilityCast { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default(), position: vec![] },
+                        "effect_applied" => TimerTrigger::EffectApplied { effects: vec![], source: EntityFilter::default(), target: EntityFilter::default(), position: vec![] },
+                        "effect_removed" => TimerTrigger::EffectRemoved { effects: vec![], source: EntityFilter::default(), target: EntityFilter::default(), position: vec![] },
+                        "damage_taken" => TimerTrigger::DamageTaken { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default(), mitigation: vec![], position: vec![] },
+                        "healing_taken" => TimerTrigger::HealingTaken { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default(), position: vec![] },
                         "threat_modified" => TimerTrigger::ThreatModified { abilities: vec![], source: EntityFilter::default(), target: EntityFilter::default() },
                         "timer_expires" => TimerTrigger::TimerExpires { timer_id: String::new() },
                         "timer_started" => TimerTrigger::TimerStarted { timer_id: String::new() },
@@ -404,8 +423,8 @@ pub fn SimpleTriggerEditor(
                         "boss_hp_below" => TimerTrigger::BossHpBelow { hp_percent: 50.0, selector: vec![] },
                         "counter_reaches" => TimerTrigger::CounterReaches { counter_id: String::new(), value: 1 },
                         "counter_changes" => TimerTrigger::CounterChanges { counter_id: String::new() },
-                        "npc_appears" => TimerTrigger::NpcAppears { selector: vec![] },
-                        "entity_death" => TimerTrigger::EntityDeath { selector: vec![] },
+                        "npc_appears" => TimerTrigger::NpcAppears { selector: vec![], position: vec![] },
+                        "entity_death" => TimerTrigger::EntityDeath { selector: vec![], position: vec![] },
                         "target_set" => TimerTrigger::TargetSet { selector: vec![], target: EntityFilter::default() },
                         "time_elapsed" => TimerTrigger::TimeElapsed { secs: 30.0 },
                         "manual" => TimerTrigger::Manual,
@@ -450,7 +469,7 @@ pub fn SimpleTriggerEditor(
                     | TimerTrigger::AnyPhaseChange
                     | TimerTrigger::Never
                     | TimerTrigger::Manual => rsx! {},
-                    TimerTrigger::AbilityCast { abilities, source, target } => {
+                    TimerTrigger::AbilityCast { abilities, source, target, .. } => {
                         let source_for_abilities = source.clone();
                         let target_for_abilities = target.clone();
                         let abilities_for_source = abilities.clone();
@@ -465,6 +484,7 @@ pub fn SimpleTriggerEditor(
                                     abilities: sels,
                                     source: source_for_abilities.clone(),
                                     target: target_for_abilities.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -475,6 +495,7 @@ pub fn SimpleTriggerEditor(
                                     abilities: abilities_for_source.clone(),
                                     source: f,
                                     target: target_for_source.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -485,11 +506,12 @@ pub fn SimpleTriggerEditor(
                                     abilities: abilities_for_target.clone(),
                                     source: source_for_target.clone(),
                                     target: f,
+                                    position: vec![],
                                 })
                             }
                         }
                     },
-                    TimerTrigger::EffectApplied { effects, source, target } => {
+                    TimerTrigger::EffectApplied { effects, source, target, .. } => {
                         let source_for_effects = source.clone();
                         let target_for_effects = target.clone();
                         let effects_for_source = effects.clone();
@@ -504,6 +526,7 @@ pub fn SimpleTriggerEditor(
                                     effects: sels,
                                     source: source_for_effects.clone(),
                                     target: target_for_effects.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -514,6 +537,7 @@ pub fn SimpleTriggerEditor(
                                     effects: effects_for_source.clone(),
                                     source: f,
                                     target: target_for_source.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -524,11 +548,12 @@ pub fn SimpleTriggerEditor(
                                     effects: effects_for_target.clone(),
                                     source: source_for_target.clone(),
                                     target: f,
+                                    position: vec![],
                                 })
                             }
                         }
                     },
-                    TimerTrigger::EffectRemoved { effects, source, target } => {
+                    TimerTrigger::EffectRemoved { effects, source, target, .. } => {
                         let source_for_effects = source.clone();
                         let target_for_effects = target.clone();
                         let effects_for_source = effects.clone();
@@ -543,6 +568,7 @@ pub fn SimpleTriggerEditor(
                                     effects: sels,
                                     source: source_for_effects.clone(),
                                     target: target_for_effects.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -553,6 +579,7 @@ pub fn SimpleTriggerEditor(
                                     effects: effects_for_source.clone(),
                                     source: f,
                                     target: target_for_source.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -563,11 +590,12 @@ pub fn SimpleTriggerEditor(
                                     effects: effects_for_target.clone(),
                                     source: source_for_target.clone(),
                                     target: f,
+                                    position: vec![],
                                 })
                             }
                         }
                     },
-                    TimerTrigger::DamageTaken { abilities, source, target, mitigation } => {
+                    TimerTrigger::DamageTaken { abilities, source, target, mitigation, .. } => {
                         let source_for_abilities = source.clone();
                         let target_for_abilities = target.clone();
                         let mitigation_for_abilities = mitigation.clone();
@@ -589,6 +617,7 @@ pub fn SimpleTriggerEditor(
                                     source: source_for_abilities.clone(),
                                     target: target_for_abilities.clone(),
                                     mitigation: mitigation_for_abilities.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -600,6 +629,7 @@ pub fn SimpleTriggerEditor(
                                     source: f,
                                     target: target_for_source.clone(),
                                     mitigation: mitigation_for_source.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -611,6 +641,7 @@ pub fn SimpleTriggerEditor(
                                     source: source_for_target.clone(),
                                     target: f,
                                     mitigation: mitigation_for_target.clone(),
+                                    position: vec![],
                                 })
                             }
                             MitigationTypeEditor {
@@ -620,11 +651,12 @@ pub fn SimpleTriggerEditor(
                                     source: source_for_mitigation.clone(),
                                     target: target_for_mitigation.clone(),
                                     mitigation: m,
+                                    position: vec![],
                                 })
                             }
                         }
                     },
-                    TimerTrigger::HealingTaken { abilities, source, target } => {
+                    TimerTrigger::HealingTaken { abilities, source, target, .. } => {
                         let source_for_abilities = source.clone();
                         let target_for_abilities = target.clone();
                         let abilities_for_source = abilities.clone();
@@ -639,6 +671,7 @@ pub fn SimpleTriggerEditor(
                                     abilities: sels,
                                     source: source_for_abilities.clone(),
                                     target: target_for_abilities.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -649,6 +682,7 @@ pub fn SimpleTriggerEditor(
                                     abilities: abilities_for_source.clone(),
                                     source: f,
                                     target: target_for_source.clone(),
+                                    position: vec![],
                                 })
                             }
                             EntityFilterDropdown {
@@ -659,6 +693,7 @@ pub fn SimpleTriggerEditor(
                                     abilities: abilities_for_target.clone(),
                                     source: source_for_target.clone(),
                                     target: f,
+                                    position: vec![],
                                 })
                             }
                         }
@@ -845,21 +880,23 @@ pub fn SimpleTriggerEditor(
                             }
                         }
                     },
-                    TimerTrigger::NpcAppears { selector } => rsx! {
+                    TimerTrigger::NpcAppears { selector, .. } => rsx! {
                         EntitySelectorEditor {
                             label: "Entity (Spawned)",
                             selectors: selector.clone(),
                             on_change: move |sels| on_change.call(TimerTrigger::NpcAppears {
-                                selector: sels
+                                selector: sels,
+                                position: vec![],
                             })
                         }
                     },
-                    TimerTrigger::EntityDeath { selector } => rsx! {
+                    TimerTrigger::EntityDeath { selector, .. } => rsx! {
                         EntitySelectorEditor {
                             label: "Entity (Death)",
                             selectors: selector.clone(),
                             on_change: move |sels| on_change.call(TimerTrigger::EntityDeath {
-                                selector: sels
+                                selector: sels,
+                                position: vec![],
                             })
                         }
                     },
@@ -908,6 +945,263 @@ pub fn SimpleTriggerEditor(
                     _ => rsx! {
                         span { class: "hint", "Composite trigger" }
                     },
+                }
+            }
+
+            // Position constraints (shared across all event-driven trigger types)
+            if trigger.supports_position() {
+                span { class: "text-sm font-bold text-secondary mt-sm",
+                    "Position Constraints"
+                    span {
+                        class: "help-icon",
+                        title: "Coordinate gates on the event's source/target entities. ALL must pass for the trigger to fire. Hover entities in the Combat Log view to find coordinates.",
+                        "?"
+                    }
+                }
+                PositionConstraintList {
+                    constraints: trigger.position_constraints().to_vec(),
+                    // npc_appears/entity_death always check the subject NPC — no entity choice
+                    show_entity: !matches!(
+                        trigger,
+                        TimerTrigger::NpcAppears { .. } | TimerTrigger::EntityDeath { .. }
+                    ),
+                    on_change: move |p: Vec<PositionConstraint>| {
+                        raw_on_change.call(trigger_for_position.clone().with_position(p));
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Position Constraint Editor
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// List editor for a trigger's position constraints (AND semantics).
+/// Mirrors the Conditions subsection layout (condition-card rows).
+#[component]
+fn PositionConstraintList(
+    constraints: Vec<PositionConstraint>,
+    on_change: EventHandler<Vec<PositionConstraint>>,
+    /// Hide the source/target dropdown for triggers where the subject entity
+    /// is implicit (e.g. npc_appears)
+    #[props(default = true)]
+    show_entity: bool,
+) -> Element {
+    let constraints_for_add = constraints.clone();
+    rsx! {
+        div { class: "conditions-editor",
+            if constraints.is_empty() {
+                span { class: "conditions-editor-empty", "No position constraints (any location)" }
+            }
+
+            for (idx, constraint) in constraints.iter().enumerate() {
+                div { class: "condition-card", key: "{idx}",
+                    div { class: "condition-card-content",
+                        PositionConstraintRow {
+                            constraint: constraint.clone(),
+                            show_entity,
+                            on_change: {
+                                let constraints = constraints.clone();
+                                move |c: PositionConstraint| {
+                                    let mut updated = constraints.clone();
+                                    updated[idx] = c;
+                                    on_change.call(updated);
+                                }
+                            }
+                        }
+                    }
+                    button {
+                        class: "btn btn-danger btn-sm",
+                        title: "Remove constraint",
+                        onclick: {
+                            let constraints = constraints.clone();
+                            move |_| {
+                                let mut updated = constraints.clone();
+                                updated.remove(idx);
+                                on_change.call(updated);
+                            }
+                        },
+                        "×"
+                    }
+                }
+            }
+
+            button {
+                class: "btn-dashed text-sm",
+                onclick: move |_| {
+                    let mut updated = constraints_for_add.clone();
+                    updated.push(PositionConstraint {
+                        entity: PositionEntity::Source,
+                        axis: PositionAxis::X,
+                        op: PositionOp::Between { min: 0.0, max: 0.0 },
+                    });
+                    on_change.call(updated);
+                },
+                "+ Add Position Constraint"
+            }
+        }
+    }
+}
+
+/// One position constraint: entity + axis + operator + value(s).
+#[component]
+fn PositionConstraintRow(
+    constraint: PositionConstraint,
+    on_change: EventHandler<PositionConstraint>,
+    #[props(default = true)]
+    show_entity: bool,
+) -> Element {
+    let c_entity = constraint.clone();
+    let c_axis = constraint.clone();
+    let c_op = constraint.clone();
+    let c_val = constraint.clone();
+    let c_min = constraint.clone();
+    let c_max = constraint.clone();
+
+    let (op_name, value, min, max) = match constraint.op {
+        PositionOp::Gt { value } => ("gt", value, 0.0, 0.0),
+        PositionOp::Gte { value } => ("gte", value, 0.0, 0.0),
+        PositionOp::Lt { value } => ("lt", value, 0.0, 0.0),
+        PositionOp::Lte { value } => ("lte", value, 0.0, 0.0),
+        PositionOp::Between { min, max } => ("between", 0.0, min, max),
+    };
+    let is_between = op_name == "between";
+
+    let entity_name = match constraint.entity {
+        PositionEntity::Source => "source",
+        PositionEntity::Target => "target",
+    };
+    let axis_name = match constraint.axis {
+        PositionAxis::X => "x",
+        PositionAxis::Y => "y",
+        PositionAxis::Z => "z",
+        PositionAxis::Facing => "facing",
+    };
+
+    rsx! {
+        div { class: "flex items-center gap-xs",
+            if show_entity {
+                select {
+                    class: "select",
+                    style: "width: 90px;",
+                    value: "{entity_name}",
+                    onchange: move |e| {
+                        let mut c = c_entity.clone();
+                        c.entity = if e.value() == "target" {
+                            PositionEntity::Target
+                        } else {
+                            PositionEntity::Source
+                        };
+                        on_change.call(c);
+                    },
+                    option { value: "source", selected: entity_name == "source", "Source" }
+                    option { value: "target", selected: entity_name == "target", "Target" }
+                }
+            }
+            select {
+                class: "select",
+                style: "width: 80px;",
+                value: "{axis_name}",
+                onchange: move |e| {
+                    let mut c = c_axis.clone();
+                    c.axis = match e.value().as_str() {
+                        "y" => PositionAxis::Y,
+                        "z" => PositionAxis::Z,
+                        "facing" => PositionAxis::Facing,
+                        _ => PositionAxis::X,
+                    };
+                    on_change.call(c);
+                },
+                option { value: "x", selected: axis_name == "x", "X" }
+                option { value: "y", selected: axis_name == "y", "Y" }
+                option { value: "z", selected: axis_name == "z", "Z" }
+                option { value: "facing", selected: axis_name == "facing", "Facing" }
+            }
+            select {
+                class: "select",
+                style: "width: 90px;",
+                value: "{op_name}",
+                onchange: move |e| {
+                    let mut c = c_op.clone();
+                    // Carry the current scalar across op changes where possible
+                    let current = match c.op {
+                        PositionOp::Gt { value }
+                        | PositionOp::Gte { value }
+                        | PositionOp::Lt { value }
+                        | PositionOp::Lte { value } => value,
+                        PositionOp::Between { min, .. } => min,
+                    };
+                    c.op = match e.value().as_str() {
+                        "gt" => PositionOp::Gt { value: current },
+                        "gte" => PositionOp::Gte { value: current },
+                        "lt" => PositionOp::Lt { value: current },
+                        "lte" => PositionOp::Lte { value: current },
+                        _ => PositionOp::Between { min: current, max: current },
+                    };
+                    on_change.call(c);
+                },
+                option { value: "between", selected: op_name == "between", "Between" }
+                option { value: "gt", selected: op_name == "gt", ">" }
+                option { value: "gte", selected: op_name == "gte", ">=" }
+                option { value: "lt", selected: op_name == "lt", "<" }
+                option { value: "lte", selected: op_name == "lte", "<=" }
+            }
+            if is_between {
+                input {
+                    r#type: "number",
+                    step: "0.1",
+                    class: "input-inline",
+                    style: "width: 90px;",
+                    value: "{min}",
+                    oninput: move |e| {
+                        if let Ok(v) = e.value().parse::<f32>()
+                            && let PositionOp::Between { max, .. } = c_min.op
+                        {
+                            let mut c = c_min.clone();
+                            c.op = PositionOp::Between { min: v, max };
+                            on_change.call(c);
+                        }
+                    }
+                }
+                span { class: "text-sm text-secondary", "to" }
+                input {
+                    r#type: "number",
+                    step: "0.1",
+                    class: "input-inline",
+                    style: "width: 90px;",
+                    value: "{max}",
+                    oninput: move |e| {
+                        if let Ok(v) = e.value().parse::<f32>()
+                            && let PositionOp::Between { min, .. } = c_max.op
+                        {
+                            let mut c = c_max.clone();
+                            c.op = PositionOp::Between { min, max: v };
+                            on_change.call(c);
+                        }
+                    }
+                }
+            } else {
+                input {
+                    r#type: "number",
+                    step: "0.1",
+                    class: "input-inline",
+                    style: "width: 90px;",
+                    value: "{value}",
+                    oninput: move |e| {
+                        if let Ok(v) = e.value().parse::<f32>() {
+                            let mut c = c_val.clone();
+                            c.op = match c.op {
+                                PositionOp::Gt { .. } => PositionOp::Gt { value: v },
+                                PositionOp::Gte { .. } => PositionOp::Gte { value: v },
+                                PositionOp::Lt { .. } => PositionOp::Lt { value: v },
+                                PositionOp::Lte { .. } => PositionOp::Lte { value: v },
+                                between => between,
+                            };
+                            on_change.call(c);
+                        }
+                    }
                 }
             }
         }

@@ -74,6 +74,7 @@ fn set_trigger_source(trigger: Trigger, source: EntityFilter) -> Trigger {
             effects,
             source,
             target,
+            position: vec![],
         },
         Trigger::EffectRemoved {
             effects, target, ..
@@ -81,6 +82,7 @@ fn set_trigger_source(trigger: Trigger, source: EntityFilter) -> Trigger {
             effects,
             source,
             target,
+            position: vec![],
         },
         Trigger::AbilityCast {
             abilities, target, ..
@@ -88,6 +90,7 @@ fn set_trigger_source(trigger: Trigger, source: EntityFilter) -> Trigger {
             abilities,
             source,
             target,
+            position: vec![],
         },
         Trigger::DamageTaken {
             abilities, target, mitigation, ..
@@ -96,6 +99,7 @@ fn set_trigger_source(trigger: Trigger, source: EntityFilter) -> Trigger {
             source,
             target,
             mitigation,
+            position: vec![],
         },
         Trigger::HealingTaken {
             abilities, target, ..
@@ -103,6 +107,7 @@ fn set_trigger_source(trigger: Trigger, source: EntityFilter) -> Trigger {
             abilities,
             source,
             target,
+            position: vec![],
         },
         other => other,
     }
@@ -117,6 +122,7 @@ fn set_trigger_target(trigger: Trigger, target: EntityFilter) -> Trigger {
             effects,
             source,
             target,
+            position: vec![],
         },
         Trigger::EffectRemoved {
             effects, source, ..
@@ -124,6 +130,7 @@ fn set_trigger_target(trigger: Trigger, target: EntityFilter) -> Trigger {
             effects,
             source,
             target,
+            position: vec![],
         },
         Trigger::AbilityCast {
             abilities, source, ..
@@ -131,6 +138,7 @@ fn set_trigger_target(trigger: Trigger, target: EntityFilter) -> Trigger {
             abilities,
             source,
             target,
+            position: vec![],
         },
         Trigger::DamageTaken {
             abilities, source, mitigation, ..
@@ -139,6 +147,7 @@ fn set_trigger_target(trigger: Trigger, target: EntityFilter) -> Trigger {
             source,
             target,
             mitigation,
+            position: vec![],
         },
         Trigger::HealingTaken {
             abilities, source, ..
@@ -146,6 +155,7 @@ fn set_trigger_target(trigger: Trigger, target: EntityFilter) -> Trigger {
             abilities,
             source,
             target,
+            position: vec![],
         },
         other => other,
     }
@@ -158,11 +168,13 @@ fn set_trigger_effects(trigger: Trigger, effects: Vec<EffectSelector>) -> Trigge
             effects,
             source,
             target,
+            position: vec![],
         },
         Trigger::EffectRemoved { source, target, .. } => Trigger::EffectRemoved {
             effects,
             source,
             target,
+            position: vec![],
         },
         other => other,
     }
@@ -175,17 +187,20 @@ fn set_trigger_abilities(trigger: Trigger, abilities: Vec<AbilitySelector>) -> T
             abilities,
             source,
             target,
+            position: vec![],
         },
         Trigger::DamageTaken { source, target, mitigation, .. } => Trigger::DamageTaken {
             abilities,
             source,
             target,
             mitigation,
+            position: vec![],
         },
         Trigger::HealingTaken { source, target, .. } => Trigger::HealingTaken {
             abilities,
             source,
             target,
+            position: vec![],
         },
         other => other,
     }
@@ -204,6 +219,7 @@ fn default_effect(name: String) -> EffectListItem {
             effects: vec![],
             source: EntityFilter::LocalPlayer,
             target: EntityFilter::Any,
+            position: vec![],
         },
         ignore_effect_removed: false,
         refresh_abilities: vec![],
@@ -1339,22 +1355,26 @@ fn EffectEditForm(
                                                     effects: vec![],
                                                     source,
                                                     target,
+                                                    position: vec![],
                                                 },
                                                 EffectTriggerType::AbilityCast => Trigger::AbilityCast {
                                                     abilities: vec![],
                                                     source,
                                                     target,
+                                                    position: vec![],
                                                 },
                                                 EffectTriggerType::DamageTaken => Trigger::DamageTaken {
                                                     abilities: vec![],
                                                     source,
                                                     target,
                                                     mitigation: vec![],
+                                                    position: vec![],
                                                 },
                                                 EffectTriggerType::HealingTaken => Trigger::HealingTaken {
                                                     abilities: vec![],
                                                     source,
                                                     target,
+                                                    position: vec![],
                                                 },
                                             };
                                             draft.set(d);
@@ -1373,8 +1393,8 @@ fn EffectEditForm(
                                                 let (_, effects) = get_trigger_effects(&d.trigger);
                                                 let (source, target) = get_trigger_filters(&d.trigger);
                                                 d.trigger = match e.value().as_str() {
-                                                    "Effect Applied" => Trigger::EffectApplied { effects, source, target },
-                                                    "Effect Removed" => Trigger::EffectRemoved { effects, source, target },
+                                                    "Effect Applied" => Trigger::EffectApplied { effects, source, target, position: vec![] },
+                                                    "Effect Removed" => Trigger::EffectRemoved { effects, source, target, position: vec![] },
                                                     _ => d.trigger,
                                                 };
                                                 draft.set(d);

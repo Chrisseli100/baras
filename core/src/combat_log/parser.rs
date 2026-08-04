@@ -156,7 +156,7 @@ impl LogParser {
         let pipe1 = pipe_iter.next()?;
 
         let name_segment = segment.get(..pipe0).unwrap_or("");
-        // coordinates between pipe0 and pipe1 are ignored
+        let position = LogParser::parse_position(segment.get(pipe0 + 1..pipe1).unwrap_or(""));
         let health_segment = segment.get(pipe1..).unwrap_or("");
 
         let (name, class_id, log_id, entity_type) = LogParser::parse_entity_name_id(name_segment)?;
@@ -168,7 +168,70 @@ impl LogParser {
             log_id,
             entity_type,
             health,
+            position,
         })
+    }
+
+    /// Parse `(x,y,z,facing)` from the entity segment.
+    fn parse_position(segment: &str) -> Option<Position> {
+        let bytes = segment.as_bytes();
+        if bytes.len() < 2 || bytes[0] != b'(' || bytes[bytes.len() - 1] != b')' {
+            return None;
+        }
+
+        let mut vals = [0.0f32; 4];
+        let mut idx = 0;
+        for part in segment[1..segment.len() - 1].split(',') {
+            if idx >= 4 {
+                return None;
+            }
+            vals[idx] = LogParser::parse_fixed_f32(part.as_bytes())?;
+            idx += 1;
+        }
+        if idx != 4 {
+            return None;
+        }
+
+        Some(Position {
+            x: vals[0],
+            y: vals[1],
+            z: vals[2],
+            facing: vals[3],
+        })
+    }
+
+    /// Parse a signed decimal with up to two fractional digits as f32.
+    /// Coordinates are always logged with two decimals, so manual digit
+    /// accumulation avoids float parsing on the hot path.
+    fn parse_fixed_f32(b: &[u8]) -> Option<f32> {
+        if b.is_empty() {
+            return None;
+        }
+        let neg = b[0] == b'-';
+        let mut i = usize::from(neg);
+        let mut scaled: i64 = 0;
+        let mut seen_digit = false;
+        while i < b.len() && b[i].is_ascii_digit() {
+            scaled = scaled * 10 + (b[i] - b'0') as i64;
+            seen_digit = true;
+            i += 1;
+        }
+        let mut frac_digits = 0u32;
+        if i < b.len() && b[i] == b'.' {
+            i += 1;
+            while i < b.len() && b[i].is_ascii_digit() {
+                if frac_digits < 2 {
+                    scaled = scaled * 10 + (b[i] - b'0') as i64;
+                    frac_digits += 1;
+                }
+                i += 1;
+            }
+        }
+        if !seen_digit || i != b.len() {
+            return None;
+        }
+        let value = scaled as f32 / [1.0, 10.0, 100.0][frac_digits as usize];
+        Some(if neg { -value } else { value })
     }
 
     fn parse_entity_health(segment: &str) -> Option<(i32, i32)> {

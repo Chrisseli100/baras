@@ -135,6 +135,14 @@ impl EncounterQuery<'_> {
         let order_dir = sort_direction.sql();
         let modify_charges_id = effect_type_id::MODIFYCHARGES;
 
+        // Older parquet files predate the coordinate columns
+        let has_coords = self.has_column("source_x").await;
+        let coord_select = if has_coords {
+            ",\n                source_x, source_y, source_z, source_facing,\n                target_x, target_y, target_z, target_facing"
+        } else {
+            ""
+        };
+
         let batches = self
             .sql(&format!(
                 r#"
@@ -162,7 +170,7 @@ impl EncounterQuery<'_> {
                 effect_id,
                 effect_type_id,
                 source_class_id,
-                target_class_id
+                target_class_id{coord_select}
             FROM events
             WHERE {where_clause}
             ORDER BY {order_col} {order_dir}, combat_time_secs
@@ -198,6 +206,23 @@ impl EncounterQuery<'_> {
             let source_class_ids = col_i64(batch, 20)?;
             let target_class_ids = col_i64(batch, 21)?;
 
+            let no_coords = vec![None; num_rows];
+            let coord_col = |idx: usize| -> Result<Vec<Option<f32>>, String> {
+                if has_coords {
+                    col_opt_f32(batch, idx)
+                } else {
+                    Ok(no_coords.clone())
+                }
+            };
+            let source_xs = coord_col(22)?;
+            let source_ys = coord_col(23)?;
+            let source_zs = coord_col(24)?;
+            let source_facings = coord_col(25)?;
+            let target_xs = coord_col(26)?;
+            let target_ys = coord_col(27)?;
+            let target_zs = coord_col(28)?;
+            let target_facings = coord_col(29)?;
+
             for i in 0..num_rows {
                 results.push(CombatLogRow {
                     row_idx: line_numbers[i] as u64,
@@ -222,6 +247,14 @@ impl EncounterQuery<'_> {
                     effect_type_id: effect_type_ids[i],
                     source_class_id: source_class_ids[i],
                     target_class_id: target_class_ids[i],
+                    source_x: source_xs[i],
+                    source_y: source_ys[i],
+                    source_z: source_zs[i],
+                    source_facing: source_facings[i],
+                    target_x: target_xs[i],
+                    target_y: target_ys[i],
+                    target_z: target_zs[i],
+                    target_facing: target_facings[i],
                 });
             }
         }

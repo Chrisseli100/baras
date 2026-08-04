@@ -392,6 +392,14 @@ impl ParsingSession {
                 tracing::warn!("Timer manager mutex was poisoned during signal dispatch, recovering");
                 poisoned.into_inner()
             });
+            // Keep local player in sync from cache. The manager normally learns it
+            // from PlayerInitialized/DisciplineChanged signals, but those are consumed
+            // by the parse worker when a session is opened mid-file (app restart or
+            // historical open) — without this, LocalPlayer-filtered timers never match
+            // until the next area transition re-logs disciplines.
+            if let Some(pid) = local_player_id {
+                timer_mgr.set_local_player_id(pid);
+            }
             timer_mgr.handle_signals(signals, encounter);
         }
     }

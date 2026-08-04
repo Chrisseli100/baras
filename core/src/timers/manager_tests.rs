@@ -106,6 +106,7 @@ fn test_ability_cast_triggers_timer() {
             abilities: vec![AbilitySelector::Id(3302391763959808)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         15.0,
     );
@@ -143,6 +144,7 @@ fn test_effect_applied_triggers_timer() {
             effects: vec![EffectSelector::Id(999999)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         10.0,
     );
@@ -181,6 +183,7 @@ fn test_npc_first_seen_triggers_timer() {
         "Dread Monster Spawned",
         TimerTrigger::NpcAppears {
             selector: vec![EntitySelector::Id(3291675820556288)],
+            position: vec![],
         },
         30.0,
     );
@@ -200,6 +203,217 @@ fn test_npc_first_seen_triggers_timer() {
 }
 
 #[test]
+fn test_npc_appears_position_constraint() {
+    use crate::combat_log::{CombatEvent, Entity, Position};
+    use crate::dsl::triggers::{PositionAxis, PositionConstraint, PositionEntity, PositionOp};
+
+    let make_position_timer = || {
+        make_timer(
+            "north_spawn",
+            "North Spawn",
+            TimerTrigger::NpcAppears {
+                selector: vec![EntitySelector::Id(999)],
+                position: vec![PositionConstraint {
+                    entity: PositionEntity::Source,
+                    axis: PositionAxis::X,
+                    op: PositionOp::Between {
+                        min: 100.0,
+                        max: 200.0,
+                    },
+                }],
+            },
+            30.0,
+        )
+    };
+
+    // Register the NPC's position in the encounter via an event, as the
+    // processor does before signals are dispatched.
+    let make_encounter = |x: f32| {
+        let mut enc = CombatEncounter::new(1, ProcessingMode::Live);
+        enc.update_entity_positions(&CombatEvent {
+            line_number: 1,
+            timestamp: now(),
+            source_entity: Entity {
+                log_id: 555,
+                position: Some(Position {
+                    x,
+                    y: 0.0,
+                    z: 0.0,
+                    facing: 0.0,
+                }),
+                ..Default::default()
+            },
+            target_entity: Entity::default(),
+            action: Default::default(),
+            effect: Default::default(),
+            details: Default::default(),
+        });
+        enc
+    };
+
+    let signal = GameSignal::NpcFirstSeen {
+        entity_id: 555,
+        npc_id: 999,
+        entity_name: "Add".to_string(),
+        timestamp: now(),
+    };
+
+    // In range → timer starts
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_position_timer()]);
+    manager.handle_signal(&signal, Some(&make_encounter(150.0)));
+    assert_eq!(manager.active_timers().len(), 1);
+
+    // Out of range → no timer
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_position_timer()]);
+    manager.handle_signal(&signal, Some(&make_encounter(350.0)));
+    assert_eq!(manager.active_timers().len(), 0);
+
+    // No encounter (no position data) → constraint fails, no timer
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_position_timer()]);
+    manager.handle_signal(&signal, None);
+    assert_eq!(manager.active_timers().len(), 0);
+}
+
+#[test]
+fn test_ability_cast_position_constraint_live_path() {
+    // Mirrors the live pipeline: process_event → dispatch with current_encounter(),
+    // exactly as LiveSessionParser::dispatch_signals does.
+    use crate::combat_log::{Action, CombatEvent, Effect, Entity, EntityType, Position};
+    use crate::context::intern;
+    use crate::dsl::triggers::{PositionAxis, PositionConstraint, PositionEntity, PositionOp};
+    use crate::game_data::{effect_id, effect_type_id};
+    use crate::signal_processor::EventProcessor;
+    use crate::state::SessionCache;
+
+    let timer = make_timer(
+        "dark_ward_pos",
+        "Dark Ward Pos",
+        TimerTrigger::AbilityCast {
+            abilities: vec![AbilitySelector::Name("Dark Ward".to_string())],
+            source: EntityFilter::Any,
+            target: EntityFilter::Any,
+            position: vec![PositionConstraint {
+                entity: PositionEntity::Source,
+                axis: PositionAxis::X,
+                op: PositionOp::Lte { value: 423.0 },
+            }],
+        },
+        10.0,
+    );
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![timer]);
+
+    let mut cache = SessionCache::new();
+    let mut processor = EventProcessor::new();
+
+    let caster = Entity {
+        name: intern("Player One"),
+        log_id: 42,
+        entity_type: EntityType::Player,
+        health: (100, 100),
+        position: Some(Position {
+            x: 400.0,
+            y: 0.0,
+            z: 0.0,
+            facing: 0.0,
+        }),
+        ..Default::default()
+    };
+    let event = CombatEvent {
+        line_number: 1,
+        timestamp: now(),
+        source_entity: caster.clone(),
+        target_entity: caster,
+        action: Action {
+            name: intern("Dark Ward"),
+            action_id: 970702276980736,
+        },
+        effect: Effect {
+            type_id: effect_type_id::EVENT,
+            effect_id: effect_id::ABILITYACTIVATE,
+            ..Default::default()
+        },
+        details: Default::default(),
+    };
+
+    let (signals, _, _) = processor.process_event(event, &mut cache);
+    manager.handle_signals(&signals, cache.current_encounter());
+    assert_eq!(
+        manager.active_timers().len(),
+        1,
+        "position-constrained ability timer should fire via the live path"
+    );
+}
+
+#[test]
+fn test_entity_death_position_constraint() {
+    use crate::combat_log::{CombatEvent, Entity, EntityType, Position};
+    use crate::dsl::triggers::{PositionAxis, PositionConstraint, PositionEntity, PositionOp};
+
+    let make_position_timer = || {
+        make_timer(
+            "north_death",
+            "North Add Died",
+            TimerTrigger::EntityDeath {
+                selector: vec![EntitySelector::Id(999)],
+                position: vec![PositionConstraint {
+                    entity: PositionEntity::Source,
+                    axis: PositionAxis::Y,
+                    op: PositionOp::Gte { value: -50.0 },
+                }],
+            },
+            30.0,
+        )
+    };
+
+    let make_encounter = |y: f32| {
+        let mut enc = CombatEncounter::new(1, ProcessingMode::Live);
+        enc.update_entity_positions(&CombatEvent {
+            line_number: 1,
+            timestamp: now(),
+            source_entity: Entity::default(),
+            target_entity: Entity {
+                log_id: 777,
+                position: Some(Position {
+                    x: 0.0,
+                    y,
+                    z: 0.0,
+                    facing: 0.0,
+                }),
+                ..Default::default()
+            },
+            action: Default::default(),
+            effect: Default::default(),
+            details: Default::default(),
+        });
+        enc
+    };
+
+    let signal = GameSignal::EntityDeath {
+        entity_id: 777,
+        entity_type: EntityType::Npc,
+        npc_id: 999,
+        entity_name: "Add".to_string(),
+        timestamp: now(),
+    };
+
+    // Died in range → timer starts
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_position_timer()]);
+    manager.handle_signal(&signal, Some(&make_encounter(10.0)));
+    assert_eq!(manager.active_timers().len(), 1);
+
+    // Died out of range → no timer
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_position_timer()]);
+    manager.handle_signal(&signal, Some(&make_encounter(-120.0)));
+    assert_eq!(manager.active_timers().len(), 0);
+}
+
+#[test]
 fn test_anyof_condition_triggers_on_either() {
     let mut manager = TimerManager::new();
 
@@ -213,11 +427,13 @@ fn test_anyof_condition_triggers_on_either() {
                     abilities: vec![AbilitySelector::Id(111)],
                     source: EntityFilter::Any,
                     target: EntityFilter::Any,
+                    position: vec![],
                 },
                 TimerTrigger::AbilityCast {
                     abilities: vec![AbilitySelector::Id(222)],
                     source: EntityFilter::Any,
                     target: EntityFilter::Any,
+                    position: vec![],
                 },
             ],
         },
@@ -294,6 +510,7 @@ fn test_anyof_mixed_trigger_types() {
                     abilities: vec![AbilitySelector::Id(333)],
                     source: EntityFilter::Any,
                     target: EntityFilter::Any,
+                    position: vec![],
                 },
             ],
         },
@@ -344,6 +561,7 @@ fn test_cancel_on_timer() {
             abilities: vec![AbilitySelector::Id(444)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         30.0,
     );
@@ -401,6 +619,7 @@ fn test_wrong_ability_does_not_trigger() {
             abilities: vec![AbilitySelector::Id(12345)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         10.0,
     );
@@ -789,6 +1008,7 @@ fn test_any_phase_change_cancel_trigger() {
             abilities: vec![AbilitySelector::Id(12345)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         },
         30.0,
     );
@@ -933,6 +1153,7 @@ fn test_integration_ability_timer_with_real_log() {
             abilities: vec![AbilitySelector::Id(807737319514112)],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         }, // Basic Attack
         10.0,
     );
@@ -961,6 +1182,7 @@ fn test_integration_npc_first_seen_timer() {
         "Dread Monster Spawned",
         TimerTrigger::NpcAppears {
             selector: vec![EntitySelector::Id(3291675820556288)],
+            position: vec![],
         },
         30.0,
     );
@@ -1188,6 +1410,7 @@ fn test_timer_refresh_resets_expiration() {
                 abilities: vec![AbilitySelector::Id(12345)],
                 source: EntityFilter::Any,
                 target: EntityFilter::Any,
+                position: vec![],
             },
             5.0,
         )
@@ -1268,6 +1491,7 @@ fn test_timer_no_refresh_when_disabled() {
                 abilities: vec![AbilitySelector::Id(12345)],
                 source: EntityFilter::Any,
                 target: EntityFilter::Any,
+                position: vec![],
             },
             10.0,
         )

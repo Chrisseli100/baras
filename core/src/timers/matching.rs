@@ -4,17 +4,20 @@
 
 use std::collections::HashSet;
 
-use crate::combat_log::EntityType;
+use crate::combat_log::{EntityType, Position};
 use crate::context::IStr;
 use crate::dsl::EntityDefinition;
 use crate::dsl::EntityFilterMatching;
 use crate::dsl::Trigger;
+use crate::dsl::triggers::matches_position_constraints;
 use crate::encounter::CombatEncounter;
 
 use super::TimerDefinition;
 
 /// Check if source/target filters pass for a trigger.
 /// Used by timers, phases, victory triggers, and counters.
+/// `source_pos`/`target_pos` are the entities' positions for position
+/// constraint checks; pass `None` when unknown (constraints then fail).
 pub fn matches_source_target_filters(
     trigger: &Trigger,
     entities: &[EntityDefinition],
@@ -29,7 +32,14 @@ pub fn matches_source_target_filters(
     local_player_id: Option<i64>,
     current_target_id: Option<i64>,
     boss_entity_ids: &HashSet<i64>,
+    source_pos: Option<Position>,
+    target_pos: Option<Position>,
 ) -> bool {
+    // Position constraints (empty list passes)
+    if !matches_position_constraints(trigger.position_constraints(), source_pos, target_pos) {
+        return false;
+    }
+
     // Check source filter if present (None = any, passes)
     if let Some(source_filter) = trigger.source_filter() {
         if !source_filter.matches(

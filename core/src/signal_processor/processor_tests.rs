@@ -971,6 +971,7 @@ fn test_counter_phase_entered_trigger() {
                     selector: vec![crate::dsl::triggers::EntitySelector::Name(
                         "Add".to_string(),
                     )],
+                    position: vec![],
                 },
                 end_trigger: None,
                 preceded_by: None,
@@ -1054,6 +1055,7 @@ fn test_counter_phase_entered_trigger() {
             log_id: ADD_NPC_LOG_ID,
             entity_type: EntityType::Npc,
             health: (1000, 1000),
+            position: None,
         },
         target_entity: Entity::default(),
         action: Action::default(),
@@ -1076,6 +1078,7 @@ fn test_counter_phase_entered_trigger() {
             log_id: ADD_NPC_LOG_ID,
             entity_type: EntityType::Npc,
             health: (0, 1000),
+            position: None,
         },
         action: Action::default(),
         effect: Effect {
@@ -1222,6 +1225,7 @@ fn test_phase_cascade_in_single_event() {
                 start_trigger: Trigger::CombatStart,
                 end_trigger: Some(Trigger::EntityDeath {
                     selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                    position: vec![],
                 }),
                 preceded_by: None,
                 conditions: vec![],
@@ -1240,6 +1244,7 @@ fn test_phase_cascade_in_single_event() {
                 // p2's end trigger fires on EntityDeath too (same signal that started the chain)
                 end_trigger: Some(Trigger::EntityDeath {
                     selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                    position: vec![],
                 }),
                 preceded_by: Some("p1".to_string()),
                 conditions: vec![],
@@ -1313,6 +1318,7 @@ fn test_phase_cascade_in_single_event() {
             log_id: ADD_NPC_LOG_ID,
             entity_type: EntityType::Npc,
             health: (1000, 1000),
+            position: None,
         },
         target_entity: Entity::default(),
         action: Action::default(),
@@ -1332,6 +1338,7 @@ fn test_phase_cascade_in_single_event() {
             log_id: ADD_NPC_LOG_ID,
             entity_type: EntityType::Npc,
             health: (0, 1000),
+            position: None,
         },
         action: Action::default(),
         effect: Effect {
@@ -1463,6 +1470,7 @@ fn test_counter_reaches_enables_phase() {
                 display_text: None,
                 start_trigger: Trigger::EntityDeath {
                     selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                    position: vec![],
                 },
                 end_trigger: None,
                 preceded_by: None,
@@ -1483,6 +1491,7 @@ fn test_counter_reaches_enables_phase() {
             display_text: None,
             increment_on: Trigger::EntityDeath {
                 selector: vec![crate::dsl::triggers::EntitySelector::Name("Add".to_string())],
+                position: vec![],
             },
             decrement_on: None,
             reset_on: Trigger::CombatEnd,
@@ -1537,6 +1546,7 @@ fn test_counter_reaches_enables_phase() {
                 log_id,
                 entity_type: EntityType::Npc,
                 health: (1000, 1000),
+                position: None,
             },
             target_entity: Entity::default(),
             action: Action::default(),
@@ -1556,6 +1566,7 @@ fn test_counter_reaches_enables_phase() {
                 log_id,
                 entity_type: EntityType::Npc,
                 health: (0, 1000),
+                position: None,
             },
             action: Action::default(),
             effect: Effect {
@@ -1675,11 +1686,13 @@ fn test_phase_ended_counter_no_double_increment() {
                     effects: vec![EffectSelector::Id(SHIELD_EFFECT_ID as u64)],
                     source: baras_types::EntityFilter::Any,
                     target: baras_types::EntityFilter::Any,
+                    position: vec![],
                 },
                 end_trigger: Some(Trigger::EffectRemoved {
                     effects: vec![EffectSelector::Id(SHIELD_EFFECT_ID as u64)],
                     source: baras_types::EntityFilter::Any,
                     target: baras_types::EntityFilter::Any,
+                    position: vec![],
                 }),
                 preceded_by: None,
                 conditions: vec![],
@@ -1740,6 +1753,7 @@ fn test_phase_ended_counter_no_double_increment() {
             log_id: BOSS_NPC_LOG_ID,
             entity_type: EntityType::Npc,
             health: (100_000, 100_000),
+            position: None,
         },
         target_entity: Entity::default(),
         action: Action::default(),
@@ -1759,6 +1773,7 @@ fn test_phase_ended_counter_no_double_increment() {
             log_id: BOSS_NPC_LOG_ID,
             entity_type: EntityType::Npc,
             health: (100_000, 100_000),
+            position: None,
         },
         action: Action::default(),
         effect: Effect {

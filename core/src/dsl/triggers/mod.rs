@@ -5,8 +5,12 @@
 //! Each system only responds to the trigger variants it supports.
 
 mod matchers;
+mod position;
 
 pub use matchers::{AbilitySelector, EffectSelector, EntitySelector, EntitySelectorExt};
+pub use position::{
+    PositionAxis, PositionConstraint, PositionEntity, PositionOp, matches_position_constraints,
+};
 
 // Re-export EntityFilter for use in triggers
 pub use baras_types::{ChargeDirection, EntityFilter, MitigationType};
@@ -83,6 +87,9 @@ pub enum Trigger {
         /// Who the ability targets (default: any)
         #[serde(default = "EntityFilter::default_any")]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Effect/buff is applied.
@@ -96,6 +103,9 @@ pub enum Trigger {
         /// Who received the effect (default: any)
         #[serde(default = "EntityFilter::default_any")]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Effect/buff is removed.
@@ -109,6 +119,9 @@ pub enum Trigger {
         /// Who lost the effect (default: any)
         #[serde(default = "EntityFilter::default_any")]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Damage is taken from an ability.
@@ -127,6 +140,9 @@ pub enum Trigger {
         /// Empty (default) matches any hit result.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         mitigation: Vec<MitigationType>,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Damage is dealt to a target.
@@ -139,6 +155,9 @@ pub enum Trigger {
         target: EntityFilter,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         mitigation: Vec<MitigationType>,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Healing is received from an ability.
@@ -152,6 +171,9 @@ pub enum Trigger {
         /// Who received the healing (default: any)
         #[serde(default = "EntityFilter::default_any")]
         target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Another effect's charges/stacks change. [M only]
@@ -207,6 +229,10 @@ pub enum Trigger {
         /// NPCs to match (by ID or name)
         #[serde(default)]
         selector: Vec<EntitySelector>,
+        /// Coordinate constraints on the appearing NPC (AND semantics, empty = any).
+        /// The NPC's position is checked regardless of the constraint's `entity` field.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// Entity dies.
@@ -214,6 +240,10 @@ pub enum Trigger {
         /// Entities to match (empty = any death)
         #[serde(default)]
         selector: Vec<EntitySelector>,
+        /// Coordinate constraints on the dying entity (AND semantics, empty = any).
+        /// The entity's position is checked regardless of the constraint's `entity` field.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
     },
 
     /// NPC sets its target (e.g., sphere targeting player).
@@ -348,6 +378,22 @@ impl Trigger {
         }
     }
 
+    /// Get the position constraints from this trigger (for event-based triggers).
+    /// Returns an empty slice for triggers without position support.
+    pub fn position_constraints(&self) -> &[PositionConstraint] {
+        match self {
+            Self::AbilityCast { position, .. }
+            | Self::EffectApplied { position, .. }
+            | Self::EffectRemoved { position, .. }
+            | Self::DamageTaken { position, .. }
+            | Self::DamageDealt { position, .. }
+            | Self::HealingTaken { position, .. }
+            | Self::NpcAppears { position, .. }
+            | Self::EntityDeath { position, .. } => position,
+            _ => &[],
+        }
+    }
+
     /// Extract both source and target filters from this trigger.
     /// Returns default "Any" filters for triggers that don't have them.
     pub fn source_target_filters(&self) -> (EntityFilter, EntityFilter) {
@@ -360,37 +406,43 @@ impl Trigger {
     /// Only affects trigger variants that support these filters.
     pub fn with_source_target(self, source: EntityFilter, target: EntityFilter) -> Self {
         match self {
-            Self::AbilityCast { abilities, .. } => Self::AbilityCast {
+            Self::AbilityCast { abilities, position, .. } => Self::AbilityCast {
                 abilities,
                 source,
                 target,
+                position,
             },
-            Self::EffectApplied { effects, .. } => Self::EffectApplied {
+            Self::EffectApplied { effects, position, .. } => Self::EffectApplied {
                 effects,
                 source,
                 target,
+                position,
             },
-            Self::EffectRemoved { effects, .. } => Self::EffectRemoved {
+            Self::EffectRemoved { effects, position, .. } => Self::EffectRemoved {
                 effects,
                 source,
                 target,
+                position,
             },
-            Self::DamageTaken { abilities, mitigation, .. } => Self::DamageTaken {
+            Self::DamageTaken { abilities, mitigation, position, .. } => Self::DamageTaken {
                 abilities,
                 source,
                 target,
                 mitigation,
+                position,
             },
-            Self::DamageDealt { abilities, mitigation, .. } => Self::DamageDealt {
+            Self::DamageDealt { abilities, mitigation, position, .. } => Self::DamageDealt {
                 abilities,
                 source,
                 target,
                 mitigation,
+                position,
             },
-            Self::HealingTaken { abilities, .. } => Self::HealingTaken {
+            Self::HealingTaken { abilities, position, .. } => Self::HealingTaken {
                 abilities,
                 source,
                 target,
+                position,
             },
             Self::ThreatModified { abilities, threat_value, .. } => Self::ThreatModified {
                 abilities,
@@ -600,7 +652,7 @@ impl Trigger {
         entity_name: &str,
     ) -> bool {
         match self {
-            Self::NpcAppears { selector } => {
+            Self::NpcAppears { selector, .. } => {
                 // Require explicit filter for NPC appears
                 if selector.is_empty() {
                     return false;
@@ -623,7 +675,7 @@ impl Trigger {
         entity_name: &str,
     ) -> bool {
         match self {
-            Self::EntityDeath { selector } => {
+            Self::EntityDeath { selector, .. } => {
                 // Empty selector = any death
                 if selector.is_empty() {
                     return true;
@@ -959,6 +1011,7 @@ mod tests {
                     abilities: vec![AbilitySelector::Id(123)],
                     source: EntityFilter::Any,
                     target: EntityFilter::Any,
+                    position: vec![],
                 },
                 Trigger::CombatStart,
             ],
@@ -972,6 +1025,7 @@ mod tests {
             abilities: vec![AbilitySelector::Id(123), AbilitySelector::Id(456)],
             source: EntityFilter::Selector(vec![EntitySelector::Id(789)]),
             target: EntityFilter::Any,
+            position: vec![],
         };
         let toml = toml::to_string(&trigger).unwrap();
         let parsed: Trigger = toml::from_str(&toml).unwrap();
@@ -987,6 +1041,7 @@ mod tests {
             ],
             source: EntityFilter::Any,
             target: EntityFilter::Any,
+            position: vec![],
         };
         let toml = toml::to_string(&trigger).unwrap();
         let parsed: Trigger = toml::from_str(&toml).unwrap();
