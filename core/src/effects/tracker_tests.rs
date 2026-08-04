@@ -46,6 +46,8 @@ fn make_effect(
         show_icon: true,
         display_source: false,
         disciplines: vec![],
+        source_disciplines: vec![],
+        target_disciplines: vec![],
         ignore_refreshes: false,
         refresh_scope: RefreshScope::Both,
         persist_past_death: false,

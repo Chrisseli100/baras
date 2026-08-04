@@ -920,6 +920,12 @@ pub struct EffectListItem {
     /// Disciplines this effect is scoped to (empty = all)
     #[serde(default)]
     pub disciplines: Vec<String>,
+    /// Source entity discipline/role filter (empty = no constraint)
+    #[serde(default)]
+    pub source_disciplines: Vec<String>,
+    /// Target entity discipline/role filter (empty = no constraint)
+    #[serde(default)]
+    pub target_disciplines: Vec<String>,
 
     // Behavior
     #[serde(default)]

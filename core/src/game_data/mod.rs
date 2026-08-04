@@ -20,7 +20,7 @@ pub use boss_registry::{
 pub use bosses::{
     BossInfo, ContentType, Difficulty, get_boss_ids, is_boss, lookup_area_content_type, lookup_boss,
 };
-pub use discipline::{Class, Discipline, Role};
+pub use discipline::{Class, Discipline, DisciplineFilter, Role};
 pub use effects::*;
 pub use flashpoints::{FLASHPOINT_AREAS, get_flashpoint_name, is_flashpoint};
 pub use pvp_instance::is_pvp_area;

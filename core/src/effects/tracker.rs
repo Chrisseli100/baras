@@ -14,7 +14,7 @@ use crate::context::IStr;
 use crate::dsl::EntityDefinition;
 use crate::dsl::EntityFilterMatching;
 use crate::encounter::CombatEncounter;
-use crate::game_data::Discipline;
+use crate::game_data::{Discipline, DisciplineFilter};
 use crate::signal_processor::{GameSignal, SignalHandler};
 
 use crate::timers::FiredAlert;
@@ -430,6 +430,9 @@ pub struct EffectTracker {
     /// Local player's current discipline (for discipline-scoped effects)
     local_player_discipline: Option<Discipline>,
 
+    /// Last known discipline per player entity (for source/target discipline filters)
+    player_disciplines: HashMap<i64, Discipline>,
+
     /// Player's alacrity percentage (e.g., 15.4 for 15.4%)
     /// Used to adjust durations for effects with is_affected_by_alacrity = true
     alacrity_percent: f32,
@@ -486,6 +489,7 @@ impl EffectTracker {
             current_game_time_instant: None,
             local_player_id: None,
             local_player_discipline: None,
+            player_disciplines: HashMap::new(),
             alacrity_percent: 0.0,
             latency_ms: 0,
             new_targets: Vec::new(),
@@ -1279,6 +1283,10 @@ impl EffectTracker {
                     &boss_ids,
                 )
             })
+            .filter(|def| {
+                self.matches_entity_disciplines(&def.source_disciplines, source_id, source_entity_type)
+                    && self.matches_entity_disciplines(&def.target_disciplines, target_id, target_entity_type)
+            })
             .filter_map(|def| {
                 // Find the matching RefreshAbility entry to get conditions
                 let refresh_ability = def.find_refresh_ability(action_id as u64, Some(action_name_str))?;
@@ -1712,6 +1720,14 @@ impl EffectTracker {
                 continue;
             }
 
+            if !self.matches_entity_disciplines(
+                &def.source_disciplines,
+                source_info.id,
+                source_info.entity_type,
+            ) {
+                continue;
+            }
+
             // Instant alerts: fire and skip — no ActiveEffect created
             if def.is_alert {
                 self.fired_alerts.push(Self::build_instant_alert(def, timestamp, source_name, target_name));
@@ -1729,6 +1745,10 @@ impl EffectTracker {
                 current_target_id,
                 &boss_ids,
             ) {
+                continue;
+            }
+
+            if !self.matches_entity_disciplines(&def.target_disciplines, target_id, target_entity_type) {
                 continue;
             }
 
@@ -2254,6 +2274,26 @@ impl EffectTracker {
         }
     }
 
+    /// Check a source/target discipline filter against an entity.
+    /// Empty filter = no constraint. Non-empty: the entity must be a player
+    /// with a known discipline matching one of the entries — NPCs, companions,
+    /// and players whose discipline hasn't been seen yet never match.
+    fn matches_entity_disciplines(
+        &self,
+        filters: &[DisciplineFilter],
+        entity_id: i64,
+        entity_type: EntityType,
+    ) -> bool {
+        if filters.is_empty() {
+            return true;
+        }
+        entity_type == EntityType::Player
+            && self
+                .player_disciplines
+                .get(&entity_id)
+                .is_some_and(|d| filters.iter().any(|f| f.matches(*d)))
+    }
+
     /// Check if an effect matches source/target filters and discipline scope
     fn matches_filters(
         &self,
@@ -2264,6 +2304,13 @@ impl EffectTracker {
     ) -> bool {
         // Check discipline filter (only relevant for player characters)
         if !def.matches_discipline(self.local_player_discipline.as_ref()) {
+            return false;
+        }
+
+        // Check source/target discipline filters
+        if !self.matches_entity_disciplines(&def.source_disciplines, source.id, source.entity_type)
+            || !self.matches_entity_disciplines(&def.target_disciplines, target.id, target.entity_type)
+        {
             return false;
         }
 
@@ -2682,9 +2729,16 @@ impl SignalHandler for EffectTracker {
                 discipline_id,
                 ..
             } => {
+                // Track per-player disciplines for source/target discipline filters
+                let discipline = Discipline::from_guid(*discipline_id);
+                if let Some(d) = discipline {
+                    self.player_disciplines.insert(*entity_id, d);
+                } else {
+                    self.player_disciplines.remove(entity_id);
+                }
                 // Track local player's discipline for discipline-scoped effects
                 if self.local_player_id == Some(*entity_id) {
-                    self.local_player_discipline = Discipline::from_guid(*discipline_id);
+                    self.local_player_discipline = discipline;
                 }
             }
             GameSignal::PlayerInitialized { .. } => {

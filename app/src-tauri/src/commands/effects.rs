@@ -17,7 +17,7 @@ use baras_core::dsl::{AudioConfig, Trigger};
 use baras_core::effects::{
     AlertTrigger, DefinitionConfig, DisplayTarget, EFFECTS_DSL_VERSION, EffectDefinition,
 };
-use baras_core::game_data::Discipline;
+use baras_core::game_data::{Discipline, DisciplineFilter};
 use baras_types::{RefreshAbility, RefreshScope};
 
 use crate::service::ServiceHandle;
@@ -68,6 +68,12 @@ pub struct EffectListItem {
     /// Disciplines this effect is scoped to (empty = all)
     #[serde(default)]
     pub disciplines: Vec<String>,
+    /// Source entity discipline/role filter (empty = no constraint)
+    #[serde(default)]
+    pub source_disciplines: Vec<String>,
+    /// Target entity discipline/role filter (empty = no constraint)
+    #[serde(default)]
+    pub target_disciplines: Vec<String>,
 
     // Behavior
     #[serde(default)]
@@ -123,6 +129,8 @@ impl EffectListItem {
             is_affected_by_alacrity: def.is_affected_by_alacrity,
             cooldown_ready_secs: def.cooldown_ready_secs,
             disciplines: def.disciplines.iter().map(|d| d.name().to_string()).collect(),
+            source_disciplines: def.source_disciplines.iter().map(|d| d.name().to_string()).collect(),
+            target_disciplines: def.target_disciplines.iter().map(|d| d.name().to_string()).collect(),
             ignore_refreshes: def.ignore_refreshes,
             refresh_scope: def.refresh_scope,
             persist_past_death: def.persist_past_death,
@@ -156,6 +164,12 @@ impl EffectListItem {
             show_at_secs: self.show_at_secs,
             disciplines: self.disciplines.iter()
                 .filter_map(|name| Discipline::from_name(name))
+                .collect(),
+            source_disciplines: self.source_disciplines.iter()
+                .filter_map(|name| DisciplineFilter::from_name(name))
+                .collect(),
+            target_disciplines: self.target_disciplines.iter()
+                .filter_map(|name| DisciplineFilter::from_name(name))
                 .collect(),
             ignore_refreshes: self.ignore_refreshes,
             refresh_scope: self.refresh_scope,

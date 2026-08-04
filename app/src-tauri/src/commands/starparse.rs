@@ -411,6 +411,8 @@ fn convert_to_effect(xml: &XmlConfigTimer) -> EffectDefinition {
         show_icon: true,
         display_source: false,
         disciplines: vec![],
+        source_disciplines: vec![],
+        target_disciplines: vec![],
         ignore_refreshes: false,
         refresh_scope: Default::default(),
         persist_past_death: false,

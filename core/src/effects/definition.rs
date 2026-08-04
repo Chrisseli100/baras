@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::dsl::AudioConfig;
 use crate::dsl::Trigger;
-use crate::game_data::Discipline;
+use crate::game_data::{Discipline, DisciplineFilter};
 
 // Re-export from shared modules
 pub use crate::dsl::EntityFilter;
@@ -177,6 +177,17 @@ pub struct EffectDefinition {
     /// is in this list. Does not affect NPCs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disciplines: Vec<Discipline>,
+
+    /// Source entity must be a player of one of these disciplines/roles.
+    /// Empty = no constraint. When non-empty, NPCs, companions, and players
+    /// whose discipline is unknown never match.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_disciplines: Vec<DisciplineFilter>,
+
+    /// Target entity must be a player of one of these disciplines/roles.
+    /// Same semantics as `source_disciplines`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub target_disciplines: Vec<DisciplineFilter>,
 
     // ─── Behavior ───────────────────────────────────────────────────────────
     /// If true, retriggering the effect while it is already active is ignored

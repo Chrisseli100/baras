@@ -513,3 +513,83 @@ impl Discipline {
         }
     }
 }
+
+/// One entry in a source/target discipline filter: either a whole role
+/// (matches every discipline with that role) or a specific discipline.
+///
+/// Serializes untagged, so TOML accepts plain strings for both forms:
+/// `source_disciplines = ["Tank", "Medicine"]`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DisciplineFilter {
+    Role(Role),
+    Discipline(Discipline),
+}
+
+impl DisciplineFilter {
+    /// Check whether a discipline satisfies this filter entry
+    pub fn matches(&self, discipline: Discipline) -> bool {
+        match self {
+            Self::Role(role) => discipline.role() == *role,
+            Self::Discipline(d) => *d == discipline,
+        }
+    }
+
+    /// Get the display name for this filter entry
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Role(Role::Tank) => "Tank",
+            Self::Role(Role::Healer) => "Healer",
+            Self::Role(Role::Dps) => "DPS",
+            Self::Discipline(d) => d.name(),
+        }
+    }
+
+    /// Look up a filter entry from its display name
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "Tank" => Some(Self::Role(Role::Tank)),
+            "Healer" => Some(Self::Role(Role::Healer)),
+            "DPS" | "Dps" => Some(Self::Role(Role::Dps)),
+            _ => Discipline::from_name(name).map(Self::Discipline),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn discipline_filter_toml_round_trip() {
+        #[derive(Serialize, Deserialize)]
+        struct Wrapper {
+            filters: Vec<DisciplineFilter>,
+        }
+
+        let original = Wrapper {
+            filters: vec![
+                DisciplineFilter::Role(Role::Tank),
+                DisciplineFilter::Role(Role::Dps),
+                DisciplineFilter::Discipline(Discipline::Medicine),
+                DisciplineFilter::Discipline(Discipline::InnovativeOrdnance),
+            ],
+        };
+
+        let toml = toml::to_string(&original).unwrap();
+        let parsed: Wrapper = toml::from_str(&toml).unwrap();
+        assert_eq!(parsed.filters, original.filters);
+
+        // Roles must win over disciplines for their own names, and untagged
+        // strings must resolve to the right variant kind
+        let parsed: Wrapper =
+            toml::from_str(r#"filters = ["Healer", "Deception"]"#).unwrap();
+        assert_eq!(
+            parsed.filters,
+            vec![
+                DisciplineFilter::Role(Role::Healer),
+                DisciplineFilter::Discipline(Discipline::Deception),
+            ]
+        );
+    }
+}

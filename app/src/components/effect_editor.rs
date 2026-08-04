@@ -236,6 +236,8 @@ fn default_effect(name: String) -> EffectListItem {
         is_affected_by_alacrity: false,
         cooldown_ready_secs: 0.0,
         disciplines: vec![],
+        source_disciplines: vec![],
+        target_disciplines: vec![],
         ignore_refreshes: false,
         refresh_scope: Default::default(),
         persist_past_death: false,
@@ -1189,7 +1191,7 @@ fn EffectEditForm(
                                 // Disciplines
                                 div { class: "form-row-hz",
                                     label { class: "flex items-center",
-                                        "Disciplines"
+                                        "Your Disciplines"
                                         span {
                                             class: "help-icon",
                                             title: "Only activate this effect when your local player is one of the selected disciplines. If empty, the effect applies to all disciplines.",
@@ -1440,6 +1442,46 @@ fn EffectEditForm(
                                         on_change: move |f| {
                                             let mut d = draft();
                                             d.trigger = set_trigger_target(d.trigger.clone(), f);
+                                            draft.set(d);
+                                        }
+                                    }
+                                }
+
+                                // Source and Target discipline filters
+                                div { class: "form-row-hz",
+                                    label { class: "flex items-center",
+                                        "Source Disc."
+                                        span {
+                                            class: "help-icon",
+                                            title: "Restrict the source to players of these disciplines/roles. If empty, no restriction. When set, NPCs, companions, and players whose discipline isn't known yet never match.",
+                                            "?"
+                                        }
+                                    }
+                                    DisciplineSelector {
+                                        selected: draft().source_disciplines.clone(),
+                                        include_roles: true,
+                                        empty_label: "(any)",
+                                        on_change: move |v: Vec<String>| {
+                                            let mut d = draft();
+                                            d.source_disciplines = v;
+                                            draft.set(d);
+                                        }
+                                    }
+                                    label { class: "flex items-center",
+                                        "Target Disc."
+                                        span {
+                                            class: "help-icon",
+                                            title: "Restrict the target to players of these disciplines/roles. If empty, no restriction. When set, NPCs, companions, and players whose discipline isn't known yet never match.",
+                                            "?"
+                                        }
+                                    }
+                                    DisciplineSelector {
+                                        selected: draft().target_disciplines.clone(),
+                                        include_roles: true,
+                                        empty_label: "(any)",
+                                        on_change: move |v: Vec<String>| {
+                                            let mut d = draft();
+                                            d.target_disciplines = v;
                                             draft.set(d);
                                         }
                                     }
@@ -2185,20 +2227,35 @@ const ALL_DISCIPLINES: &[(&str, &[&str])] = &[
     ("Sniper / Gunslinger", &["Marksmanship", "Engineering", "Virulence", "Sharpshooter", "Saboteur", "Dirty Fighting"]),
 ];
 
+/// Role display names selectable when `include_roles` is set
+const ALL_ROLES: &[&str] = &["Tank", "Healer", "DPS"];
+
 #[component]
 fn DisciplineSelector(
     selected: Vec<String>,
     on_change: EventHandler<Vec<String>>,
+    /// Show a "Roles" group (Tank/Healer/DPS) above the discipline groups
+    #[props(default)] include_roles: bool,
+    /// Label shown when nothing is selected
+    #[props(default = "(all disciplines)".to_string())] empty_label: String,
 ) -> Element {
     let mut dropdown_open = use_signal(|| false);
     let mut dropdown_pos = use_signal(|| (0.0f64, 0.0f64));
 
     let display = if selected.is_empty() {
-        "(all disciplines)".to_string()
+        empty_label.clone()
     } else if selected.len() == 1 {
         selected[0].clone()
     } else {
-        format!("{} disciplines", selected.len())
+        format!("{} selected", selected.len())
+    };
+
+    let groups: Vec<(&'static str, &'static [&'static str])> = if include_roles {
+        std::iter::once(("Roles", ALL_ROLES))
+            .chain(ALL_DISCIPLINES.iter().copied())
+            .collect()
+    } else {
+        ALL_DISCIPLINES.to_vec()
     };
 
     rsx! {
@@ -2241,11 +2298,11 @@ fn DisciplineSelector(
                                 dropdown_open.set(false);
                             }
                         }
-                        "(all disciplines)"
+                        "{empty_label}"
                     }
 
-                    // Grouped disciplines
-                    for (group_name, disciplines) in ALL_DISCIPLINES.iter() {
+                    // Grouped roles/disciplines
+                    for (group_name, disciplines) in groups.iter() {
                         {
                             let selected_clone = selected.clone();
                             rsx! {
