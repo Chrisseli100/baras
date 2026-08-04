@@ -362,7 +362,7 @@ fn CompositeEditor(
                     new_conditions.push(TimerTrigger::CombatStart);
                     on_change.call(TimerTrigger::AnyOf { conditions: new_conditions });
                 },
-                "+ Add Condition"
+                "+ Add Trigger"
             }
         }
     }
