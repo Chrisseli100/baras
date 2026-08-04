@@ -198,7 +198,7 @@ pub fn raid_guide() -> Color {
 /// Empty slot background
 #[inline]
 pub fn raid_empty_slot() -> Color {
-    Color::from_rgba8(50, 50, 50, 140)
+    Color::from_rgba8(50, 50, 50, 98)
 }
 
 /// Empty slot text (rearrange mode)

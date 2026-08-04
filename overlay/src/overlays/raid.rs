@@ -1129,7 +1129,7 @@ impl RaidOverlay {
                 self.config.selection_color[0],
                 self.config.selection_color[1],
                 self.config.selection_color[2],
-                self.config.selection_color[3],
+                (self.config.selection_color[3] as f32 * 0.7) as u8,
             )
         } else {
             colors::raid_empty_slot()
@@ -1154,7 +1154,7 @@ impl RaidOverlay {
             border_color,
         );
 
-        // Player name centered (or "Empty")
+        // Player name bottom-right (or "Empty")
         let font_size = self.font_size() * 1.1;
         let text = if raid_frame.is_empty() {
             "Empty".to_string()
@@ -1163,10 +1163,9 @@ impl RaidOverlay {
         };
 
         let (text_w, _text_h) = self.frame.measure_text(&text, font_size);
-        let text_x = x + (w - text_w) / 2.0;
-        // Note: draw_text y is baseline, so add font_size * 0.7 to center visually
-        // (baseline is roughly 70-80% down from top of capital letters)
-        let text_y = y + (h / 2.0) + (font_size * 0.35);
+        let text_x = x + w - text_w - 4.0;
+        // Note: draw_text y is baseline
+        let text_y = y + h - 4.0;
 
         let text_color = if raid_frame.is_empty() {
             colors::raid_slot_number()
