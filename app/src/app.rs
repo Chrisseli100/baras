@@ -7,7 +7,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::api::{self, BossNotesInfo};
 use crate::components::{
-    DataExplorerPanel, EffectEditorPanel, EncounterEditorPanel,
+    ContributorsModal, DataExplorerPanel, EffectEditorPanel, EncounterEditorPanel,
     HotkeyInput, ParselyUploadModal, SettingsPanel, Slider, ToastFrame, ToastSeverity, use_parsely_upload,
     use_parsely_upload_provider, use_toast, use_toast_provider,
 };
@@ -127,6 +127,7 @@ pub fn App() -> Element {
     // Changelog state
     let mut changelog_open = use_signal(|| false);
     let mut changelog_html = use_signal(String::new);
+    let mut contributors_open = use_signal(|| false);
 
     // Audio settings
     let mut audio_enabled = use_signal(|| true);
@@ -697,6 +698,16 @@ pub fn App() -> Element {
                                         });
                                     },
                                     i { class: "fa-solid fa-circle-question" }
+                                }
+                                a {
+                                    class: "header-link",
+                                    href: "#",
+                                    title: "Contributors",
+                                    onclick: move |e| {
+                                        e.prevent_default();
+                                        contributors_open.set(true);
+                                    },
+                                    i { class: "fa-solid fa-heart" }
                                 }
                             }
                         }
@@ -2586,6 +2597,9 @@ pub fn App() -> Element {
                     }
                 }
             }
+
+            // Contributors modal
+            ContributorsModal { open: contributors_open }
 
             // Parsely upload modal
             ParselyUploadModal {
