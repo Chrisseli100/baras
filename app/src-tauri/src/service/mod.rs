@@ -425,6 +425,22 @@ impl SignalHandler for CombatSignalHandler {
             let _ = self.cmd_tx.try_send(ServiceCommand::StartProcessMonitor);
         }
 
+        // Re-sync player identity from SharedState if unset. This handler is
+        // constructed before the subprocess import stores the restored player
+        // id/role, so a fresh-process restart mid-session would otherwise leave
+        // it blind (breaking conversation auto-hide and role-change detection)
+        // until the next DisciplineChanged signal at an area transition.
+        if self.local_player_id.is_none() {
+            let id = self.shared.last_player_id.load(Ordering::SeqCst);
+            if id != 0 {
+                self.local_player_id = Some(id);
+                if self.current_role.is_none() {
+                    self.current_role =
+                        Role::from_u8(self.shared.last_player_role.load(Ordering::SeqCst));
+                }
+            }
+        }
+
         match signal {
             GameSignal::CombatStarted { .. } => {
                 self.shared.in_combat.store(true, Ordering::SeqCst);
@@ -481,6 +497,19 @@ impl SignalHandler for CombatSignalHandler {
                 // next CombatEnded (the actual kill) can stop the timer.
                 if *success {
                     self.current_boss_is_final = false;
+                }
+            }
+            GameSignal::PlayerInitialized { entity_id, .. } => {
+                // Emitted only for the local player, before the paired
+                // DisciplineChanged. Adopting the ID here corrects the stale
+                // seed restored from SharedState when a new log file belongs
+                // to a different character than the previous session.
+                if self.local_player_id != Some(*entity_id) {
+                    self.local_player_id = Some(*entity_id);
+                    self.shared.last_player_id.store(*entity_id, Ordering::SeqCst);
+                    // Force role re-evaluation so the DisciplineChanged that
+                    // follows fires AutoSwitchProfile for the new character
+                    self.current_role = None;
                 }
             }
             GameSignal::DisciplineChanged {
@@ -2085,7 +2114,17 @@ impl CombatService {
                             }
                             self.shared.last_player_id.store(player_id, Ordering::SeqCst);
                             if let Some(discipline) = Discipline::from_guid(discipline_id) {
-                                self.shared.last_player_role.store(discipline.role().to_u8(), Ordering::SeqCst);
+                                let role = discipline.role();
+                                self.shared.last_player_role.store(role.to_u8(), Ordering::SeqCst);
+                                // Apply role-based profile now: the DisciplineChanged signal
+                                // that normally drives auto-switching was consumed by the
+                                // subprocess, so a role change while the app was closed would
+                                // otherwise keep the wrong profile until the next area
+                                // transition. Idempotent (skips if already active) and gated
+                                // on is_live_tailing, so historical opens never switch.
+                                let _ = self.cmd_tx.try_send(ServiceCommand::AutoSwitchProfile {
+                                    role_name: format!("{role:?}"),
+                                });
                             }
                         }
 
