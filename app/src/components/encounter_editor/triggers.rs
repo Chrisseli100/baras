@@ -950,12 +950,14 @@ pub fn SimpleTriggerEditor(
 
             // Position constraints (shared across all event-driven trigger types)
             if trigger.supports_position() {
-                span { class: "text-sm font-bold text-secondary mt-sm",
-                    "Position Constraints"
-                    span {
-                        class: "help-icon",
-                        title: "Coordinate gates on the event's source/target entities. ALL must pass for the trigger to fire. Hover entities in the Combat Log view to find coordinates.",
-                        "?"
+                if !trigger.position_constraints().is_empty() {
+                    span { class: "text-sm font-bold text-secondary mt-sm",
+                        "Position Constraints"
+                        span {
+                            class: "help-icon",
+                            title: "Coordinate gates on the event's source/target entities. ALL must pass for the trigger to fire. Hover entities in the Combat Log view to find coordinates.",
+                            "?"
+                        }
                     }
                 }
                 PositionConstraintList {
@@ -990,12 +992,9 @@ fn PositionConstraintList(
     show_entity: bool,
 ) -> Element {
     let constraints_for_add = constraints.clone();
+    let is_empty = constraints.is_empty();
     rsx! {
         div { class: "conditions-editor",
-            if constraints.is_empty() {
-                span { class: "conditions-editor-empty", "No position constraints (any location)" }
-            }
-
             for (idx, constraint) in constraints.iter().enumerate() {
                 div { class: "condition-card", key: "{idx}",
                     div { class: "condition-card-content",
@@ -1029,7 +1028,8 @@ fn PositionConstraintList(
             }
 
             button {
-                class: "btn-dashed text-sm",
+                class: if is_empty { "btn-compose" } else { "btn-dashed text-sm" },
+                style: if is_empty { "align-self: flex-start;" } else { "" },
                 onclick: move |_| {
                     let mut updated = constraints_for_add.clone();
                     updated.push(PositionConstraint {
@@ -1039,7 +1039,7 @@ fn PositionConstraintList(
                     });
                     on_change.call(updated);
                 },
-                "+ Add Position Constraint"
+                if is_empty { "+ Position Constraint" } else { "+ Add Position Constraint" }
             }
         }
     }
