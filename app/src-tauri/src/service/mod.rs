@@ -181,6 +181,9 @@ impl AreaKind {
     }
 }
 
+/// Stop the operation timer if the player stays outside the instance this long.
+const OP_EXIT_TIMEOUT_SECS: u64 = 600;
+
 /// Persistent timer state that tracks an entire operation run.
 /// Lives in the service layer, independent of overlay visibility.
 #[derive(Debug)]
@@ -195,6 +198,15 @@ pub struct OperationTimerState {
     manually_stopped: bool,
     /// Current operation name (from AreaEntered signal)
     operation_name: Option<String>,
+    /// Identity of the operation instance this timer belongs to:
+    /// (area_id, difficulty_id). A different tuple on AreaEntered means the
+    /// player joined another instance and the timer auto-stops.
+    op_instance: Option<(i64, i64)>,
+    /// Set when the player leaves the operation area while the timer runs:
+    /// (wall-clock exit moment, elapsed seconds at exit). If the same instance
+    /// isn't re-entered within the timeout, the timer stops retroactively at
+    /// the exit snapshot.
+    exited_at: Option<(std::time::Instant, u64)>,
 }
 
 impl Default for OperationTimerState {
@@ -205,6 +217,8 @@ impl Default for OperationTimerState {
             manually_started: false,
             manually_stopped: false,
             operation_name: None,
+            op_instance: None,
+            exited_at: None,
         }
     }
 }
@@ -229,6 +243,7 @@ impl OperationTimerState {
         if self.started_at.is_none() {
             self.started_at = Some(std::time::Instant::now());
         }
+        self.exited_at = None;
     }
 
     /// Start the timer with a pre-seeded elapsed time (for live-resume backfill).
@@ -236,6 +251,39 @@ impl OperationTimerState {
     pub fn start_with_offset(&mut self, pre_secs: u64) {
         self.accumulated_secs = pre_secs;
         self.started_at = Some(std::time::Instant::now());
+        self.exited_at = None;
+    }
+
+    /// Record that the player left the operation area while the timer was
+    /// running. Snapshots the elapsed time so a later timeout can stop the
+    /// timer retroactively at the moment of exit.
+    pub fn mark_exited(&mut self) {
+        if self.started_at.is_some() && self.exited_at.is_none() {
+            self.exited_at = Some((std::time::Instant::now(), self.elapsed_secs()));
+        }
+    }
+
+    /// Player re-entered the operation instance — cancel any pending timeout.
+    pub fn clear_exited(&mut self) {
+        self.exited_at = None;
+    }
+
+    /// Stop the timer if the player has been outside the operation area for
+    /// longer than `timeout_secs`. The elapsed total rolls back to the exit
+    /// snapshot so idle time outside the instance doesn't count toward the run.
+    /// Returns true if the timer was stopped.
+    pub fn check_exit_timeout(&mut self, timeout_secs: u64) -> bool {
+        if let Some((exit_time, elapsed_at_exit)) = self.exited_at
+            && self.started_at.is_some()
+            && exit_time.elapsed().as_secs() >= timeout_secs
+        {
+            self.started_at = None;
+            self.accumulated_secs = elapsed_at_exit;
+            self.exited_at = None;
+            // Not a manual stop — the next op's first boss pull may auto-start
+            return true;
+        }
+        false
     }
 
     /// Stop the timer, accumulating elapsed time (marks as manually stopped).
@@ -280,12 +328,14 @@ impl OperationTimerState {
         // Do NOT set manually_stopped
     }
 
-    /// Reset all timer state
+    /// Reset all timer state (keeps operation_name and op_instance — both are
+    /// re-set on every operation AreaEntered)
     pub fn reset(&mut self) {
         self.started_at = None;
         self.accumulated_secs = 0;
         self.manually_started = false;
         self.manually_stopped = false;
+        self.exited_at = None;
     }
 
     /// Build overlay data from current state
@@ -574,7 +624,7 @@ impl SignalHandler for CombatSignalHandler {
                     let _ = self.overlay_tx.try_send(OverlayUpdate::ConversationEnded);
                 }
             }
-            GameSignal::AreaEntered { area_id, .. } => {
+            GameSignal::AreaEntered { area_id, difficulty_id, .. } => {
                 // Note: Boss definitions are loaded synchronously in process_event via definition_loader
                 let current = self.shared.current_area_id.load(Ordering::SeqCst);
                 if *area_id != current {
@@ -607,14 +657,30 @@ impl SignalHandler for CombatSignalHandler {
 
                         // Entering a timed area (op/FP/PvP): update the display name.
                         // For FP/PvP: also reset the timer for a fresh run.
-                        // For Operations: do NOT reset — the operation timer must not be
-                        // driven by area changes. It only changes state on first boss pull,
-                        // final boss kill, or explicit user action.
+                        // For Operations: do NOT reset — the timer only changes state on
+                        // first boss pull, final boss kill, explicit user action, joining
+                        // a different instance, or the exit timeout.
                         if matches!(
                             new_kind,
                             AreaKind::Operation | AreaKind::Flashpoint | AreaKind::PvP
                         ) {
                             let mut timer = self.shared.operation_timer.lock().unwrap();
+                            if matches!(new_kind, AreaKind::Operation) {
+                                let instance = (*area_id, *difficulty_id);
+                                // Joining a different instance (other operation and/or
+                                // difficulty) ends the previous run.
+                                if timer.is_running()
+                                    && timer.op_instance.is_some_and(|i| i != instance)
+                                {
+                                    timer.stop_auto();
+                                    let _ = self
+                                        .cmd_tx
+                                        .try_send(ServiceCommand::EmitOperationTimerTick);
+                                }
+                                timer.op_instance = Some(instance);
+                                // Back inside the op area — cancel any pending exit timeout
+                                timer.clear_exited();
+                            }
                             timer.operation_name = area_display_name.clone();
                             if new_kind.auto_resets_on_entry() {
                                 timer.reset();
@@ -624,6 +690,16 @@ impl SignalHandler for CombatSignalHandler {
                         // When returning to open world / fleet, do NOT touch operation_name.
                         // The name stays on the overlay so the user can see which run the
                         // (now-stopped) timer belongs to.
+
+                        // If leaving an operation area while the timer runs, start the
+                        // exit-timeout countdown (checked in the 1s tick loop). Re-entering
+                        // the same instance cancels it via clear_exited() above.
+                        if matches!(prev_kind, AreaKind::Operation)
+                            && !matches!(new_kind, AreaKind::Operation)
+                        {
+                            let mut timer = self.shared.operation_timer.lock().unwrap();
+                            timer.mark_exited();
+                        }
 
                         // If leaving a FP/PvP area, auto-stop the timer.
                         if matches!(prev_kind, AreaKind::Flashpoint | AreaKind::PvP)
@@ -1451,10 +1527,10 @@ impl CombatService {
                 // Only emit in live mode - historical replays should not drive the timer
                 _ = op_timer_interval.tick() => {
                     if self.shared.is_live_tailing.load(Ordering::SeqCst) {
-                        let is_running = self.shared.operation_timer.lock()
-                            .map(|t| t.is_running())
-                            .unwrap_or(false);
-                        if is_running {
+                        let (is_running, timed_out) = self.shared.operation_timer.lock()
+                            .map(|mut t| (t.is_running(), t.check_exit_timeout(OP_EXIT_TIMEOUT_SECS)))
+                            .unwrap_or((false, false));
+                        if is_running || timed_out {
                             self.emit_operation_timer_tick();
                         }
                     }

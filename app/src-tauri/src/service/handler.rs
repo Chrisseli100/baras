@@ -1568,6 +1568,8 @@ impl ServiceHandle {
             manually_started: timer.manually_started,
             manually_stopped: timer.manually_stopped,
             operation_name: timer.operation_name.clone(),
+            op_instance: timer.op_instance,
+            exited_at: timer.exited_at,
         }
     }
 
