@@ -18,7 +18,6 @@ mod overlay;
 mod parsely;
 mod query;
 mod service;
-mod starparse;
 mod url;
 
 // Re-export all commands for the invoke_handler
@@ -28,5 +27,4 @@ pub use overlay::*;
 pub use parsely::*;
 pub use query::*;
 pub use service::*;
-pub use starparse::*;
 pub use url::*;
