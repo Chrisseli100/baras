@@ -6,6 +6,10 @@ Certain timer triggers now have the option to add position constraints. These ch
 
 Character position data can be viewed by hovering over the source or target fields in the combat log.
 
+## Death Recap
+
+The death recap has been updated to be more informative at-a-glance. Precomputed damage and healing taken statistics will now pop-up in a dialog box.
+
 ## General
 
 - Add dynamic background option for alerts overlay
