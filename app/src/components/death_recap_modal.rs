@@ -101,17 +101,7 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
     let r = &recap;
     let eu = european;
     let fmt = move |n: i64| formatting::format_compact(n, eu);
-    let window_secs = r.death_time_secs - r.window_start_secs;
     let window_start = r.window_start_secs;
-
-    let ttd = match r.time_to_die_secs {
-        Some(t) => format!("{}s", formatting::format_decimal(t, 1, eu)),
-        None => format!("{}s+", window_secs.round() as i64),
-    };
-    let heal_gap = r
-        .last_heal_gap_secs
-        .map(|g| format!("{}s", formatting::format_decimal(g, 1, eu)))
-        .unwrap_or_else(|| "—".to_string());
 
     rsx! {
         div { class: "recap-content",
@@ -158,14 +148,6 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
                     span { class: "recap-stat-value stat-absorb", "{fmt(r.absorbed_total)}" }
                     span { class: "recap-stat-label", "absorbed" }
                 }
-                div { class: "recap-stat",
-                    span { class: "recap-stat-value", "{ttd}" }
-                    span { class: "recap-stat-label", "time to die" }
-                }
-                div { class: "recap-stat",
-                    span { class: "recap-stat-value", "{heal_gap}" }
-                    span { class: "recap-stat-label", "last heal before death" }
-                }
             }
 
             // HP sparkline over the recap window
@@ -192,12 +174,7 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
                                         div { class: "recap-ability", "{row.ability_name}" }
                                         div { class: "recap-source", "{row.source_name}" }
                                     }
-                                    td {
-                                        "{row.hits}"
-                                        if row.avoided > 0 {
-                                            span { class: "recap-avoided", " ({row.avoided}A)" }
-                                        }
-                                    }
+                                    td { "{row.hits}" }
                                     td { "{fmt(row.max_hit as i64)}" }
                                     td { class: "stat-damage", "{fmt(row.total)}" }
                                     td { class: "stat-absorb", "{fmt(row.absorbed)}" }

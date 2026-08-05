@@ -282,8 +282,6 @@ pub struct DeathRecapDamageRow {
     pub source_name: String,
     pub hits: u32,
     pub crits: u32,
-    /// Fully avoided hits (dodge/parry/miss/resist/immune)
-    pub avoided: u32,
     /// Total effective damage
     pub total: i64,
     /// Largest single effective hit
@@ -343,9 +341,6 @@ pub struct DeathRecap {
     /// Events up to 3s after death are also included since killing damage is
     /// often logged after the death event.
     pub window_start_secs: f32,
-    /// Seconds from last stable HP (>=90%) to death; None if never stable
-    /// within the lookback window
-    pub time_to_die_secs: Option<f32>,
     pub phase_name: Option<String>,
     pub killing_blow: Option<DeathRecapKillingBlow>,
     /// Total effective damage taken in the window
@@ -354,8 +349,6 @@ pub struct DeathRecap {
     /// Total effective healing received in the window
     pub healing_total: i64,
     pub overheal_total: i64,
-    /// Seconds between the last heal received and death
-    pub last_heal_gap_secs: Option<f32>,
     pub hp_timeline: Vec<DeathRecapHpPoint>,
     /// Sorted by total damage descending
     pub damage_rows: Vec<DeathRecapDamageRow>,

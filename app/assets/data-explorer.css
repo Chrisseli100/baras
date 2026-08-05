@@ -1164,11 +1164,6 @@
   font-size: 10px;
 }
 
-.recap-avoided {
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
 .recap-overheal { color: var(--text-tertiary); }
 
 .recap-empty {
@@ -1215,6 +1210,7 @@
 .ledger-ability {
   flex: 1;
   min-width: 0;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

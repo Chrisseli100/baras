@@ -9,8 +9,6 @@ use crate::game_data::{defense_type, effect_id};
 const WINDOW_SECS: f32 = 15.0;
 /// Included after the death event — killing damage is often logged after death.
 const TRAILING_SECS: f32 = 3.0;
-/// HP% at or above which the player is considered "stable".
-const STABLE_HP_PCT: f32 = 90.0;
 /// Maximum entries returned in the event ledger.
 const MAX_LEDGER_EVENTS: usize = 30;
 /// Maximum HP samples returned for the sparkline.
@@ -160,25 +158,12 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
     let window_start = (death_time - WINDOW_SECS).max(0.0);
     let window_end = death_time + TRAILING_SECS;
 
-    // Last time the player was at stable HP before death
-    let mut last_stable: Option<f32> = None;
-    for r in &rows {
-        if r.time_secs < death_time
-            && let Some(pct) = r.hp_pct()
-            && pct >= STABLE_HP_PCT
-        {
-            last_stable = Some(r.time_secs);
-        }
-    }
-    let time_to_die = last_stable.map(|t| death_time - t);
-
     let mut damage_map: HashMap<(String, String), DeathRecapDamageRow> = HashMap::new();
     let mut heal_map: HashMap<(String, String), DeathRecapHealRow> = HashMap::new();
     let mut damage_total = 0i64;
     let mut absorbed_total = 0i64;
     let mut healing_total = 0i64;
     let mut overheal_total = 0i64;
-    let mut last_heal_time: Option<f32> = None;
     // First hit that zeroed HP is the true killing blow; last damaging hit is
     // the fallback when no zero-HP sample exists
     let mut kb_zeroed: Option<DeathRecapKillingBlow> = None;
@@ -194,7 +179,6 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
         }
 
         let (kind, value, absorbed) = if r.effect_id == effect_id::DAMAGE {
-            let avoided = r.is_avoided();
             let row = damage_map
                 .entry((r.ability_name.clone(), r.source_name.clone()))
                 .or_insert_with(|| DeathRecapDamageRow {
@@ -202,14 +186,12 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
                     source_name: r.source_name.clone(),
                     hits: 0,
                     crits: 0,
-                    avoided: 0,
                     total: 0,
                     max_hit: 0,
                     absorbed: 0,
                 });
             row.hits += 1;
             row.crits += r.is_crit as u32;
-            row.avoided += avoided as u32;
             row.total += r.dmg_effective as i64;
             row.max_hit = row.max_hit.max(r.dmg_effective);
             row.absorbed += r.dmg_absorbed as i64;
@@ -259,9 +241,6 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
             row.overheal += (r.heal_amount - r.heal_effective).max(0) as i64;
             healing_total += r.heal_effective as i64;
             overheal_total += (r.heal_amount - r.heal_effective).max(0) as i64;
-            if r.heal_amount > 0 && r.time_secs <= death_time {
-                last_heal_time = Some(r.time_secs);
-            }
             (DeathRecapEventKind::Heal, r.heal_effective, 0)
         } else if r.effect_id == effect_id::DEATH {
             (DeathRecapEventKind::Death, 0, 0)
@@ -314,14 +293,12 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
         player_name: player_name.to_string(),
         death_time_secs: death_time,
         window_start_secs: window_start,
-        time_to_die_secs: time_to_die,
         phase_name,
         killing_blow: kb_zeroed.or(kb_last),
         damage_total,
         absorbed_total,
         healing_total,
         overheal_total,
-        last_heal_gap_secs: last_heal_time.map(|t| death_time - t),
         hp_timeline,
         damage_rows,
         healing_rows,
