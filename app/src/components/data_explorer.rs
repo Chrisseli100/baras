@@ -16,6 +16,7 @@ use crate::components::ability_icon::AbilityIcon;
 use crate::components::charts_panel::ChartsPanel;
 use crate::components::class_icons::{get_class_icon, get_role_icon};
 use crate::components::combat_log::CombatLog;
+use crate::components::death_recap_modal::DeathRecapModal;
 use crate::components::encounter_types::{ChallengeSummary, EncounterSummary, UploadState, group_by_area};
 use crate::components::phase_timeline::PhaseTimelineFilter;
 use crate::components::rotation_view::RotationView;
@@ -327,6 +328,9 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
 
     // Death target filter - set when clicking a death to filter combat log by target
     let mut death_target_filter = use_signal(|| None::<String>);
+
+    // Death whose recap modal is open (None = closed)
+    let mut recap_death = use_signal(|| None::<PlayerDeath>);
 
     // Memoized overview table data (rows + totals) - prevents recomputation on every render
     let overview_table_data = use_memo(move || {
@@ -1889,22 +1893,20 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                             div { class: "death-list",
                                                 for death in deaths.iter() {
                                                     {
+                                                        let d = death.clone();
                                                         let name = death.name.clone();
-                                                        let death_time = death.death_time_secs;
-                                                        let time_str = formatting::format_duration(death_time as i64);
+                                                        let is_stuck = death.is_stuck;
+                                                        let time_str = formatting::format_duration(death.death_time_secs as i64);
+                                                        let item_class = if is_stuck { "death-item death-item-stuck" } else { "death-item" };
+                                                        let tooltip = if is_stuck { "Died to /stuck — click for death recap" } else { "Click for death recap" };
                                                         rsx! {
                                                             button {
-                                                                class: "death-item",
-                                                                title: "Click to view 10 seconds before death in Combat Log",
-                                                                onclick: {
-                                                                    let player_name = name.clone();
-                                                                    move |_| {
-                                                                        let start = (death_time - 10.0).max(0.0);
-                                                                        time_range.set(TimeRange { start, end: death_time + 1.5 });
-                                                                        death_target_filter.set(Some(player_name.clone()));
-                                                                        view_mode.set(ViewMode::CombatLog);
-                                                                    }
-                                                                },
+                                                                class: "{item_class}",
+                                                                title: "{tooltip}",
+                                                                onclick: move |_| recap_death.set(Some(d.clone())),
+                                                                if is_stuck {
+                                                                    i { class: "fa-solid fa-person-falling death-stuck-icon" }
+                                                                }
                                                                 span { class: "death-name", "{name}" }
                                                                 span { class: "death-time", "@ {time_str}" }
                                                             }
@@ -1914,6 +1916,29 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                             }
                                         }
                                     }
+                                }
+                            }
+
+                            // Death recap modal (opened from the death tracker)
+                            if let Some(d) = recap_death() {
+                                DeathRecapModal {
+                                    key: "{d.name}-{d.death_time_secs}",
+                                    encounter_idx: *selected_encounter.read(),
+                                    player_name: d.name.clone(),
+                                    death_time_secs: d.death_time_secs,
+                                    european: eu,
+                                    on_close: move |_| recap_death.set(None),
+                                    on_open_combat_log: move |window_start: f32| {
+                                        if let Some(d) = recap_death() {
+                                            time_range.set(TimeRange {
+                                                start: window_start.max(0.0),
+                                                end: d.death_time_secs + 1.5,
+                                            });
+                                            death_target_filter.set(Some(d.name.clone()));
+                                            view_mode.set(ViewMode::CombatLog);
+                                            recap_death.set(None);
+                                        }
+                                    },
                                 }
                             }
 

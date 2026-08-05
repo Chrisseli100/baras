@@ -311,6 +311,19 @@ pub async fn query_player_deaths(
     handle.query_player_deaths(encounter_idx).await
 }
 
+/// Query a death recap for one player death in an encounter.
+#[tauri::command]
+pub async fn query_death_recap(
+    handle: State<'_, ServiceHandle>,
+    encounter_idx: Option<u32>,
+    player_name: String,
+    death_time_secs: f32,
+) -> Result<baras_types::DeathRecap, String> {
+    handle
+        .query_death_recap(encounter_idx, player_name, death_time_secs)
+        .await
+}
+
 /// Query final health state of all NPCs in an encounter.
 #[tauri::command]
 pub async fn query_npc_health(

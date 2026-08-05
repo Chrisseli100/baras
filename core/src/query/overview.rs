@@ -239,7 +239,8 @@ impl EncounterQuery<'_> {
             r#"
             SELECT
                 target_name,
-                combat_time_secs
+                combat_time_secs,
+                source_name
             FROM events
             WHERE effect_id = {}
               AND (target_entity_type = 'Player' OR target_entity_type = 'Companion')
@@ -255,11 +256,14 @@ impl EncounterQuery<'_> {
         for batch in &batches {
             let names = col_strings(batch, 0)?;
             let times = col_f32(batch, 1)?;
+            let sources = col_strings(batch, 2)?;
 
-            for (name, time) in names.into_iter().zip(times) {
+            for ((name, time), source) in names.into_iter().zip(times).zip(sources) {
                 results.push(PlayerDeath {
                     name,
                     death_time_secs: time,
+                    // No source on the death event = /stuck suicide
+                    is_stuck: source.is_empty(),
                 });
             }
         }

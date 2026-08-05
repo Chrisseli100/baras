@@ -260,6 +260,112 @@ pub struct PlayerDeath {
     pub name: String,
     /// Time of death in seconds from combat start
     pub death_time_secs: f32,
+    /// Death event had no source (/stuck suicide, not a combat kill)
+    #[serde(default)]
+    pub is_stuck: bool,
+}
+
+/// The final hit that killed a player.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapKillingBlow {
+    pub ability_name: String,
+    pub source_name: String,
+    /// Effective damage of the killing blow
+    pub amount: i32,
+    /// Damage beyond the player's remaining HP
+    pub overkill: i32,
+    pub is_crit: bool,
+    pub damage_type: String,
+}
+
+/// Damage taken from one source+ability, aggregated over the recap window.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapDamageRow {
+    pub ability_name: String,
+    pub source_name: String,
+    pub hits: u32,
+    pub crits: u32,
+    /// Fully avoided hits (dodge/parry/miss/resist/immune)
+    pub avoided: u32,
+    /// Total effective damage
+    pub total: i64,
+    /// Largest single effective hit
+    pub max_hit: i32,
+    /// Total damage absorbed by shields
+    pub absorbed: i64,
+}
+
+/// Healing received from one healer+ability, aggregated over the recap window.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapHealRow {
+    pub source_name: String,
+    pub ability_name: String,
+    pub casts: u32,
+    pub effective: i64,
+    pub overheal: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeathRecapEventKind {
+    Damage,
+    Heal,
+    Death,
+}
+
+/// One entry in the death recap event ledger.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapEvent {
+    pub time_secs: f32,
+    pub kind: DeathRecapEventKind,
+    pub source_name: String,
+    pub ability_name: String,
+    /// Effective damage or healing
+    pub value: i32,
+    pub absorbed: i32,
+    pub is_crit: bool,
+    /// Hit was fully avoided (dodge/parry/miss/...)
+    pub avoided: bool,
+    /// Player HP% after this event (last known sample)
+    pub hp_pct: f32,
+}
+
+/// HP sample for the death recap sparkline.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapHpPoint {
+    pub time_secs: f32,
+    pub hp_pct: f32,
+}
+
+/// Full recap of a single player death.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecap {
+    pub player_name: String,
+    pub death_time_secs: f32,
+    /// Start of the analysis window (combat seconds), 15s before death.
+    /// Events up to 3s after death are also included since killing damage is
+    /// often logged after the death event.
+    pub window_start_secs: f32,
+    /// Seconds from last stable HP (>=90%) to death; None if never stable
+    /// within the lookback window
+    pub time_to_die_secs: Option<f32>,
+    pub phase_name: Option<String>,
+    pub killing_blow: Option<DeathRecapKillingBlow>,
+    /// Total effective damage taken in the window
+    pub damage_total: i64,
+    pub absorbed_total: i64,
+    /// Total effective healing received in the window
+    pub healing_total: i64,
+    pub overheal_total: i64,
+    /// Seconds between the last heal received and death
+    pub last_heal_gap_secs: Option<f32>,
+    pub hp_timeline: Vec<DeathRecapHpPoint>,
+    /// Sorted by total damage descending
+    pub damage_rows: Vec<DeathRecapDamageRow>,
+    /// Sorted by effective healing descending
+    pub healing_rows: Vec<DeathRecapHealRow>,
+    /// Chronological ledger of meaningful events in the final seconds
+    pub events: Vec<DeathRecapEvent>,
 }
 
 /// Final health state of an NPC in an encounter.

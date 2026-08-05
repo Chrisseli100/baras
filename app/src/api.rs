@@ -951,7 +951,8 @@ pub async fn install_update() -> Result<(), String> {
 // Re-export query types from shared types crate
 pub use baras_types::{
     AbilityBreakdown, AbilityUsageRow, BreakdownMode, CombatLogFilters, CombatLogFindMatch,
-    CombatLogRow, CombatLogSortColumn, DamageTakenSummary, DataTab, EffectChartData, EffectWindow,
+    CombatLogRow, CombatLogSortColumn, DamageTakenSummary, DataTab, DeathRecap,
+    DeathRecapEventKind, EffectChartData, EffectWindow,
     EncounterTimeline, EntityBreakdown, GroupedEntityNames, HpPoint, NpcHealthRow,
     PhaseSegment, PlayerDeath, RaidOverviewRow, RotationAnalysis,
     SortDirection, TimeRange, TimeSeriesPoint,
@@ -1538,6 +1539,24 @@ pub async fn query_player_deaths(encounter_idx: Option<u32>) -> Option<Vec<Playe
         js_set(&obj, "encounterIdx", &JsValue::NULL);
     }
     let result = invoke("query_player_deaths", obj.into()).await;
+    from_js(result)
+}
+
+/// Query a death recap for one player death in an encounter.
+pub async fn query_death_recap(
+    encounter_idx: Option<u32>,
+    player_name: &str,
+    death_time_secs: f32,
+) -> Option<DeathRecap> {
+    let obj = js_sys::Object::new();
+    if let Some(idx) = encounter_idx {
+        js_set(&obj, "encounterIdx", &JsValue::from_f64(idx as f64));
+    } else {
+        js_set(&obj, "encounterIdx", &JsValue::NULL);
+    }
+    js_set(&obj, "playerName", &JsValue::from_str(player_name));
+    js_set(&obj, "deathTimeSecs", &JsValue::from_f64(death_time_secs as f64));
+    let result = invoke("query_death_recap", obj.into()).await;
     from_js(result)
 }
 

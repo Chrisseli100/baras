@@ -954,6 +954,22 @@
   transform: translateY(-1px);
 }
 
+/* /stuck deaths — warning tint so they stand out from combat deaths */
+.death-item-stuck {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
+
+.death-item-stuck:hover {
+  background: var(--color-warning-bg-hover);
+  border-color: var(--color-warning);
+}
+
+.death-stuck-icon {
+  color: var(--color-warning);
+  font-size: 10px;
+}
+
 .death-name {
   color: var(--text-primary);
   font-weight: 500;
@@ -963,6 +979,302 @@
   color: hsl(0, 0%, 65%);
   font-family: var(--font-mono);
   font-size: 10px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Death Recap Modal
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.death-recap-modal {
+  width: min(760px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--gradient-panel, var(--bg-secondary));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-md);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+}
+
+.recap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.recap-header h3 {
+  margin: 0;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recap-header-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.recap-phase-chip {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--blue-alpha-10, rgba(74, 158, 255, 0.1));
+  border: 1px solid var(--blue-alpha-20, rgba(74, 158, 255, 0.2));
+  color: var(--swtor-blue);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.recap-loading {
+  padding: var(--space-lg);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.recap-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.recap-verdict {
+  font-size: 13px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-sm);
+}
+
+.recap-verdict-label { color: var(--text-secondary); }
+.recap-verdict-ability { font-weight: 600; color: var(--text-primary); }
+.recap-verdict-source { color: var(--text-tertiary); }
+.recap-verdict-dmg { color: var(--swtor-red); font-weight: 600; }
+.recap-verdict-overkill { color: var(--text-muted); font-size: 11px; }
+
+.recap-stats {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.recap-stat {
+  flex: 1;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-xs);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.recap-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.recap-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-damage { color: var(--swtor-red); }
+.stat-heal { color: var(--color-success); }
+.stat-absorb { color: var(--swtor-blue); }
+
+.recap-sparkline-wrap {
+  position: relative;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+.spark-axis-label {
+  position: absolute;
+  left: 6px;
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  pointer-events: none;
+}
+
+.spark-axis-100 { top: 2px; }
+.spark-axis-0 { bottom: 16px; }
+
+.recap-sparkline {
+  display: block;
+  width: 100%;
+  height: 72px;
+}
+
+.recap-sparkline-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+.recap-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  align-items: start;
+}
+
+.recap-table-wrap h5,
+.recap-ledger-wrap h5 {
+  margin: 0 0 var(--space-xs) 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.recap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.recap-table th {
+  text-align: right;
+  padding: 3px 6px;
+  color: var(--text-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.recap-table td {
+  text-align: right;
+  padding: 3px 6px;
+  font-family: var(--font-mono);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.recap-table .col-left {
+  text-align: left;
+  font-family: var(--font-family);
+}
+
+.recap-ability {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.recap-source {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.recap-avoided {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.recap-overheal { color: var(--text-tertiary); }
+
+.recap-empty {
+  padding: var(--space-sm);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.recap-ledger {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+
+.ledger-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ledger-row:last-child { border-bottom: none; }
+
+.ledger-time {
+  width: 44px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.ledger-icon {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 10px;
+}
+
+.ledger-ability {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-detail {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.ledger-hp {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 92px;
+  flex-shrink: 0;
+}
+
+.ledger-hp-bar {
+  flex: 1;
+  height: 6px;
+  background: hsla(0, 0%, 50%, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ledger-hp-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  border-radius: 3px;
+}
+
+.ledger-hp-label {
+  width: 32px;
+  text-align: right;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.recap-footer {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

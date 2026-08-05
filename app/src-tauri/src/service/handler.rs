@@ -1299,6 +1299,41 @@ impl ServiceHandle {
             .await
     }
 
+    /// Query a death recap for one player death in an encounter.
+    pub async fn query_death_recap(
+        &self,
+        encounter_idx: Option<u32>,
+        player_name: String,
+        death_time_secs: f32,
+    ) -> Result<baras_types::DeathRecap, String> {
+        let session_guard = self.shared.session.read().await;
+        let session = session_guard.as_ref().ok_or("No active session")?;
+        let session = session.read().await;
+
+        if let Some(idx) = encounter_idx {
+            let dir = session.encounters_dir().ok_or("No encounters directory")?;
+            let path = dir.join(baras_core::storage::encounter_filename(idx));
+            if !path.exists() {
+                return Err(format!("Encounter file not found: {:?}", path));
+            }
+            self.shared.query_context.register_parquet(&path).await?;
+        } else {
+            let writer = session
+                .encounter_writer()
+                .ok_or("No live encounter buffer")?;
+            let batch = writer.to_record_batch().ok_or("Live buffer is empty")?;
+            self.shared.query_context.register_batch(batch).await?;
+        }
+
+        self.shared
+            .query_context
+            .query()
+            .await
+            .query()
+            .query_death_recap(&player_name, death_time_secs)
+            .await
+    }
+
     /// Query final health state of all NPCs in an encounter.
     pub async fn query_npc_health(
         &self,
