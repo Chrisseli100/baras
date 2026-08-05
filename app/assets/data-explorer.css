@@ -954,22 +954,6 @@
   transform: translateY(-1px);
 }
 
-/* /stuck deaths — warning tint so they stand out from combat deaths */
-.death-item-stuck {
-  background: var(--color-warning-bg);
-  border-color: var(--color-warning-border);
-}
-
-.death-item-stuck:hover {
-  background: var(--color-warning-bg-hover);
-  border-color: var(--color-warning);
-}
-
-.death-stuck-icon {
-  color: var(--color-warning);
-  font-size: 10px;
-}
-
 .death-name {
   color: var(--text-primary);
   font-weight: 500;

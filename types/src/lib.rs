@@ -260,9 +260,6 @@ pub struct PlayerDeath {
     pub name: String,
     /// Time of death in seconds from combat start
     pub death_time_secs: f32,
-    /// Death event had no source (/stuck suicide, not a combat kill)
-    #[serde(default)]
-    pub is_stuck: bool,
 }
 
 /// The final hit that killed a player.

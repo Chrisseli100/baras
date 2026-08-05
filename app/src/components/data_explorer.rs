@@ -1895,18 +1895,12 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                     {
                                                         let d = death.clone();
                                                         let name = death.name.clone();
-                                                        let is_stuck = death.is_stuck;
                                                         let time_str = formatting::format_duration(death.death_time_secs as i64);
-                                                        let item_class = if is_stuck { "death-item death-item-stuck" } else { "death-item" };
-                                                        let tooltip = if is_stuck { "Died to /stuck — click for death recap" } else { "Click for death recap" };
                                                         rsx! {
                                                             button {
-                                                                class: "{item_class}",
-                                                                title: "{tooltip}",
+                                                                class: "death-item",
+                                                                title: "Click for death recap",
                                                                 onclick: move |_| recap_death.set(Some(d.clone())),
-                                                                if is_stuck {
-                                                                    i { class: "fa-solid fa-person-falling death-stuck-icon" }
-                                                                }
                                                                 span { class: "death-name", "{name}" }
                                                                 span { class: "death-time", "@ {time_str}" }
                                                             }

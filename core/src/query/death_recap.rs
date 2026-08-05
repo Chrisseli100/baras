@@ -156,8 +156,6 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
     let phase_name = death
         .map(|r| r.phase_name.clone())
         .filter(|p| !p.is_empty());
-    // A death event with no source is a /stuck suicide, not a combat kill
-    let is_stuck = death.is_some_and(|r| r.source_name.is_empty());
 
     let window_start = (death_time - WINDOW_SECS).max(0.0);
     let window_end = death_time + TRAILING_SECS;
@@ -308,18 +306,7 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
         window_start_secs: window_start,
         time_to_die_secs: time_to_die,
         phase_name,
-        killing_blow: if is_stuck {
-            Some(DeathRecapKillingBlow {
-                ability_name: "STUCK".to_string(),
-                source_name: String::new(),
-                amount: 0,
-                overkill: 0,
-                is_crit: false,
-                damage_type: String::new(),
-            })
-        } else {
-            kb_zeroed.or(kb_last)
-        },
+        killing_blow: kb_zeroed.or(kb_last),
         damage_total,
         absorbed_total,
         healing_total,

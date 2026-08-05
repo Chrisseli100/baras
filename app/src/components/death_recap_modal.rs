@@ -116,6 +116,12 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
     rsx! {
         div { class: "recap-content",
             // Killing blow verdict
+            if r.killing_blow.is_none() {
+                div { class: "recap-verdict",
+                    span { class: "recap-verdict-label", "Killed by " }
+                    span { class: "recap-verdict-ability", "UNKNOWN" }
+                }
+            }
             if let Some(kb) = r.killing_blow.clone() {
                 div { class: "recap-verdict",
                     span { class: "recap-verdict-label", "Killed by " }
