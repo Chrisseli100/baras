@@ -227,9 +227,19 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
                     is_crit: r.is_crit,
                     damage_type: r.dmg_type.clone(),
                 };
-                if kb_zeroed.is_none() && r.max_hp > 0 && r.hp == 0 {
-                    kb_zeroed = Some(kb);
-                } else {
+                if r.max_hp > 0 && r.hp == 0 {
+                    // Recorded HP hitting 0 — the definitive killing blow
+                    if kb_zeroed.is_none() {
+                        kb_zeroed = Some(kb);
+                    }
+                } else if r.max_hp == 0
+                    && last_hp.is_none_or(|hp| r.dmg_effective >= hp)
+                {
+                    // Post-hit HP unknown — plausible killer only if the damage
+                    // could have exceeded the last known remaining HP. A hit the
+                    // player demonstrably survived (post-hit HP > 0) never
+                    // qualifies; deaths with no qualifying hit report UNKNOWN
+                    // (e.g. /stuck)
                     kb_last = Some(kb);
                 }
             }
