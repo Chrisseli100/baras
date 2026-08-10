@@ -25,7 +25,6 @@ struct RecapRow {
     is_crit: bool,
     dmg_type: String,
     defense_type_id: i64,
-    heal_amount: i32,
     heal_effective: i32,
     hp: i32,
     max_hp: i32,
@@ -76,7 +75,6 @@ impl EncounterQuery<'_> {
                 is_crit,
                 dmg_type,
                 defense_type_id,
-                heal_amount,
                 heal_effective,
                 target_hp,
                 target_max_hp,
@@ -109,11 +107,10 @@ impl EncounterQuery<'_> {
             let crits = col_bool(batch, 6)?;
             let dmg_types = col_strings(batch, 7)?;
             let def_types = col_i64(batch, 8)?;
-            let heal_amt = col_i32(batch, 9)?;
-            let heal_eff = col_i32(batch, 10)?;
-            let hps = col_i32(batch, 11)?;
-            let max_hps = col_i32(batch, 12)?;
-            let phases = col_strings(batch, 13)?;
+            let heal_eff = col_i32(batch, 9)?;
+            let hps = col_i32(batch, 10)?;
+            let max_hps = col_i32(batch, 11)?;
+            let phases = col_strings(batch, 12)?;
 
             for i in 0..batch.num_rows() {
                 rows.push(RecapRow {
@@ -126,7 +123,6 @@ impl EncounterQuery<'_> {
                     is_crit: crits[i],
                     dmg_type: dmg_types[i].clone(),
                     defense_type_id: def_types[i],
-                    heal_amount: heal_amt[i],
                     heal_effective: heal_eff[i],
                     hp: hps[i],
                     max_hp: max_hps[i],
@@ -159,11 +155,10 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
     let window_end = death_time + TRAILING_SECS;
 
     let mut damage_map: HashMap<(String, String), DeathRecapDamageRow> = HashMap::new();
-    let mut heal_map: HashMap<(String, String), DeathRecapHealRow> = HashMap::new();
+    let mut heal_map: HashMap<String, DeathRecapHealRow> = HashMap::new();
     let mut damage_total = 0i64;
     let mut absorbed_total = 0i64;
     let mut healing_total = 0i64;
-    let mut overheal_total = 0i64;
     // First hit that zeroed HP is the true killing blow; last damaging hit is
     // the fallback when no zero-HP sample exists
     let mut kb_zeroed: Option<DeathRecapKillingBlow> = None;
@@ -228,19 +223,15 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
             (DeathRecapEventKind::Damage, r.dmg_effective, r.dmg_absorbed)
         } else if r.effect_id == effect_id::HEAL {
             let row = heal_map
-                .entry((r.source_name.clone(), r.ability_name.clone()))
+                .entry(r.source_name.clone())
                 .or_insert_with(|| DeathRecapHealRow {
                     source_name: r.source_name.clone(),
-                    ability_name: r.ability_name.clone(),
                     casts: 0,
                     effective: 0,
-                    overheal: 0,
                 });
             row.casts += 1;
             row.effective += r.heal_effective as i64;
-            row.overheal += (r.heal_amount - r.heal_effective).max(0) as i64;
             healing_total += r.heal_effective as i64;
-            overheal_total += (r.heal_amount - r.heal_effective).max(0) as i64;
             (DeathRecapEventKind::Heal, r.heal_effective, 0)
         } else if r.effect_id == effect_id::DEATH {
             (DeathRecapEventKind::Death, 0, 0)
@@ -298,7 +289,6 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
         damage_total,
         absorbed_total,
         healing_total,
-        overheal_total,
         hp_timeline,
         damage_rows,
         healing_rows,

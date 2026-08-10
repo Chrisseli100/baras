@@ -162,8 +162,8 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
                             tr {
                                 th { class: "col-left", "Ability" }
                                 th { "Hits" }
-                                th { "Max" }
                                 th { "Total" }
+                                th { "Max" }
                                 th { "Absorbed" }
                             }
                         }
@@ -175,8 +175,8 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
                                         div { class: "recap-source", "{row.source_name}" }
                                     }
                                     td { "{row.hits}" }
-                                    td { "{fmt(row.max_hit as i64)}" }
                                     td { class: "stat-damage", "{fmt(row.total)}" }
+                                    td { "{fmt(row.max_hit as i64)}" }
                                     td { class: "stat-absorb", "{fmt(row.absorbed)}" }
                                 }
                             }
@@ -191,22 +191,19 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
                         table { class: "recap-table",
                             thead {
                                 tr {
-                                    th { class: "col-left", "Ability" }
+                                    th { class: "col-left", "Source" }
                                     th { "Ticks" }
                                     th { "Effective" }
-                                    th { "Overheal" }
                                 }
                             }
                             tbody {
                                 for row in r.healing_rows.iter().take(8).cloned() {
                                     tr {
                                         td { class: "col-left",
-                                            div { class: "recap-ability", "{row.ability_name}" }
-                                            div { class: "recap-source", "{row.source_name}" }
+                                            div { class: "recap-ability", "{row.source_name}" }
                                         }
                                         td { "{row.casts}" }
                                         td { class: "stat-heal", "{fmt(row.effective)}" }
-                                        td { class: "recap-overheal", "{fmt(row.overheal)}" }
                                     }
                                 }
                             }

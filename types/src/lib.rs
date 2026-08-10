@@ -290,14 +290,12 @@ pub struct DeathRecapDamageRow {
     pub absorbed: i64,
 }
 
-/// Healing received from one healer+ability, aggregated over the recap window.
+/// Healing received from one healer, aggregated over the recap window.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeathRecapHealRow {
     pub source_name: String,
-    pub ability_name: String,
     pub casts: u32,
     pub effective: i64,
-    pub overheal: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -348,7 +346,6 @@ pub struct DeathRecap {
     pub absorbed_total: i64,
     /// Total effective healing received in the window
     pub healing_total: i64,
-    pub overheal_total: i64,
     pub hp_timeline: Vec<DeathRecapHpPoint>,
     /// Sorted by total damage descending
     pub damage_rows: Vec<DeathRecapDamageRow>,
