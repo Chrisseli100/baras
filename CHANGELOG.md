@@ -1,33 +1,18 @@
-# v2026.8.5
+# v2026.8.9
 
-## Position Constraints
+## Raid Frame Auto-assignment
 
-Certain timer triggers now have the option to add position constraints. These check coordinate data of the source or target in a log event to determine if the trigger should fire.
+Raid frame positions can now be automatically assigned by clicking the icon in the top-right corner of the frame in `Rearrange` mode or by
+binding the command to a hotkey in the application settings.
 
-Character position data can be viewed by hovering over the source or target fields in the combat log.
+BARAS will download a small (12mb) image recognition model and process a screenshot of the space underneath your raid frames overlay.
 
-## Death Recap
+Provisional names will be assigned and filled in as the players are detected in the logs.
 
-The death recap has been updated to be more informative at-a-glance. Precomputed damage and healing taken statistics will now pop-up in a dialog box.
+Supported on macOS and Linux.
 
-## General
+## Other
 
-- Add dynamic background option for alerts overlay
-- Enable column sorting in data explorer effects table
-- Adjust opacity and text location of raid frames in rearrange mode for greater visibility of in-game character names
-- Added a dialog box thanking some contributors to the project
-- Starparse Import feature removed
-- Add per-source/ per-target discipline/role filters to effects editor
-- Operations timer should now timeout if the player has been outside of the instance for more than 10 minutes.
-
-## Bugfixes
-
-- Dynamic profile switching now works upon logging in
-- Dxun Red timers for bull spawn now work on veteran difficulty
-- Olok Wave timers are now accurate
-- Timer TTS fallback enabled on all timers with no audio file, not just alert timers
-- Alert countdown text will now disable
-- Ready state is ignored by non-cooldown overlays when calculating effect duration
-- Combat log tie-break row sorting should now be consistent
-- Raid frames now respects the "disable icon" option for individual effects, when show icons is enabled
-- Operations timer should now properly reset upon pulling a boss in a different operation instance
+- Raid frame overlay is now exempted from snap-to-grid alignment.
+- Operations timer will now properly stop when flashpoint/PvP zone is exited
+- Minor adjustments to the death recap display
