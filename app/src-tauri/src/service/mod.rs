@@ -432,9 +432,6 @@ struct CombatSignalHandler {
     /// (The _encounter arg in CombatEnded is already the new empty encounter,
     ///  so we must snapshot this flag earlier.)
     current_boss_is_final: bool,
-    /// The type of area the player is currently in.
-    /// Used to detect FP/PvP → other transitions for auto-stop.
-    current_area_kind: AreaKind,
 }
 
 impl CombatSignalHandler {
@@ -458,8 +455,15 @@ impl CombatSignalHandler {
             current_role,
             monitor_requested: false,
             current_boss_is_final: false,
-            current_area_kind: AreaKind::Other,
         }
+    }
+
+    /// Kind of the area the player is currently in, derived from the shared
+    /// area id rather than handler-local state: the shared id is also synced
+    /// from the parse-worker restore, so it stays correct when this handler
+    /// never saw the AreaEntered signal (app attached mid-instance).
+    fn current_area_kind(&self) -> AreaKind {
+        AreaKind::from_area_id(self.shared.current_area_id.load(Ordering::SeqCst))
     }
 }
 
@@ -531,7 +535,7 @@ impl SignalHandler for CombatSignalHandler {
                     && self.current_boss_is_final
                     && *success
                 {
-                    let area_kind = self.current_area_kind;
+                    let area_kind = self.current_area_kind();
                     if matches!(area_kind, AreaKind::Operation | AreaKind::Flashpoint) {
                         let mut timer = self.shared.operation_timer.lock().unwrap();
                         if timer.is_running() {
@@ -647,9 +651,11 @@ impl SignalHandler for CombatSignalHandler {
                     // ── Operation timer area-transition logic ────────────────────
                     // Only in live mode - historical replays should not drive the timer
                     if self.shared.is_live_tailing.load(Ordering::SeqCst) {
-                        let prev_kind = self.current_area_kind;
+                        // `current` is the area id before this transition; it is
+                        // also synced from the parse-worker restore, so this stays
+                        // correct when the entry event was consumed by the worker.
+                        let prev_kind = AreaKind::from_area_id(current);
                         let new_kind = AreaKind::from_area_id(*area_id);
-                        self.current_area_kind = new_kind;
 
                         // Determine the display name for this area.
                         // For non-timed areas (fleet/open world) we don't update the name —
@@ -732,9 +738,6 @@ impl SignalHandler for CombatSignalHandler {
                                 let _ = self.cmd_tx.try_send(ServiceCommand::EmitOperationTimerTick);
                             }
                         }
-                    } else {
-                        // Historical mode: still track area kind so backfill works on resume
-                        self.current_area_kind = AreaKind::from_area_id(*area_id);
                     }
 
                     // Legacy context update for operations (kept for backward compatibility;
@@ -795,7 +798,7 @@ impl SignalHandler for CombatSignalHandler {
                 // auto-stop (which is preserved for display) must be zeroed here before the
                 // next run begins. Safe because we've already verified !manually_stopped.
                 if self.shared.is_live_tailing.load(Ordering::SeqCst) {
-                    if matches!(self.current_area_kind, AreaKind::Operation) {
+                    if matches!(self.current_area_kind(), AreaKind::Operation) {
                         let mut timer = self.shared.operation_timer.lock().unwrap();
                         if !timer.is_running() && !timer.manually_stopped {
                             timer.reset();
