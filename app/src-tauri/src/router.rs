@@ -215,10 +215,10 @@ fn raid_detection_message(
         return "No names detected. Frames unchanged.".to_string();
     }
     let noun = if names == 1 { "name" } else { "names" };
-    let mut message = format!("{names} {noun} detected. {matched}/{names} matched.");
+    let mut message = format!("{names} {noun} detected. {matched} matched.");
     if pending > 0 {
         message.push_str(&format!(
-            " {pending}/{names} pending player appearance in logs."
+            " {pending} pending player appearance in logs."
         ));
     }
     // The one outcome another read cannot fix.
