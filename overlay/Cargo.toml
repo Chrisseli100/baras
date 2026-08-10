@@ -10,7 +10,7 @@ workspace = true
 default = []
 
 [dependencies]
-baras-core = { path = "../core" }
+baras-core = { path = "../core", default-features = false }
 baras-types = { path = "../types" }
 
 # Rendering (cross-platform)
@@ -35,7 +35,7 @@ zip = { version = "8.6", default-features = false, features = ["deflate"] }
 # Platform: Wayland (Linux)
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 wayland-client = "0.31"
-wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
+wayland-protocols = { version = "0.32", features = ["client", "unstable", "staging"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 memmap2 = "0.9"
 rustix = { version = "1.0", features = ["fs", "mm"] }

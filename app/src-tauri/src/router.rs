@@ -12,7 +12,7 @@ use crate::overlay::{
 use crate::service::{OverlayUpdate, ServiceHandle};
 use crate::state::SharedState;
 use baras_overlay::{OverlayData, RaidRegistryAction};
-use tokio::sync::mpsc;
+use tokio::sync::{Semaphore, mpsc};
 
 /// Spawn the overlay update router task.
 ///
@@ -53,6 +53,7 @@ pub fn spawn_overlay_router(
     });
 
     // Main router loop - no timeout needed, uses select!
+    let detection_gate = Arc::new(Semaphore::new(1));
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::select! {
@@ -77,7 +78,7 @@ pub fn spawn_overlay_router(
                 // Wait for registry actions
                 action = registry_rx.recv() => {
                     if let Some(action) = action {
-                        process_registry_action(&service_handle, action).await;
+                        process_registry_action(&service_handle, &detection_gate, action).await;
                     }
                 }
             }
@@ -86,7 +87,11 @@ pub fn spawn_overlay_router(
 }
 
 /// Process a registry action from the raid overlay
-async fn process_registry_action(service_handle: &ServiceHandle, action: RaidRegistryAction) {
+async fn process_registry_action(
+    service_handle: &ServiceHandle,
+    detection_gate: &Arc<Semaphore>,
+    action: RaidRegistryAction,
+) {
     match action {
         RaidRegistryAction::SwapSlots(a, b) => {
             service_handle.swap_raid_slots(a, b).await;
@@ -94,7 +99,291 @@ async fn process_registry_action(service_handle: &ServiceHandle, action: RaidReg
         RaidRegistryAction::ClearSlot(slot) => {
             service_handle.remove_raid_slot(slot).await;
         }
+        RaidRegistryAction::DetectNames {
+            started_at,
+            image,
+            slots,
+            result_tx,
+        } => {
+            let Ok(permit) = detection_gate.clone().try_acquire_owned() else {
+                tracing::info!("Raid name detection is already running");
+                let _ = result_tx.send("Detection is already running".into());
+                return;
+            };
+            let service_handle = service_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let _permit = permit;
+                detect_raid_names(&service_handle, started_at, image, slots, result_tx).await;
+            });
+        }
     }
+}
+
+struct RaidOcrResult {
+    observations: Vec<baras_core::raid_detect::RowObservation>,
+    assignments: Vec<baras_core::raid_detect::RowAssignment>,
+    decisions: Vec<baras_core::raid_detect::RowDecision>,
+}
+
+/// One log line per row: what was read, what it was matched to, and why.
+fn raid_row_lines(
+    observations: &[baras_core::raid_detect::RowObservation],
+    decisions: &[baras_core::raid_detect::RowDecision],
+) -> Vec<String> {
+    use baras_core::raid_detect::{CandidateScore, Contribution};
+
+    let health = |row: usize| {
+        observations
+            .iter()
+            .find(|o| o.row == row)
+            .map(|o| {
+                let value = o.hp_value.map_or("-".to_string(), |v| v.to_string());
+                let percent = o.hp_percent.map_or("-".to_string(), |p| format!("{p}%"));
+                format!("hp={value} {percent}")
+            })
+            .unwrap_or_default()
+    };
+
+    // Only signals that moved the score are worth printing; a health reading
+    // that disagreed contributed nothing and says nothing.
+    let support = |score: &CandidateScore| {
+        let part = |label: &str, c: Option<Contribution>| {
+            c.map(|c| {
+                format!(
+                    ", {label} {:.2}{}",
+                    c.score,
+                    if c.counted { "" } else { " (ignored)" }
+                )
+            })
+            .unwrap_or_default()
+        };
+        format!("name {:.2}{}", score.name_score, part("hp", score.hp_value))
+    };
+
+    decisions
+        .iter()
+        .map(|d| {
+            let read = d.observed.as_deref().unwrap_or("");
+            let head = format!(
+                "slot {:<2} read {read:?} -> {} {}",
+                d.row,
+                d.normalized.as_deref().unwrap_or("(nothing)"),
+                health(d.row)
+            );
+
+            match (&d.assigned, &d.best, d.rejected) {
+                (Some(a), _, _) => format!(
+                    "{head} | {} conf {:.2} ({}), margin {:.2}",
+                    a.name,
+                    a.total,
+                    support(a),
+                    a.total - d.runner_up
+                ),
+                // A tie is about the pair; a bare margin cannot name it.
+                (None, Some(best), reason) => format!(
+                    "{head} | unassigned: {}; closest {} at {:.2} ({}), then {} at {:.2}",
+                    reason.map_or("no reason recorded", |r| r.reason()),
+                    best.name,
+                    best.total.max(best.name_score),
+                    support(best),
+                    d.runner_up_name.as_deref().unwrap_or("nobody"),
+                    d.runner_up
+                ),
+                (None, None, reason) => {
+                    format!("{head} | unassigned: {}", reason.map_or("no candidates", |r| r.reason()))
+                }
+            }
+        })
+        .collect()
+}
+
+/// What a pass found, counted in names the text detector actually read —
+/// the only thing matching can ever work with. Frames, slots and occupancy
+/// are pipeline internals and stay out of the message.
+///
+/// No names needs no advice — the user looking at the grid and the frames
+/// can see why on their own.
+fn raid_detection_message(
+    names: usize,
+    matched: usize,
+    pending: usize,
+    ambiguous: usize,
+) -> String {
+    if names == 0 {
+        // Saying the frames were kept is what makes the no-op legible:
+        // without it, lingering assignments look like a bug.
+        return "No names detected. Frames unchanged.".to_string();
+    }
+    let noun = if names == 1 { "name" } else { "names" };
+    let mut message = format!("{names} {noun} detected. {matched}/{names} matched.");
+    if pending > 0 {
+        message.push_str(&format!(
+            " {pending}/{names} pending player appearance in logs."
+        ));
+    }
+    // The one outcome another read cannot fix.
+    if ambiguous > 0 {
+        message.push_str(" Some names too similar. Manual assignment recommended.");
+    }
+    message
+}
+
+async fn detect_raid_names(
+    service_handle: &ServiceHandle,
+    started_at: std::time::Instant,
+    image: baras_overlay::capture::CapturedImage,
+    slots: Vec<(u8, i32, i32, u32, u32)>,
+    result_tx: std::sync::mpsc::Sender<String>,
+) {
+    let candidates = service_handle.raid_detection_candidates().await;
+
+    // The first press ever downloads the models; without a word about it,
+    // the wait reads as a hang and the failure as a broken feature.
+    let downloading = !baras_raid_ocr::engine::model_is_present();
+    if downloading {
+        let _ = result_tx.send("Downloading OCR models (first run)...".into());
+    }
+    if let Err(e) = baras_raid_ocr::engine::ensure_model().await {
+        tracing::warn!("Raid name detection unavailable: {e}");
+        let message = if downloading {
+            "Model download failed: check connection and try again"
+        } else {
+            "OCR unavailable: assign names manually"
+        };
+        let _ = result_tx.send(message.into());
+        return;
+    }
+
+    let slot_count = slots.len();
+    let candidate_count = candidates.len();
+    let (dump_enabled, dump_max) = {
+        let config = service_handle.shared.config.read().await;
+        (config.ocr_debug_dump, config.ocr_debug_max_dumps)
+    };
+
+    // Log first so stalled runs still include the hardware details.
+    // First suspect when readings are garbage: HiDPI and Wayland scale.
+    let frame_size = slots
+        .first()
+        .map(|&(_, _, _, w, h)| format!("{w}x{h}"))
+        .unwrap_or_else(|| "none".into());
+    tracing::info!(
+        target: "baras::raid_detect",
+        cpu = baras_raid_ocr::cpu::summary(),
+        slots = slot_count,
+        candidates = candidate_count,
+        capture = %format!("{}x{}", image.width, image.height),
+        frame = %frame_size,
+        dump = dump_enabled,
+        "starting raid name detection"
+    );
+
+    let result = tokio::task::spawn_blocking(move || {
+        let mut dump = dump_enabled
+            .then(|| baras_raid_ocr::DebugDump::new(slot_count, dump_max))
+            .flatten();
+        let read_started = std::time::Instant::now();
+        let mut reading = baras_raid_ocr::observe_slots_dumping(&image, &slots, dump.as_mut());
+        let read = read_started.elapsed();
+
+        // Health is read inside here, for the rows names could not settle.
+        let match_started = std::time::Instant::now();
+        let (assignments, decisions) =
+            baras_raid_ocr::assign_with_health(&mut reading, &candidates, dump.as_mut());
+        if let Some(dump) = dump {
+            dump.finish();
+        }
+
+        // Completes the picture the capture timing starts.
+        tracing::info!(
+            target: "baras::raid_detect",
+            read_ms = read.as_secs_f64() * 1000.0,
+            match_ms = match_started.elapsed().as_secs_f64() * 1000.0,
+            rows = reading.rows.len(),
+            candidates = candidate_count,
+            "raid name detection"
+        );
+
+        RaidOcrResult {
+            observations: reading.rows,
+            assignments,
+            decisions,
+        }
+    })
+    .await;
+
+    let result = match result {
+        Ok(result) => result,
+        Err(e) => {
+            tracing::warn!("Raid name detection panicked: {e}");
+            // Nothing decided, so the previous pulse is stale.
+            service_handle.set_ambiguous_slots(Vec::new()).await;
+            let _ = result_tx.send("Detection failed: assign names manually".into());
+            return;
+        }
+    };
+
+    let RaidOcrResult {
+        observations,
+        assignments,
+        decisions,
+    } = result;
+    for line in raid_row_lines(&observations, &decisions) {
+        tracing::info!(target: "baras::raid_detect", "{line}");
+    }
+    let mut names = baras_raid_ocr::ocr_only_names(&observations);
+    let names_read = names.len();
+    names.retain(|(row, _)| !assignments.iter().any(|a| a.row == *row as usize));
+
+    if assignments.is_empty() && names.is_empty() {
+        let elapsed_ms = started_at.elapsed().as_millis() as u64;
+        tracing::info!(
+            elapsed_ms,
+            candidate_count,
+            "Raid name detection read nothing"
+        );
+        service_handle.set_ambiguous_slots(Vec::new()).await;
+        // An empty pass must not wipe names an earlier pass left waiting, so
+        // the registry is not touched.
+        let _ = result_tx.send(raid_detection_message(0, 0, 0, 0));
+        return;
+    }
+
+    // Lookalikes need a human: their slots pulse, and their occupants are
+    // exempt from eviction below.
+    let ambiguous: Vec<u8> = decisions
+        .iter()
+        .filter(|d| d.rejected == Some(baras_core::raid_detect::Rejection::Ambiguous))
+        .filter_map(|d| u8::try_from(d.row).ok())
+        .collect();
+
+    // Applied even with zero matches: a pass that read names is authoritative,
+    // and inside it evicts registered players it no longer saw.
+    let matched = assignments.len();
+    let _ = service_handle
+        .apply_raid_detection(assignments, &ambiguous)
+        .await;
+    let (pending, _) = service_handle.apply_provisional_raid_detection(names).await;
+    let elapsed_ms = started_at.elapsed().as_millis() as u64;
+
+    tracing::info!(
+        elapsed_ms,
+        matched,
+        names_read,
+        pending,
+        candidate_count,
+        "Raid name detection complete"
+    );
+
+    let ambiguous_count = ambiguous.len();
+    service_handle.set_ambiguous_slots(ambiguous).await;
+
+    let _ = result_tx.send(raid_detection_message(
+        names_read,
+        matched,
+        pending,
+        ambiguous_count,
+    ));
 }
 
 /// Process a single overlay update
@@ -430,6 +719,18 @@ async fn process_overlay_update(
                 service_handle.emit_overlay_status_changed();
             }
         }
+        OverlayUpdate::DetectRaidNames => {
+            let raid_tx = {
+                let state = match overlay_state.lock() {
+                    Ok(state) => state,
+                    Err(_) => return,
+                };
+                state.get_raid_tx().cloned()
+            };
+            if let Some(tx) = raid_tx {
+                let _ = tx.send(OverlayCommand::DetectRaidNames).await;
+            }
+        }
         OverlayUpdate::CombatEnded => {
             // Clear boss health, timer, and challenges overlays when combat ends
             let channels: Vec<_> = {
@@ -659,5 +960,56 @@ async fn process_overlay_update(
             }
             service_handle.emit_overlay_status_changed();
         }
+    }
+}
+
+#[cfg(test)]
+mod raid_detection_message_tests {
+    use super::raid_detection_message;
+
+    /// Args: names, matched, pending, ambiguous.
+    #[test]
+    fn counts_are_against_names_read() {
+        assert_eq!(
+            raid_detection_message(7, 3, 4, 0),
+            "7 names detected. 3/7 matched. 4/7 pending player appearance in logs."
+        );
+    }
+
+    /// Nothing pending means nothing to wait for — the pending clause is omitted.
+    #[test]
+    fn a_full_match_omits_the_pending_count() {
+        assert_eq!(
+            raid_detection_message(4, 4, 0, 0),
+            "4 names detected. 4/4 matched."
+        );
+    }
+
+    /// The user looking at the grid and the frames can see why on their own,
+    /// but they are told their assignments were deliberately left alone.
+    #[test]
+    fn an_empty_pass_says_the_frames_were_kept() {
+        assert_eq!(
+            raid_detection_message(0, 0, 0, 0),
+            "No names detected. Frames unchanged."
+        );
+    }
+
+    /// The one outcome another read cannot fix asks for a human.
+    #[test]
+    fn lookalikes_ask_for_manual_assignment() {
+        assert_eq!(
+            raid_detection_message(8, 6, 0, 2),
+            "8 names detected. 6/8 matched. \
+             Some names too similar. Manual assignment recommended."
+        );
+    }
+
+    #[test]
+    fn one_name_reads_singular() {
+        assert_eq!(
+            raid_detection_message(1, 0, 1, 0),
+            "1 name detected. 0/1 matched. 1/1 pending player appearance in logs."
+        );
     }
 }

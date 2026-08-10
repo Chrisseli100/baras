@@ -2861,6 +2861,8 @@ pub struct HotkeySettings {
     pub toggle_operation_timer: Option<String>,
     #[serde(default)]
     pub toggle_live_mode: Option<String>,
+    #[serde(default)]
+    pub detect_raid_names: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3272,6 +3274,20 @@ pub struct AppConfig {
     /// Keys are role names: "Tank", "Healer", "Dps".
     #[serde(default)]
     pub default_profile_per_role: std::collections::HashMap<String, String>,
+
+    /// Write the crops handed to OCR, and what came back, to disk on every
+    /// detection. On by default: it is what makes a bad reading diagnosable.
+    #[serde(default = "default_true")]
+    pub ocr_debug_dump: bool,
+
+    /// How many detections to keep. The oldest dumps are pruned before a new
+    /// one is written, so leaving the option on cannot fill a disk.
+    #[serde(default = "default_ocr_debug_max_dumps")]
+    pub ocr_debug_max_dumps: u32,
+}
+
+fn default_ocr_debug_max_dumps() -> u32 {
+    100
 }
 
 fn default_retention_days() -> u32 {
@@ -3312,6 +3328,8 @@ impl AppConfig {
             european_number_format: false,
             data_explorer_auto_live: false,
             default_profile_per_role: std::collections::HashMap::new(),
+            ocr_debug_dump: true,
+            ocr_debug_max_dumps: 100,
         }
     }
 }

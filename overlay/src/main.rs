@@ -41,6 +41,7 @@ mod examples {
             width: 280,
             height: 200,
             namespace: "baras-dps-metric".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -176,6 +177,7 @@ mod examples {
             width: 300,
             height: 280,
             namespace: "baras-dps-metric-8".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -286,6 +288,7 @@ mod examples {
             width: 320,
             height: 450,
             namespace: "baras-dps-metric-16".to_string(),
+            snap_to_grid: true,
             click_through: false, // Moveable
             target_monitor_id: None,
         };
@@ -415,6 +418,7 @@ mod examples {
             width: 220,
             height: 200,
             namespace: "baras-raid-normal".to_string(),
+            snap_to_grid: true,
             click_through: true, // Will be set by InteractionMode::Normal
             target_monitor_id: None,
         };
@@ -426,6 +430,7 @@ mod examples {
             width: 220,
             height: 200,
             namespace: "baras-raid-move".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -437,6 +442,7 @@ mod examples {
             width: 220,
             height: 200,
             namespace: "baras-raid-rearrange".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -530,6 +536,7 @@ mod examples {
                 effects: vec![RaidEffect::new(100, "Guard")
                     .with_color(tiny_skia::Color::from_rgba8(100, 150, 220, 255))],
                 is_self: true,
+                ambiguous: false,
             },
             // Slot 1: Healer
             RaidFrame {
@@ -543,6 +550,7 @@ mod examples {
                     .with_color(tiny_skia::Color::from_rgba8(100, 220, 100, 255))
                     .with_charges(2)],
                 is_self: false,
+                ambiguous: false,
             },
             // Slot 2: DPS
             RaidFrame {
@@ -559,6 +567,7 @@ mod examples {
                         .with_color(tiny_skia::Color::from_rgba8(200, 200, 100, 255)),
                 ],
                 is_self: false,
+                ambiguous: false,
             },
             // Slot 3: DPS (no effects)
             RaidFrame {
@@ -570,6 +579,7 @@ mod examples {
                 class_icon: Some("assassin.png".to_string()),
                 effects: vec![],
                 is_self: false,
+                ambiguous: false,
             },
             // Slot 4: Off-tank
             RaidFrame {
@@ -582,6 +592,7 @@ mod examples {
                 effects: vec![RaidEffect::new(400, "Saber Ward")
                     .with_color(tiny_skia::Color::from_rgba8(255, 200, 100, 255))],
                 is_self: false,
+                ambiguous: false,
             },
             // Slot 5: Healer (no effects)
             RaidFrame {
@@ -593,6 +604,7 @@ mod examples {
                 class_icon: Some("operative.png".to_string()),
                 effects: vec![],
                 is_self: false,
+                ambiguous: false,
             },
             // Slot 6: DPS with debuff
             RaidFrame {
@@ -606,6 +618,7 @@ mod examples {
                     .with_color(tiny_skia::Color::from_rgba8(255, 100, 50, 255))
                     .with_is_buff(false)],
                 is_self: false,
+                ambiguous: false,
             },
             // Slot 7: Empty slot
             RaidFrame::empty(7),
@@ -638,6 +651,7 @@ mod examples {
             width: 500, // Wider to accommodate larger effects
             height: 450,
             namespace: "baras-raid-timer-test".to_string(),
+            snap_to_grid: true,
             click_through: true,
             target_monitor_id: None,
         };
@@ -803,6 +817,7 @@ mod examples {
                     class_icon: None,
                     effects: vec![effect1, effect2],
                     is_self: slot == 0,
+                    ambiguous: false,
                 }
             })
             .collect()
@@ -817,6 +832,7 @@ mod examples {
             width: 240,
             height: 180,
             namespace: "baras-timers".to_string(),
+            snap_to_grid: true,
             click_through: true,
             target_monitor_id: None,
         };
@@ -911,6 +927,7 @@ mod examples {
             width: 340,
             height: 400,
             namespace: "baras-challenges".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -1326,6 +1343,7 @@ mod examples {
             width: 900,
             height: 280,
             namespace: "baras-challenges-horiz".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -1585,6 +1603,7 @@ mod examples {
                 width: 280,
                 height: 200,
                 namespace: format!("baras-boss-font-{}", col),
+                snap_to_grid: true,
                 click_through: true,
                 target_monitor_id: None,
             };
@@ -1623,6 +1642,7 @@ mod examples {
                 width: 280,
                 height: 300,
                 namespace: format!("baras-boss-content-{}", col),
+                snap_to_grid: true,
                 click_through: true,
                 target_monitor_id: None,
             };
@@ -1654,6 +1674,7 @@ mod examples {
                 width: 300,
                 height: 350,
                 namespace: "baras-boss-markers-shields".to_string(),
+                snap_to_grid: true,
                 click_through: true,
                 target_monitor_id: None,
             };
@@ -1718,6 +1739,7 @@ mod examples {
             width: 280,
             height: 140,
             namespace: "baras-alerts".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };
@@ -1807,6 +1829,7 @@ mod examples {
             width: 240,
             height: 260,
             namespace: "baras-ability-queue".to_string(),
+            snap_to_grid: true,
             click_through: true,
             target_monitor_id: None,
         };
@@ -2085,6 +2108,7 @@ mod examples {
             width: 180,
             height: 80,
             namespace: "baras-combat-time".to_string(),
+            snap_to_grid: true,
             click_through: false,
             target_monitor_id: None,
         };

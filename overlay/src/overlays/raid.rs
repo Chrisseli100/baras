@@ -198,6 +198,9 @@ pub struct RaidFrame {
     pub effects: Vec<RaidEffect>,
     /// Is this the local player?
     pub is_self: bool,
+    /// The reading fitted two or more players equally well. Pulses in
+    /// rearrange mode so the user can see which frames to sort out.
+    pub ambiguous: bool,
 }
 
 impl RaidFrame {
@@ -212,12 +215,13 @@ impl RaidFrame {
             class_icon: None,
             effects: Vec::new(),
             is_self: false,
+            ambiguous: false,
         }
     }
 
-    /// Check if the frame is empty (no player assigned)
+    /// A provisional OCR label still counts as an occupied frame.
     pub fn is_empty(&self) -> bool {
-        self.player_id.is_none()
+        self.name.is_empty()
     }
 
     /// Clear the frame (remove player)
@@ -312,6 +316,14 @@ pub enum InteractionMode {
     Normal, // click_through = true, clicks pass through
     Move,      // click_through = false, drag = move window
     Rearrange, // click_through = false, click = swap slots
+}
+
+impl InteractionMode {
+    /// Only in rearrange mode: move mode is for aligning the frame, and the
+    /// button would sit in the middle of the drag surface.
+    fn shows_detect_button(self) -> bool {
+        crate::capture::SUPPORTED && matches!(self, Self::Rearrange)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -482,10 +494,80 @@ const BASE_WIDTH: f32 = 220.0;
 const BASE_HEIGHT: f32 = 180.0;
 const BASE_GAP: f32 = 4.0;
 const BASE_PADDING: f32 = 8.0;
+const DETECT_BUTTON_EDGE_OVERLAP: f32 = 2.0;
+const DETECT_BUTTON_HIT_PADDING: f32 = 5.0;
+/// Make sure the overlay is fully blanked.
+/// 60ms should be save, accounting for compositor and frame delay.
+/// We can optimize this and actually ask the compositor, but, a lot of extra work...
+const BLANK_SETTLE_MS: u64 = 60;
+/// How long the information messages stay on screen
+/// I think 8 is sweetspot.
+/// Update if needed.
+const DETECTION_MESSAGE_SECS: u64 = 8;
+
+struct RaidSlotGeometry {
+    padding: f32,
+    gap: f32,
+    frame_width: f32,
+    frame_height: f32,
+}
+
+fn raid_slot_geometry(
+    width: u32,
+    height: u32,
+    layout: RaidGridLayout,
+    frame_spacing: f32,
+) -> RaidSlotGeometry {
+    let width = width as f32;
+    let height = height as f32;
+    let columns = layout.columns.max(1) as f32;
+    let rows = layout.rows.max(1) as f32;
+    let scale = ((width / BASE_WIDTH) * (height / BASE_HEIGHT)).sqrt();
+    let padding = BASE_PADDING * scale;
+    let gap = frame_spacing;
+
+    RaidSlotGeometry {
+        padding,
+        gap,
+        frame_width: ((width - 2.0 * padding - (columns - 1.0) * gap) / columns).max(20.0),
+        frame_height: ((height - 2.0 * padding - (rows - 1.0) * gap) / rows).max(20.0),
+    }
+}
+
+/// The slot rectangles used by both the overlay and OCR harness.
+pub fn raid_slot_rects(
+    width: u32,
+    height: u32,
+    layout: RaidGridLayout,
+    frame_spacing: f32,
+) -> Vec<(u8, i32, i32, u32, u32)> {
+    let geometry = raid_slot_geometry(width, height, layout, frame_spacing);
+    let rows = layout.rows.max(1);
+    let capacity = layout.columns.max(1).saturating_mul(rows);
+
+    (0..capacity)
+        .map(|slot| {
+            let col = (slot / rows) as f32;
+            let row = (slot % rows) as f32;
+            let x = geometry.padding + col * (geometry.frame_width + geometry.gap);
+            let y = geometry.padding + row * (geometry.frame_height + geometry.gap);
+            (
+                slot,
+                x.round() as i32,
+                y.round() as i32,
+                geometry.frame_width.round().max(1.0) as u32,
+                geometry.frame_height.round().max(1.0) as u32,
+            )
+        })
+        .collect()
+}
 
 /// Minimum interval between renders in Normal mode (10 FPS = 100ms)
 /// This reduces CPU usage significantly while still providing smooth timer countdowns
 const RENDER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// One breath of an ambiguous frame's border.
+const AMBIGUOUS_PULSE_SECS: f32 = 1.2;
 
 /// The complete raid frame overlay
 pub struct RaidOverlay {
@@ -505,10 +587,17 @@ pub struct RaidOverlay {
     /// Dirty flag - when true, the overlay needs to be re-rendered
     /// In rearrange mode, we skip rendering when this is false to save CPU
     needs_render: bool,
+    /// Clock the ambiguous pulse runs off.
+    pulse_since: Instant,
     /// Last render timestamp for frame rate limiting
     last_render: Instant,
     /// Pending registry actions to be sent to the service
     pending_registry_actions: Vec<RaidRegistryAction>,
+    detection_result_rx: Option<std::sync::mpsc::Receiver<String>>,
+    /// Whether the current run has reported anything yet, so a sender that
+    /// dies silently can be told apart from one that finished.
+    detection_result_seen: bool,
+    detection_message: Option<(String, Instant)>,
     european_number_format: bool,
 }
 
@@ -537,8 +626,12 @@ impl RaidOverlay {
             config,
             overflow_count: 0,
             needs_render: true,                            // Initial render needed
+            pulse_since: Instant::now(),
             last_render: Instant::now() - RENDER_INTERVAL, // Allow immediate first render
             pending_registry_actions: Vec::new(),
+            detection_result_rx: None,
+            detection_result_seen: false,
+            detection_message: None,
             european_number_format: false,
         };
 
@@ -553,39 +646,32 @@ impl RaidOverlay {
     // ─────────────────────────────────────────────────────────────────────────
 
     fn padding(&self) -> f32 {
-        self.frame.scaled(BASE_PADDING)
+        self.geometry().padding
     }
 
     fn gap(&self) -> f32 {
         // frame_spacing is a user-configured pixel value — use it directly
         // without scaling (unlike BASE_PADDING which is a design constant)
-        self.config.frame_spacing
+        self.geometry().gap
+    }
+
+    fn geometry(&self) -> RaidSlotGeometry {
+        raid_slot_geometry(
+            self.frame.width(),
+            self.frame.height(),
+            self.layout,
+            self.config.frame_spacing,
+        )
     }
 
     /// Calculate frame width based on container size and column count
     fn frame_width(&self) -> f32 {
-        let container_width = self.frame.width() as f32;
-        let padding = self.padding();
-        let gap = self.gap();
-        let cols = self.layout.columns as f32;
-
-        // Available width = container - 2*padding - (cols-1)*gap
-        // Frame width = available / cols
-        let available = container_width - (2.0 * padding) - ((cols - 1.0) * gap);
-        (available / cols).max(20.0) // Minimum 20px width
+        self.geometry().frame_width
     }
 
     /// Calculate frame height based on container size and row count
     fn frame_height(&self) -> f32 {
-        let container_height = self.frame.height() as f32;
-        let padding = self.padding();
-        let gap = self.gap();
-        let rows = self.layout.rows as f32;
-
-        // Available height = container - 2*padding - (rows-1)*gap
-        // Frame height = available / rows
-        let available = container_height - (2.0 * padding) - ((rows - 1.0) * gap);
-        (available / rows).max(20.0) // Minimum 20px height
+        self.geometry().frame_height
     }
 
     fn font_size(&self) -> f32 {
@@ -606,6 +692,34 @@ impl RaidOverlay {
         let y = self.padding() + row * (self.frame_height() + self.gap());
 
         (x, y, self.frame_width(), self.frame_height())
+    }
+
+    fn detect_button_bounds(&self) -> (f32, f32, f32, f32) {
+        let padding = self.padding();
+        let size = padding.clamp(14.0, 22.0);
+        let x = (self.frame.width() as f32 - padding - DETECT_BUTTON_EDGE_OVERLAP)
+            .min(self.frame.width() as f32 - size - 2.0)
+            .max(2.0);
+        let y = (padding - size + DETECT_BUTTON_EDGE_OVERLAP).max(2.0);
+        (x, y, size, size)
+    }
+
+    fn detect_button_hit_bounds(&self) -> (f32, f32, f32, f32) {
+        let (x, y, w, h) = self.detect_button_bounds();
+        let padding = self
+            .frame
+            .scaled(DETECT_BUTTON_HIT_PADDING)
+            .clamp(4.0, 8.0);
+        let left = (x - padding).max(0.0);
+        let top = (y - padding).max(0.0);
+        let right = (x + w + padding).min(self.frame.width() as f32);
+        let bottom = (y + h + padding).min(self.frame.height() as f32);
+        (left, top, right - left, bottom - top)
+    }
+
+    fn hit_test_detect_button(&self, px: f32, py: f32) -> bool {
+        let (x, y, w, h) = self.detect_button_hit_bounds();
+        px >= x && px < x + w && py >= y && py < y + h
     }
 
     /// Find which slot (if any) contains the given point
@@ -699,6 +813,102 @@ impl RaidOverlay {
     // Interaction Mode
     // ─────────────────────────────────────────────────────────────────────────
 
+    /// Keep clicks around the button out of the window drag handler.
+    fn refresh_interactive_region(&mut self) {
+        let region = if self.interaction_mode.shows_detect_button() {
+            let (x, y, w, h) = self.detect_button_hit_bounds();
+            Some((
+                x.round() as i32,
+                y.round() as i32,
+                w.round().max(1.0) as u32,
+                h.round().max(1.0) as u32,
+            ))
+        } else {
+            None
+        };
+        self.frame.set_interactive_region(region);
+    }
+
+    fn capture_blanked(&mut self) -> Option<crate::capture::CapturedImage> {
+        self.frame.begin_frame();
+        self.frame.end_frame();
+        std::thread::sleep(std::time::Duration::from_millis(BLANK_SETTLE_MS));
+
+        let result = crate::capture::capture_region(
+            self.frame.x(),
+            self.frame.y(),
+            self.frame.width(),
+            self.frame.height(),
+        );
+
+        self.needs_render = true;
+
+        match result {
+            Ok(image) => Some(image),
+            Err(e) => {
+                tracing::warn!("Raid frame capture failed: {e}");
+                // An unsupported compositor is permanent: retrying cannot
+                // help, and saying "failed" would invite retries.
+                let message = match e {
+                    crate::capture::CaptureError::Unsupported(_) => {
+                        "Capture not supported by this compositor: assign names manually"
+                    }
+                    _ => "Screen capture failed: assign names manually",
+                };
+                self.set_detection_message(message.into());
+                None
+            }
+        }
+    }
+
+    fn set_detection_message(&mut self, message: String) {
+        self.detection_message = Some((message, Instant::now()));
+        self.needs_render = true;
+    }
+
+    fn emit_detect_action(&mut self) {
+        // No capture backend (macOS): the button is hidden, and the hotkey
+        // lands here too, so it dead-ends in one place.
+        if !crate::capture::SUPPORTED {
+            return;
+        }
+        if self.detection_result_rx.is_some() {
+            self.set_detection_message("Detection is already running".into());
+            return;
+        }
+        let started_at = Instant::now();
+        let Some(image) = self.capture_blanked() else {
+            return;
+        };
+
+        // Slot bounds are logical; a scaled capture returns more pixels than were
+        // asked for, so they follow the same factor. Exactly 1.0 on Windows.
+        let scale = image.width as f32 / self.frame.width().max(1) as f32;
+        let slots = (0..self.layout.capacity())
+            .map(|slot| {
+                let (x, y, w, h) = self.slot_bounds(slot);
+                (
+                    slot,
+                    (x * scale).round() as i32,
+                    (y * scale).round() as i32,
+                    (w * scale).round().max(1.0) as u32,
+                    (h * scale).round().max(1.0) as u32,
+                )
+            })
+            .collect();
+
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+        self.detection_result_rx = Some(result_rx);
+        self.detection_result_seen = false;
+        self.set_detection_message("Reading raid frames...".into());
+        self.pending_registry_actions.push(RaidRegistryAction::DetectNames {
+            started_at,
+            image,
+            slots,
+            result_tx,
+        });
+    }
+
     /// Set the interaction mode
     pub fn set_interaction_mode(&mut self, mode: InteractionMode) {
         self.interaction_mode = mode;
@@ -726,6 +936,8 @@ impl RaidOverlay {
                 self.frame.set_background_alpha(0); // Fully transparent container
             }
         }
+
+        self.refresh_interactive_region();
     }
 
     /// Toggle rearrange mode
@@ -753,8 +965,11 @@ impl RaidOverlay {
 
         match self.interaction_mode {
             InteractionMode::Rearrange => {
-                // Only render on state change (click, data update, etc.)
-                if !self.needs_render {
+                // Only render on state change (click, data update, etc.),
+                // unless a frame is pulsing and needs the clock.
+                let pulsing = self.frames.iter().any(|f| f.ambiguous);
+                if !self.needs_render && !(pulsing && now.duration_since(self.last_render) >= RENDER_INTERVAL)
+                {
                     return;
                 }
             }
@@ -796,7 +1011,171 @@ impl RaidOverlay {
         // Overflow indicator
         self.render_overflow_indicator();
 
+        if self.interaction_mode.shows_detect_button() {
+            self.render_detect_button();
+        }
+        self.render_detection_message();
+
         self.frame.end_frame();
+    }
+
+    fn render_detect_button(&mut self) {
+        let (x, y, w, h) = self.detect_button_bounds();
+
+        self.frame.fill_rounded_rect(
+            x,
+            y,
+            w,
+            h,
+            (w * 0.25).max(2.0),
+            Color::from_rgba8(20, 24, 32, 150),
+        );
+
+        let inset = w * 0.22;
+        let lens_size = (w - inset * 2.0) * 0.78;
+        self.frame.stroke_rounded_rect(
+            x + inset,
+            y + inset,
+            lens_size,
+            lens_size,
+            lens_size / 2.0,
+            (w * 0.09).max(1.2),
+            Color::from_rgba8(226, 232, 240, 230),
+        );
+
+        let handle = (w * 0.22).max(2.0);
+        self.frame.fill_rounded_rect(
+            x + inset + lens_size * 0.82,
+            y + inset + lens_size * 0.82,
+            handle,
+            handle,
+            handle * 0.4,
+            Color::from_rgba8(226, 232, 240, 230),
+        );
+    }
+
+    fn fits(&mut self, text: &str, font_size: f32, max_width: f32) -> bool {
+        self.frame.measure_text(text, font_size).0 <= max_width
+    }
+
+
+
+    /// Break a message into lines that fit `max_width`.
+    ///
+    /// Breaks at commas if possible, otherwise spaces.
+    fn wrap_lines(&mut self, text: &str, font_size: f32, max_width: f32) -> Vec<String> {
+        let text = text.trim();
+        if text.is_empty() {
+            return Vec::new();
+        }
+        if self.fits(text, font_size, max_width) {
+            return vec![text.to_string()];
+        }
+
+        let mut lines = Vec::new();
+        let mut current = String::new();
+
+        for clause in comma_clauses(text) {
+            let candidate = if current.is_empty() {
+                clause.clone()
+            } else {
+                format!("{current} {clause}")
+            };
+            if current.is_empty() || self.fits(&candidate, font_size, max_width) {
+                current = candidate;
+            } else {
+                lines.push(std::mem::replace(&mut current, clause));
+            }
+        }
+        if !current.is_empty() {
+            lines.push(current);
+        }
+
+        // A clause that still overflows gets broken on spaces instead.
+        let mut wrapped = Vec::with_capacity(lines.len());
+        for line in lines {
+            if self.fits(&line, font_size, max_width) {
+                wrapped.push(line);
+            } else {
+                wrapped.extend(self.wrap_words(&line, font_size, max_width));
+            }
+        }
+        wrapped
+    }
+
+    /// Break on spaces. 
+    // A too-long word will overflow.
+    fn wrap_words(&mut self, text: &str, font_size: f32, max_width: f32) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut current = String::new();
+
+        for word in text.split_whitespace() {
+            let candidate = if current.is_empty() {
+                word.to_string()
+            } else {
+                format!("{current} {word}")
+            };
+            if current.is_empty() || self.fits(&candidate, font_size, max_width) {
+                current = candidate;
+            } else {
+                lines.push(std::mem::replace(&mut current, word.to_string()));
+            }
+        }
+
+        if !current.is_empty() {
+            lines.push(current);
+        }
+        lines
+    }
+
+    fn render_detection_message(&mut self) {
+        let Some((message, _)) = &self.detection_message else {
+            return;
+        };
+        // Wrapping needs the frame mutably, so the message cannot stay borrowed.
+        let message = message.clone();
+        let font_size = self.frame.scaled(9.0).clamp(8.0, 12.0);
+
+        // Panel is inset 3px from the overlay edge and pads its text by 6px.
+        let panel_max = self.frame.width() as f32 - 6.0;
+        let lines = self.wrap_lines(&message, font_size, panel_max - 12.0);
+        if lines.is_empty() {
+            return;
+        }
+
+        let mut text_width: f32 = 0.0;
+        let mut line_height: f32 = font_size;
+        for line in &lines {
+            let (w, h) = self.frame.measure_text(line, font_size);
+            text_width = text_width.max(w);
+            line_height = line_height.max(h);
+        }
+
+        let width = (text_width + 12.0).min(panel_max);
+        let height = line_height * lines.len() as f32 + 8.0;
+        let (_, button_y, _, button_height) = self.detect_button_bounds();
+        let x = self.frame.width() as f32 - width - 3.0;
+        let y = button_y + button_height + 3.0;
+
+        self.frame.fill_rounded_rect(
+            x,
+            y,
+            width,
+            height,
+            4.0,
+            Color::from_rgba8(20, 24, 32, 225),
+        );
+        for (i, line) in lines.iter().enumerate() {
+            self.frame.draw_text_styled(
+                line,
+                x + 6.0,
+                y + 4.0 + font_size + i as f32 * line_height,
+                font_size,
+                Color::from_rgba8(240, 244, 250, 255),
+                false,
+                false,
+            );
+        }
     }
 
     /// Render a single player frame
@@ -1118,6 +1497,19 @@ impl RaidOverlay {
         effect_size + vertical_offset.max(3.0)
     }
 
+    /// Provisional orange, breathing between dim and full over `AMBIGUOUS_PULSE`.
+    ///
+    /// Slow on purpose: this is a "sort these out" hint, not an alarm.
+    fn ambiguous_pulse(&self) -> Color {
+        let phase =
+            (self.pulse_since.elapsed().as_secs_f32() / AMBIGUOUS_PULSE_SECS) * std::f32::consts::TAU;
+        // 0.35..1.0, so the border never disappears entirely.
+        let level = 0.675 + 0.325 * phase.sin();
+        let mut color = colors::raid_name_provisional();
+        color.set_alpha(level);
+        color
+    }
+
     /// Render the clickable overlay for rearrange mode
     fn render_rearrange_overlay(&mut self, raid_frame: &RaidFrame) {
         let (x, y, w, h) = self.slot_bounds(raid_frame.slot);
@@ -1138,11 +1530,14 @@ impl RaidOverlay {
         self.frame
             .fill_rounded_rect(x, y, w, h, corner_radius, overlay_color);
 
-        // Border
-        let border_color = if is_selected {
-            colors::raid_slot_text()
+        // Border. An ambiguous frame breathes so the two or three that could
+        // not be told apart stand out as a set to sort by hand.
+        let (border_color, border_width) = if is_selected {
+            (colors::raid_slot_text(), 2.0)
+        } else if raid_frame.ambiguous {
+            (self.ambiguous_pulse(), 3.0)
         } else {
-            colors::text_muted()
+            (colors::text_muted(), 2.0)
         };
         self.frame.stroke_rounded_rect(
             x + 1.0,
@@ -1150,7 +1545,7 @@ impl RaidOverlay {
             w - 2.0,
             h - 2.0,
             corner_radius - 1.0,
-            2.0,
+            border_width,
             border_color,
         );
 
@@ -1167,13 +1562,33 @@ impl RaidOverlay {
         // Note: draw_text y is baseline
         let text_y = y + h - 4.0;
 
+        // Orange until a name is tied to a log player, green once it is.
         let text_color = if raid_frame.is_empty() {
             colors::raid_slot_number()
+        } else if raid_frame.player_id.is_some() {
+            colors::raid_name_confirmed()
         } else {
-            colors::white()
+            colors::raid_name_provisional()
         };
         self.frame
             .draw_text_glowed(&text, text_x, text_y, font_size, text_color);
+
+        // A channel besides colour: a name still waiting for its player to
+        // appear in the log carries a "…" badge; a confirmed one carries
+        // nothing, because badging the default state is noise. Ellipsis, not
+        // "?": pending is waiting, a question mark reads as broken.
+        if !raid_frame.is_empty() && raid_frame.player_id.is_none() {
+            let label = "…";
+            let label_size = font_size * 0.8;
+            let (label_w, _) = self.frame.measure_text(label, label_size);
+            self.frame.draw_text_glowed(
+                label,
+                x + w - label_w - 4.0,
+                text_y - font_size,
+                label_size,
+                colors::raid_name_provisional(),
+            );
+        }
 
         // Clear button (×) for ALL occupied frames (including self)
         if !raid_frame.is_empty() {
@@ -1289,16 +1704,50 @@ impl Overlay for RaidOverlay {
             return false;
         }
 
+        // Progress messages arrive mid-run ("Downloading OCR models..."), so
+        // a message does not end the run — the sender dropping does.
+        while let Some(rx) = self.detection_result_rx.as_ref() {
+            match rx.try_recv() {
+                Ok(message) => {
+                    self.detection_result_seen = true;
+                    self.set_detection_message(message);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    if !self.detection_result_seen {
+                        self.set_detection_message("Detection stopped: assign names manually".into());
+                    }
+                    self.detection_result_rx = None;
+                }
+            }
+        }
+        if self.detection_result_rx.is_none()
+            && self
+                .detection_message
+                .as_ref()
+                .is_some_and(|(_, shown_at)| {
+                    shown_at.elapsed()
+                        >= std::time::Duration::from_secs(DETECTION_MESSAGE_SECS)
+                })
+        {
+            self.detection_message = None;
+            self.needs_render = true;
+        }
+
         // Mark dirty if window was resized/moved (affects layout calculations)
         if self.frame.take_position_dirty() {
             self.needs_render = true;
         }
+        // SetSize is not reported as a position change on every backend.
+        self.refresh_interactive_region();
 
-        // Handle clicks in rearrange mode (platform reports clicks when drag is disabled)
-        if self.interaction_mode == InteractionMode::Rearrange
-            && let Some((px, py)) = self.frame.take_pending_click()
-        {
-            self.handle_rearrange_click(px, py);
+        if let Some((px, py)) = self.frame.take_pending_click() {
+            if self.interaction_mode.shows_detect_button() && self.hit_test_detect_button(px, py)
+            {
+                self.emit_detect_action();
+            } else if self.interaction_mode == InteractionMode::Rearrange {
+                self.handle_rearrange_click(px, py);
+            }
         }
 
         true
@@ -1330,11 +1779,68 @@ impl Overlay for RaidOverlay {
         self.set_interaction_mode(new_mode);
     }
 
+    fn request_raid_detection(&mut self) {
+        self.emit_detect_action();
+    }
+
     fn take_pending_registry_actions(&mut self) -> Vec<RaidRegistryAction> {
         std::mem::take(&mut self.pending_registry_actions)
     }
 
     fn needs_render(&self) -> bool {
         self.needs_render
+    }
+}
+
+/// Split a message after each comma, keeping the comma.
+///
+/// Whitespace is dropped.
+fn comma_clauses(text: &str) -> Vec<String> {
+    let mut clauses = Vec::new();
+    let mut start = 0;
+
+    for (index, c) in text.char_indices() {
+        if c == ',' {
+            let end = index + c.len_utf8();
+            let clause = text[start..end].trim();
+            if !clause.is_empty() {
+                clauses.push(clause.to_string());
+            }
+            start = end;
+        }
+    }
+
+    let tail = text[start..].trim();
+    if !tail.is_empty() {
+        clauses.push(tail.to_string());
+    }
+    clauses
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provisional_name_is_not_an_empty_frame() {
+        let mut frame = RaidFrame::empty(2);
+        assert!(frame.is_empty());
+
+        frame.name = "TEST PLAYER".into();
+        assert!(frame.player_id.is_none());
+        assert!(!frame.is_empty());
+    }
+
+    #[test]
+    fn detect_button_only_shows_in_rearrange_mode() {
+        assert!(!InteractionMode::Normal.shows_detect_button());
+        // Move mode is for aligning the frame; the button stays out of it.
+        assert!(!InteractionMode::Move.shows_detect_button());
+        assert_eq!(
+            InteractionMode::Rearrange.shows_detect_button(),
+            crate::capture::SUPPORTED,
+            "rearrange shows the button wherever capture exists"
+        );
     }
 }

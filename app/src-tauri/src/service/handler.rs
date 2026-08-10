@@ -22,6 +22,75 @@ use tauri::{AppHandle, Emitter};
 use super::{AreaVisitInfo, CombatData, LogFileInfo, ServiceCommand, SessionInfo};
 use crate::state::SharedState;
 
+/// How far back in log time a player may have been seen and still be offered to
+/// the matcher.
+///
+/// Log time against log time — freshness never consults the wall clock. Wide
+/// enough to survive a break or a long AFK, narrow enough to shed players who
+/// left the group hours into a session; each stale name is a chance for a row
+/// to match the wrong player.
+const OCR_ROSTER_WINDOW_MINUTES: i64 = 30;
+
+/// Current-area roster for OCR. Names identify and health only supports.
+///
+/// A free function so the overlay loop can always reach it
+pub(crate) async fn raid_detection_candidates(
+    shared: &Arc<SharedState>,
+) -> Vec<baras_core::raid_detect::PlayerCandidate> {
+    use baras_core::raid_detect::CandidateSet;
+
+    // Names only matter on a live session: a historical file, a closed game,
+    // or a rotated log all mean there is nothing current to match against.
+    if shared.is_session_not_live().await {
+        return Vec::new();
+    }
+    let session_guard = shared.session.read().await;
+    let Some(session) = session_guard.as_ref() else {
+        return Vec::new();
+    };
+    let session = session.read().await;
+    let Some(cache) = session.session_cache.as_ref() else {
+        return Vec::new();
+    };
+    let Some(last_event) = session.last_event_time else {
+        return Vec::new();
+    };
+
+    let cutoff = last_event - chrono::Duration::minutes(OCR_ROSTER_WINDOW_MINUTES);
+    let mut set = CandidateSet::new();
+    for player in cache.player_disciplines.values() {
+        if let Some(last_seen) = player.last_seen_at
+            && last_seen >= cutoff
+        {
+            set.observe_raw(
+                player.id,
+                baras_core::context::resolve(player.name),
+                (player.current_hp, player.max_hp),
+                last_seen,
+            );
+        }
+    }
+    // Ability-cast targets that never entered combat exist only in this
+    // roster. Observed after the discipline roster so their empty health
+    // reading never shadows a real one.
+    {
+        let mut roster = shared
+            .ability_roster
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        roster.expire_before(cutoff);
+        for candidate in roster.candidates() {
+            set.observe_raw(
+                candidate.entity_id,
+                &candidate.name,
+                (candidate.current_hp, candidate.max_hp),
+                candidate.last_seen,
+            );
+        }
+    }
+    set.candidates()
+}
+
 /// Handle to communicate with the combat service and query state
 #[derive(Clone)]
 pub struct ServiceHandle {
@@ -401,6 +470,84 @@ impl ServiceHandle {
     /// Remove a slot from the raid registry
     pub async fn remove_raid_slot(&self, slot: u8) {
         self.shared.raid_registry.lock().unwrap_or_else(|p| p.into_inner()).remove_slot(slot);
+        self.refresh_raid_frames().await;
+    }
+
+    /// Current-area roster for OCR. Names identify; health only supports.
+    pub async fn raid_detection_candidates(&self) -> Vec<baras_core::raid_detect::PlayerCandidate> {
+        raid_detection_candidates(&self.shared).await
+    }
+
+    /// Write detection results into the raid registry.
+    pub async fn apply_raid_detection(
+        &self,
+        assignments: Vec<baras_core::raid_detect::RowAssignment>,
+        ambiguous_rows: &[u8],
+    ) -> usize {
+        let remaining = {
+            let mut registry = self
+                .shared
+                .raid_registry
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            // The screen is the authority: players the pass did not
+            // re-confirm are evicted before the confirmed ones are placed.
+            // An ambiguous row is the exception — it read something that
+            // fits its occupant among others, and absence of a verdict is
+            // not evidence of absence, so the occupant is the tiebreak.
+            let mut confirmed: Vec<i64> = assignments.iter().map(|a| a.entity_id).collect();
+            confirmed.extend(
+                ambiguous_rows
+                    .iter()
+                    .filter_map(|&row| registry.get_player(row).map(|p| p.entity_id)),
+            );
+            registry.retain_players(&confirmed);
+            registry.assign_slots(
+                assignments
+                    .into_iter()
+                    .filter_map(|a| {
+                        u8::try_from(a.row)
+                            .ok()
+                            .map(|row| (row, a.entity_id, a.name))
+                    }),
+            );
+            registry.provisional_len()
+        };
+        self.refresh_raid_frames().await;
+        remaining
+    }
+
+    pub async fn apply_provisional_raid_detection(
+        &self,
+        assignments: Vec<(u8, String)>,
+    ) -> (usize, usize) {
+        let counts = {
+            let mut registry = self
+                .shared
+                .raid_registry
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            registry.assign_provisional_slots(assignments);
+            (registry.provisional_len(), registry.registered_len())
+        };
+        // New provisionals are the other half of the pairing: match them against
+        // players already on the roster.
+        if counts.0 > 0 {
+            self.shared
+                .roster_changed
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.refresh_raid_frames().await;
+        counts
+    }
+
+    /// Mark the slots whose reading fitted more than one player.
+    pub async fn set_ambiguous_slots(&self, slots: Vec<u8>) {
+        self.shared
+            .raid_registry
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .set_ambiguous_slots(slots);
         self.refresh_raid_frames().await;
     }
 

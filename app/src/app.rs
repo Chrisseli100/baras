@@ -22,6 +22,13 @@ static DATA_EXPLORER_CSS: Asset = asset!("/assets/data-explorer.css");
 static LOGO: Asset = asset!("/assets/logo.png");
 static FONT: Asset = asset!("/assets/StarJedi.ttf");
 
+/// WASM cannot cfg on the host OS, so ask the webview instead.
+fn is_macos() -> bool {
+    web_sys::window()
+        .map(|w| w.navigator().user_agent().unwrap_or_default().contains("Macintosh"))
+        .unwrap_or(false)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // App Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,6 +93,8 @@ pub fn App() -> Element {
     let mut upload_status = use_signal(HashMap::<String, (bool, String)>::new); // path -> (success, message)
     let mut file_browser_filter = use_signal(String::new);
     let mut hide_small_log_files = use_signal(|| true);
+    let mut ocr_debug_dump = use_signal(|| true);
+    let mut ocr_debug_max_dumps = use_signal(|| 100u32);
 
     // UI Session State - unified state that persists across tab switches
     let mut ui_state = use_signal(UiSessionState::default);
@@ -104,6 +113,7 @@ pub fn App() -> Element {
     let mut hotkey_rearrange = use_signal(String::new);
     let mut hotkey_op_timer = use_signal(String::new);
     let mut hotkey_live_mode = use_signal(String::new);
+    let mut hotkey_detect_raid = use_signal(String::new);
     let mut hotkey_save_status = use_signal(String::new);
 
     // Log management state
@@ -171,6 +181,9 @@ pub fn App() -> Element {
             if let Some(v) = config.hotkeys.toggle_live_mode {
                 hotkey_live_mode.set(v);
             }
+            if let Some(v) = config.hotkeys.detect_raid_names {
+                hotkey_detect_raid.set(v);
+            }
             profile_names.set(config.profiles.iter().map(|p| p.name.clone()).collect());
             active_profile.set(config.active_profile_name);
             // Auto-create a "Default" profile for new users
@@ -185,6 +198,8 @@ pub fn App() -> Element {
             auto_delete_old.set(config.auto_delete_old_files);
             retention_days.set(config.log_retention_days);
             hide_small_log_files.set(config.hide_small_log_files);
+            ocr_debug_dump.set(config.ocr_debug_dump);
+            ocr_debug_max_dumps.set(config.ocr_debug_max_dumps);
             minimize_to_tray.set(config.minimize_to_tray);
             european_number_format.set(config.european_number_format);
             parsely_username.set(config.parsely.username);
@@ -2002,6 +2017,62 @@ pub fn App() -> Element {
                             }
 
                             div { class: "settings-section",
+                                h4 { "Name Detection" }
+                                if is_macos() {
+                                    p { class: "hint hint-warning",
+                                        i { class: "fa-solid fa-triangle-exclamation" }
+                                        " Name detection is not supported on macOS."
+                                    }
+                                }
+                                div { class: "setting-row",
+                                    label { "Save detection images" }
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: ocr_debug_dump(),
+                                        onchange: move |e| {
+                                            let checked = e.checked();
+                                            ocr_debug_dump.set(checked);
+                                            let mut toast = use_toast();
+                                            spawn(async move {
+                                                if let Some(mut cfg) = api::get_config().await {
+                                                    cfg.ocr_debug_dump = checked;
+                                                    if let Err(err) = api::update_config(&cfg).await {
+                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                                p { class: "hint", "Writes what name detection saw to baras/ocr-debug, so a misread name can be diagnosed from the images rather than guessed at." }
+                                div { class: "setting-row",
+                                    label { "Detections to keep" }
+                                    input {
+                                        r#type: "number",
+                                        min: "1",
+                                        max: "1000",
+                                        step: "1",
+                                        value: "{ocr_debug_max_dumps()}",
+                                        onchange: move |e| {
+                                            let Ok(count) = e.value().parse::<u32>() else { return };
+                                            let count = count.clamp(1, 1000);
+                                            ocr_debug_max_dumps.set(count);
+                                            let mut toast = use_toast();
+                                            spawn(async move {
+                                                if let Some(mut cfg) = api::get_config().await {
+                                                    cfg.ocr_debug_max_dumps = count;
+                                                    if let Err(err) = api::update_config(&cfg).await {
+                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                                p { class: "hint", "The oldest detections are deleted before each new one, so the folder never holds more than this many." }
+                            }
+
+                            div { class: "settings-section",
                                 h4 { "Global Hotkeys" }
                                 p { class: "hint", "Click to capture a key combination. Backspace to clear." }
                                 p { class: "hint hint-warning",
@@ -2042,6 +2113,13 @@ pub fn App() -> Element {
                                         }
                                     }
                                     div { class: "setting-row",
+                                        label { "Detect Raid Names" }
+                                        HotkeyInput {
+                                            value: hotkey_detect_raid(),
+                                            on_change: move |v| hotkey_detect_raid.set(v),
+                                        }
+                                    }
+                                    div { class: "setting-row",
                                         label { "Go Live" }
                                         HotkeyInput {
                                             value: hotkey_live_mode(),
@@ -2049,11 +2127,17 @@ pub fn App() -> Element {
                                         }
                                     }
                                 }
+                                if is_macos() {
+                                    p { class: "hint hint-warning",
+                                        i { class: "fa-solid fa-triangle-exclamation" }
+                                        " Detect Raid Names is not supported on macOS."
+                                    }
+                                }
                                 div { class: "settings-footer",
                                     button {
                                         class: "btn btn-save",
                                         onclick: move |_| {
-                                            let v = hotkey_visibility(); let m = hotkey_move_mode(); let r = hotkey_rearrange(); let ot = hotkey_op_timer(); let lm = hotkey_live_mode();
+                                            let v = hotkey_visibility(); let m = hotkey_move_mode(); let r = hotkey_rearrange(); let ot = hotkey_op_timer(); let lm = hotkey_live_mode(); let dr = hotkey_detect_raid();
                                             let mut toast = use_toast();
                                             spawn(async move {
                                                 if let Some(mut cfg) = api::get_config().await {
@@ -2062,6 +2146,7 @@ pub fn App() -> Element {
                                                     cfg.hotkeys.toggle_rearrange_mode = if r.is_empty() { None } else { Some(r) };
                                                     cfg.hotkeys.toggle_operation_timer = if ot.is_empty() { None } else { Some(ot) };
                                                     cfg.hotkeys.toggle_live_mode = if lm.is_empty() { None } else { Some(lm) };
+                                                    cfg.hotkeys.detect_raid_names = if dr.is_empty() { None } else { Some(dr) };
                                                     if let Err(err) = api::update_config(&cfg).await {
                                                         toast.show(format!("Failed to save hotkeys: {}", err), ToastSeverity::Normal);
                                                     } else {

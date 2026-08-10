@@ -1232,11 +1232,17 @@ impl CombatEncounter {
             EntityType::Player => {
                 self.players
                     .entry(entity.log_id)
-                    .and_modify(|p| p.last_seen_at = Some(timestamp))
+                    .and_modify(|p| {
+                        p.last_seen_at = Some(timestamp);
+                        p.current_hp = entity.health.0;
+                        p.max_hp = entity.health.1;
+                    })
                     .or_insert_with(|| PlayerInfo {
                         id: entity.log_id,
                         name: entity.name,
                         last_seen_at: Some(timestamp),
+                        current_hp: entity.health.0,
+                        max_hp: entity.health.1,
                         ..Default::default()
                     });
             }
