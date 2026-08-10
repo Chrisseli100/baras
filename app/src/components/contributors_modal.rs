@@ -20,33 +20,38 @@ const CONTRIBUTORS: &[Contributor] = &[
         url: Some("https://github.com/apdubs"),
     },
     Contributor {
+        name: "Syd-Moonlighter",
+        role: "Raid Frame OCR screen capture",
+        url: Some("https://github.com/Syd-Moonlighter"),
+    },
+    Contributor {
         name: "Wolfy",
-        role: "",
+        role: "Timer Definitions / General Feedback",
         url: None,
     },
     Contributor {
         name: "Keetsune",
-        role: "",
+        role: "Timer Definitions / General Feedback",
         url: None,
     },
     Contributor {
         name: "Sinrai",
-        role: "",
+        role: "Timer Definitions / General Feedback",
         url: None,
     },
     Contributor {
         name: "chriseli",
-        role: "",
+        role: "Timer Definitions / General Feedback",
         url: None,
     },
     Contributor {
         name: "AppalachianMountain",
-        role: "",
+        role: "Timer Definitions / General Feedback",
         url: None,
     },
     Contributor {
         name: "Zazeg",
-        role: "",
+        role: "Timer Definitions / General Feedback",
         url: None,
     },
 ];
