@@ -966,7 +966,6 @@ impl Trigger {
     /// Check if this trigger contains variants that are unsupported for victory triggers.
     pub fn contains_unsupported_for_victory(&self) -> Option<&'static str> {
         match self {
-            Self::TargetSet { .. } => Some("target_set"),
             Self::TimeElapsed { .. } => Some("time_elapsed"),
             Self::TimerExpires { .. } => Some("timer_expires"),
             Self::TimerStarted { .. } => Some("timer_started"),
