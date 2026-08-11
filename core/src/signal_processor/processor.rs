@@ -445,10 +445,16 @@ impl EventProcessor {
         } else if event.effect.effect_id == effect_id::RECENTLY_REVIVED
             && event.effect.type_id == effect_type_id::APPLYEFFECT
             && event.source_entity.entity_type == EntityType::Player
-            // The game also applies RECENTLY_REVIVED for ~5s at the moment of death
-            // (0 HP, before the Death event). A real medcenter/probe revive always
-            // logs at full HP, so ignore applies on a dead player.
-            && event.source_entity.health.0 > 0
+            // The game reuses RECENTLY_REVIVED as a grace buff outside of medcenter
+            // revives: ~5s at the moment of death (0 HP, before the Death event) and
+            // on scripted safe-fall/transition drops (alive, any HP). A real medcenter
+            // revive is the only case where the apply lands at full HP on a player we
+            // have marked dead (the Revived event follows ~3ms after the apply).
+            && event.source_entity.health.0 == event.source_entity.health.1
+            && cache
+                .current_encounter()
+                .and_then(|enc| enc.players.get(&event.source_entity.log_id))
+                .is_some_and(|p| p.is_dead)
         {
             // Player received the revive immunity buff (medcenter/probe revive)
             // Mark them as permanently dead for this encounter
