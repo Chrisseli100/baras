@@ -250,6 +250,70 @@ fn handle_in_combat(
         }
     }
 
+    // Boss reset detection (victory-trigger encounters only): a fresh live
+    // instance of a single_instance boss class means the fight reset and was
+    // re-pulled without a wipe or victory (e.g. Zorn & Toth pulled with a
+    // player outside the arena). Split here — the re-pull's EnterCombat was
+    // already swallowed as a rejoin, so the new encounter starts InCombat
+    // immediately instead of waiting for the next EnterCombat.
+    let boss_reset = cache.current_encounter().map_or(false, |enc| {
+        enc.has_active_victory_trigger() && !enc.victory_triggered && enc.detect_boss_reset(event)
+    });
+    if boss_reset {
+        let encounter_id = cache.current_encounter().map(|e| e.id).unwrap_or(0);
+        let exit_time = cache
+            .current_encounter()
+            .and_then(|e| e.last_damage_time)
+            .unwrap_or(timestamp);
+
+        tracing::info!(
+            "[ENCOUNTER] Boss reset detected at {} (new single-instance boss seen), ending encounter {} at {}",
+            timestamp,
+            encounter_id,
+            exit_time
+        );
+
+        if let Some(enc) = cache.current_encounter_mut() {
+            enc.exit_combat_time = Some(exit_time);
+            enc.state = EncounterState::PostCombat { exit_time };
+            let duration = enc.duration_seconds(None).unwrap_or(0) as f32;
+            enc.challenge_tracker.finalize(exit_time, duration);
+        }
+
+        signals.push(GameSignal::CombatEnded {
+            timestamp: exit_time,
+            encounter_id,
+            success: false,
+        });
+
+        let new_encounter_id = cache.push_new_encounter();
+        if event.effect.effect_id == effect_id::DAMAGE {
+            // Reset first noticed mid-combat — the re-pull's EnterCombat was
+            // already swallowed by the old encounter, so start immediately.
+            if let Some(enc) = cache.current_encounter_mut() {
+                enc.state = EncounterState::InCombat;
+                enc.enter_combat_time = Some(timestamp);
+                enc.track_event_entities(event);
+                enc.accumulate_data(event);
+                enc.track_event_line(event.line_number);
+                was_accumulated = true;
+            }
+            signals.push(GameSignal::CombatStarted {
+                timestamp,
+                encounter_id: new_encounter_id,
+            });
+        } else {
+            // Detected pre-pull (usually a TargetSet on the fresh instance):
+            // buffer into the new encounter and let the upcoming EnterCombat
+            // start combat with an accurate timestamp.
+            let (new_signals, new_accumulated) = advance_combat_state(event, cache);
+            signals.extend(new_signals);
+            was_accumulated = new_accumulated;
+        }
+
+        return (signals, was_accumulated);
+    }
+
     // OOC revive detected (local player revived without a battle rez)
     let local_player_ooc_revived = cache
         .current_encounter()

@@ -756,6 +756,9 @@ pub struct EntityDefinition {
     /// HP% at which this entity is "pushed" out of combat (health bar removed)
     #[serde(default)]
     pub pushes_at: Option<f32>,
+    /// A second live instance of this entity mid-encounter means a boss reset
+    #[serde(default)]
+    pub single_instance: bool,
 }
 
 /// Unified encounter item enum for CRUD operations (mirrors backend EncounterItem)

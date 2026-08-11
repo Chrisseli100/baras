@@ -347,6 +347,42 @@ impl CombatEncounter {
             .unwrap_or(true) // default to true if difficulty unknown
     }
 
+    /// Detect a boss reset: a new live NPC instance of a `single_instance`
+    /// entity appearing while a different live instance of the same class is
+    /// still tracked. Bosses hold one instance id per pull, so a duplicate
+    /// means the fight reset and was re-pulled (no wipe, no victory).
+    pub fn detect_boss_reset(&self, event: &CombatEvent) -> bool {
+        if event.effect.type_id == effect_type_id::REMOVEEFFECT {
+            return false;
+        }
+        let Some(boss) = self.active_boss_definition() else {
+            return false;
+        };
+
+        for entity in [&event.source_entity, &event.target_entity] {
+            if entity.entity_type != EntityType::Npc
+                || entity.health.0.is_zero()
+                || self.npcs.contains_key(&entity.log_id)
+                || self.prior_dead_npc_log_ids.contains(&entity.log_id)
+            {
+                continue;
+            }
+            let flagged = boss
+                .entities
+                .iter()
+                .any(|e| e.single_instance && e.ids.contains(&entity.class_id));
+            if flagged
+                && self
+                    .npcs
+                    .values()
+                    .any(|npc| npc.class_id == entity.class_id && !npc.is_dead)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Set the encounter difficulty
     pub fn set_difficulty(&mut self, difficulty: Option<Difficulty>) {
         self.difficulty = difficulty;

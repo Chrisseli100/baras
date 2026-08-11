@@ -258,6 +258,13 @@ pub struct EntityDefinition {
     /// is removed from the Boss HP overlay when HP drops to or below this %.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pushes_at: Option<f32>,
+
+    /// Only one live instance of this entity can exist per pull. Seeing a
+    /// second live instance during a victory-trigger encounter means the boss
+    /// reset (e.g. Zorn & Toth pulled with a player outside the arena), which
+    /// splits the encounter since no wipe/victory would otherwise end it.
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
+    pub single_instance: bool,
 }
 
 /// Deserialize a `Vec<ShieldDefinition>` lossily: entries that fail to parse

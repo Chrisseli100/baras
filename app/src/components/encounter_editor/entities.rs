@@ -30,6 +30,7 @@ fn default_entity(name: String) -> EntityDefinition {
         hp_markers: vec![],
         shields: vec![],
         pushes_at: None,
+        single_instance: false,
     }
 }
 

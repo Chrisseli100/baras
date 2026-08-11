@@ -32,6 +32,7 @@ ids = [
   2857544821243904,
 ]
 is_boss = true
+single_instance = true
 is_kill_target = false
 
 [[boss.entities.hp_markers]]
@@ -148,6 +149,7 @@ ids = [
   285754911621120,
 ]
 is_boss = true
+single_instance = true
 is_kill_target = false
 
 [[boss.entities.hp_markers]]
