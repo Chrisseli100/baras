@@ -477,7 +477,6 @@ impl EncounterQuery<'_> {
         let escaped_name = sql_escape(entity_name);
 
         let group_by_source = is_incoming && (mode.by_target_type || mode.by_target_instance);
-        let map_entity_col = if is_incoming { "target_name" } else { "source_name" };
 
         let (inner_target_filter, shield_source_filter) = if is_incoming {
             (format!("AND target_name = '{escaped_name}'"), String::new())
@@ -505,11 +504,12 @@ impl EncounterQuery<'_> {
         let query = format!(
             r#"
             WITH shield_map AS (
-                SELECT DISTINCT effect_id as shield_eid, ability_id, ability_name
+                SELECT effect_id as shield_eid,
+                       MIN(ability_id) as ability_id,
+                       MIN(ability_name) as ability_name
                 FROM events
-                WHERE effect_type_id = {apply_effect}
-                  AND {map_entity_col} = '{escaped_name}'
-                  {time_filter}
+                WHERE effect_type_id IN ({apply_effect}, {remove_effect})
+                GROUP BY effect_id
             ),
             shield_totals AS (
                 SELECT
@@ -528,16 +528,18 @@ impl EncounterQuery<'_> {
                   {shield_source_filter}
                 GROUP BY shield['effect_id']{group_src}
             )
-            SELECT sm.ability_id, sm.ability_name,
+            SELECT COALESCE(sm.ability_id, st.shield_eid) as ability_id,
+                   COALESCE(sm.ability_name, 'Unknown Shield') as ability_name,
                    COALESCE(st.total_absorbed, 0) as total_absorbed,
                    COALESCE(st.hit_count, 0) as hit_count,
                    st.src_id
             FROM shield_totals st
-            JOIN shield_map sm ON st.shield_eid = sm.shield_eid
+            LEFT JOIN shield_map sm ON st.shield_eid = sm.shield_eid
             WHERE st.total_absorbed > 0
             ORDER BY total_absorbed DESC
             "#,
             apply_effect = effect_type_id::APPLYEFFECT,
+            remove_effect = effect_type_id::REMOVEEFFECT,
         );
 
         // Resolve src_id → (source_name, source_class_id) in Rust — matches the
@@ -779,7 +781,7 @@ impl EncounterQuery<'_> {
                 SELECT {name_col}, {id_col}, MIN({type_col}) as entity_type,
                        SUM(dmg_absorbed) as shield_total
                 FROM events
-                WHERE dmg_absorbed > 0 {time_filter}
+                WHERE dmg_absorbed > 0 AND cardinality(active_shields) > 0 {time_filter}
                 GROUP BY {name_col}, {id_col}
             )
             SELECT COALESCE(h.{name_col}, s.{name_col}) as {name_col},

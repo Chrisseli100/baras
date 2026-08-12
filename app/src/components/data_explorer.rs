@@ -2404,8 +2404,11 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                     ViewMode::Detailed(DataTab::Damage) => {
                                                         (entity.total_value / duration, "entity-value value-damage", "DPS")
                                                     }
-                                                    ViewMode::Detailed(DataTab::Healing | DataTab::HealingTaken) => {
+                                                    ViewMode::Detailed(DataTab::Healing) => {
                                                         (entity.total_value / duration, "entity-value value-healing", "HPS")
+                                                    }
+                                                    ViewMode::Detailed(DataTab::HealingTaken) => {
+                                                        (entity.total_value / duration, "entity-value value-healing", "HTPS")
                                                     }
                                                     ViewMode::Detailed(DataTab::DamageTaken) => {
                                                         (entity.total_value / duration, "entity-value value-dtps", "DTPS")
