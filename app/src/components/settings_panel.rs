@@ -2098,12 +2098,12 @@ pub fn SettingsPanel(
                     Slider {
                         label: "Font Size",
                         value: current_settings.notes_overlay.font_size as f64,
-                        min: 10.0,
+                        min: 6.0,
                         max: 24.0,
                         suffix: "px",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.notes_overlay.font_size = (v as u8).clamp(10, 24);
+                            new_settings.notes_overlay.font_size = (v as u8).clamp(6, 24);
                             update_draft(new_settings);
                         },
                     }
