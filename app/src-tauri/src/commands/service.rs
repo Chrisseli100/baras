@@ -10,7 +10,7 @@ use baras_core::PlayerMetrics;
 use baras_core::context::{AppConfig, AppConfigExt, OverlayAppearanceConfig};
 use baras_types::SoundCategory;
 
-use crate::audio::{resolve_bundled_definitions_dir, resolve_sound_path};
+use crate::audio::{AudioEvent, AudioSender, resolve_bundled_definitions_dir, resolve_sound_path};
 use crate::overlay::{MetricType, OverlayManager, OverlayType, SharedOverlayState};
 use crate::service::{LogFileInfo, ServiceHandle, SessionInfo};
 
@@ -155,6 +155,17 @@ pub async fn preview_sound(
     });
 
     Ok(())
+}
+
+/// Speak a test phrase through the audio service so the user can hear TTS
+/// at the configured volume. Respects the master and TTS toggles.
+#[tauri::command]
+pub async fn preview_tts(audio_tx: State<'_, AudioSender>) -> Result<(), String> {
+    audio_tx
+        .try_send(AudioEvent::Speak {
+            text: "This is a test alert".to_string(),
+        })
+        .map_err(|e| format!("Failed to queue TTS preview: {}", e))
 }
 
 /// List available sound files grouped by category for the picker UI.

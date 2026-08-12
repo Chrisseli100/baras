@@ -155,8 +155,10 @@ pub fn run() {
                 // Create channel for overlay updates
                 let (overlay_tx, overlay_rx) = mpsc::channel::<OverlayUpdate>(256);
 
-                // Create channel for audio events
+                // Create channel for audio events; sender is also managed as
+                // state so commands can trigger previews
                 let (audio_tx, audio_rx) = create_audio_channel();
+                app.handle().manage(audio_tx.clone());
 
                 // Clear old parquet data from previous sessions
                 if let Err(e) = baras_core::storage::clear_data_dir() {
@@ -273,6 +275,7 @@ pub fn run() {
             commands::list_sound_files,
             commands::pick_audio_file,
             commands::preview_sound,
+            commands::preview_tts,
             commands::pick_log_directory,
             // Profile commands
             commands::get_profile_names,

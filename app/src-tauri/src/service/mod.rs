@@ -876,12 +876,9 @@ impl CombatService {
             .map(|p| p.join("baras").join("sounds"))
             .unwrap_or_else(|| PathBuf::from("."));
         let bundled_definitions_dir = crate::audio::resolve_bundled_definitions_dir(&app_handle);
-        let audio_settings = Arc::new(tokio::sync::RwLock::new(
-            shared.config.blocking_read().audio.clone(),
-        ));
         let audio_service = AudioService::new(
             audio_rx,
-            audio_settings,
+            shared.clone(),
             user_sounds_dir,
             bundled_definitions_dir,
         );

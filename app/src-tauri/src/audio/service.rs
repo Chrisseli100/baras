@@ -6,9 +6,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tokio::sync::{RwLock, mpsc};
+use tokio::sync::mpsc;
 
-use baras_types::AudioSettings;
+use crate::state::SharedState;
 
 use super::events::AudioEvent;
 
@@ -17,8 +17,9 @@ pub struct AudioService {
     /// Channel to receive audio events
     event_rx: mpsc::Receiver<AudioEvent>,
 
-    /// Shared audio settings (can be updated at runtime)
-    settings: Arc<RwLock<AudioSettings>>,
+    /// Shared app state — audio settings are read fresh per event so config
+    /// changes apply immediately
+    shared: Arc<SharedState>,
 
     /// Path to user custom sounds directory (overrides bundled for the General category)
     user_sounds_dir: PathBuf,
@@ -39,7 +40,7 @@ impl AudioService {
     /// `sounds/` and `mechanic-sounds/`).
     pub fn new(
         event_rx: mpsc::Receiver<AudioEvent>,
-        settings: Arc<RwLock<AudioSettings>>,
+        shared: Arc<SharedState>,
         user_sounds_dir: PathBuf,
         bundled_definitions_dir: PathBuf,
     ) -> Self {
@@ -57,7 +58,7 @@ impl AudioService {
 
         Self {
             event_rx,
-            settings,
+            shared,
             user_sounds_dir,
             bundled_definitions_dir,
             #[cfg(not(target_os = "linux"))]
@@ -69,13 +70,12 @@ impl AudioService {
     pub async fn run(mut self) {
         while let Some(event) = self.event_rx.recv().await {
             // Read settings and extract what we need, then drop the guard
-            let (enabled, countdown_enabled, alerts_enabled, volume) = {
-                let settings = self.settings.read().await;
+            let (enabled, tts_enabled, volume) = {
+                let config = self.shared.config.read().await;
                 (
-                    settings.enabled,
-                    settings.countdown_enabled,
-                    settings.alerts_enabled,
-                    settings.volume,
+                    config.audio.enabled,
+                    config.audio.tts_enabled,
+                    config.audio.volume,
                 )
             };
 
@@ -90,43 +90,52 @@ impl AudioService {
                     seconds,
                     voice_pack,
                 } => {
-                    if countdown_enabled && !self.play_countdown_voice(voice_pack, *seconds, volume)
-                    {
-                        self.speak(&format!("{}", seconds));
+                    if !self.play_countdown_voice(voice_pack, *seconds, volume) && tts_enabled {
+                        self.speak(&format!("{}", seconds), volume);
                     }
                 }
 
                 AudioEvent::Alert { text, custom_sound } => {
-                    if alerts_enabled {
-                        if let Some(sound_file) = custom_sound {
-                            self.play_custom_sound(sound_file, volume);
-                        } else {
-                            self.speak(text);
-                        }
+                    if let Some(sound_file) = custom_sound {
+                        self.play_custom_sound(sound_file, volume);
+                    } else if tts_enabled {
+                        self.speak(text, volume);
                     }
                 }
 
                 AudioEvent::Speak { text } => {
-                    self.speak(text);
+                    if tts_enabled {
+                        self.speak(text, volume);
+                    }
                 }
             }
         }
     }
 
-    /// Speak text using TTS (no-op on Linux)
+    /// Speak text using TTS at the given volume (0-200). TTS engines can't
+    /// amplify past their max, so 100-200 clamps to full engine volume.
     #[cfg(not(target_os = "linux"))]
-    fn speak(&mut self, text: &str) {
+    fn speak(&mut self, text: &str, volume: u8) {
         if let Some(ref mut tts) = self.tts {
+            let (min, max) = (tts.min_volume(), tts.max_volume());
+            let pct = (volume.min(100)) as f32 / 100.0;
+            let _ = tts.set_volume(min + (max - min) * pct);
             let _ = tts.speak(text, false);
         }
     }
 
+    /// espeak amplitude natively ranges 0-200 with 100 as normal loudness,
+    /// matching the slider directly.
     #[cfg(target_os = "linux")]
-    fn speak(&mut self, text: &str) {
+    fn speak(&mut self, text: &str, volume: u8) {
         use std::process::Command;
         let text = text.to_string();
         std::thread::spawn(move || {
-            let _ = Command::new("espeak").arg(&text).output();
+            let _ = Command::new("espeak")
+                .arg("-a")
+                .arg(volume.to_string())
+                .arg(&text)
+                .output();
         });
     }
 

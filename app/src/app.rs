@@ -29,6 +29,12 @@ fn is_macos() -> bool {
         .unwrap_or(false)
 }
 
+fn is_linux() -> bool {
+    web_sys::window()
+        .map(|w| w.navigator().user_agent().unwrap_or_default().contains("Linux"))
+        .unwrap_or(false)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // App Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,8 +148,7 @@ pub fn App() -> Element {
     // Audio settings
     let mut audio_enabled = use_signal(|| true);
     let mut audio_volume = use_signal(|| 80u8);
-    let mut audio_countdown_enabled = use_signal(|| true);
-    let mut audio_alerts_enabled = use_signal(|| true);
+    let mut audio_tts_enabled = use_signal(|| true);
 
     // Profile state
     let mut profile_names = use_signal(Vec::<String>::new);
@@ -209,8 +214,7 @@ pub fn App() -> Element {
             // Audio settings
             audio_enabled.set(config.audio.enabled);
             audio_volume.set(config.audio.volume);
-            audio_countdown_enabled.set(config.audio.countdown_enabled);
-            audio_alerts_enabled.set(config.audio.alerts_enabled);
+            audio_tts_enabled.set(config.audio.tts_enabled);
             // UI preferences - now in unified state
             ui_state.write().data_explorer.show_only_bosses = config.show_only_bosses;
             ui_state.write().data_explorer.auto_live = config.data_explorer_auto_live;
@@ -2017,62 +2021,6 @@ pub fn App() -> Element {
                             }
 
                             div { class: "settings-section",
-                                h4 { "Name Detection" }
-                                if is_macos() {
-                                    p { class: "hint hint-warning",
-                                        i { class: "fa-solid fa-triangle-exclamation" }
-                                        " Name detection is not supported on macOS."
-                                    }
-                                }
-                                div { class: "setting-row",
-                                    label { "Save detection images" }
-                                    input {
-                                        r#type: "checkbox",
-                                        checked: ocr_debug_dump(),
-                                        onchange: move |e| {
-                                            let checked = e.checked();
-                                            ocr_debug_dump.set(checked);
-                                            let mut toast = use_toast();
-                                            spawn(async move {
-                                                if let Some(mut cfg) = api::get_config().await {
-                                                    cfg.ocr_debug_dump = checked;
-                                                    if let Err(err) = api::update_config(&cfg).await {
-                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
-                                                    }
-                                                }
-                                            });
-                                        }
-                                    }
-                                }
-                                p { class: "hint", "Writes what name detection saw to baras/ocr-debug, so a misread name can be diagnosed from the images rather than guessed at." }
-                                div { class: "setting-row",
-                                    label { "Detections to keep" }
-                                    input {
-                                        r#type: "number",
-                                        min: "1",
-                                        max: "1000",
-                                        step: "1",
-                                        value: "{ocr_debug_max_dumps()}",
-                                        onchange: move |e| {
-                                            let Ok(count) = e.value().parse::<u32>() else { return };
-                                            let count = count.clamp(1, 1000);
-                                            ocr_debug_max_dumps.set(count);
-                                            let mut toast = use_toast();
-                                            spawn(async move {
-                                                if let Some(mut cfg) = api::get_config().await {
-                                                    cfg.ocr_debug_max_dumps = count;
-                                                    if let Err(err) = api::update_config(&cfg).await {
-                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
-                                                    }
-                                                }
-                                            });
-                                        }
-                                    }
-                                }
-                                p { class: "hint", "The oldest detections are deleted before each new one, so the folder never holds more than this many." }
-                            }
-
-                            div { class: "settings-section",
                                 h4 { "Global Hotkeys" }
                                 p { class: "hint", "Click to capture a key combination. Backspace to clear." }
                                 p { class: "hint hint-warning",
@@ -2189,7 +2137,7 @@ pub fn App() -> Element {
                                     label: "Volume",
                                     value: audio_volume() as f64,
                                     min: 0.0,
-                                    max: 100.0,
+                                    max: 200.0,
                                     suffix: "%",
                                     disabled: !audio_enabled(),
                                     on_change: move |v: f64| {
@@ -2207,19 +2155,42 @@ pub fn App() -> Element {
                                     },
                                 }
 
+                                div { style: "text-align: right; margin: 0.25em 0 0.5em; display: flex; gap: 0.5em; justify-content: flex-end;",
+                                    button {
+                                        class: "btn-small",
+                                        disabled: !audio_enabled(),
+                                        onclick: move |_| {
+                                            spawn(async move {
+                                                api::preview_sound("Alert.mp3").await;
+                                            });
+                                        },
+                                        "Play Test Sound"
+                                    }
+                                    button {
+                                        class: "btn-small",
+                                        disabled: !audio_enabled() || !audio_tts_enabled(),
+                                        onclick: move |_| {
+                                            spawn(async move {
+                                                api::preview_tts().await;
+                                            });
+                                        },
+                                        "Play Test TTS"
+                                    }
+                                }
+
                                 div { class: "setting-row",
-                                    label { "Countdown Audio" }
+                                    label { "Text-to-Speech" }
                                     input {
                                         r#type: "checkbox",
-                                        checked: audio_countdown_enabled(),
+                                        checked: audio_tts_enabled(),
                                         disabled: !audio_enabled(),
                                         onchange: move |e| {
                                             let checked = e.checked();
-                                            audio_countdown_enabled.set(checked);
+                                            audio_tts_enabled.set(checked);
                                             let mut toast = use_toast();
                                             spawn(async move {
                                                 if let Some(mut cfg) = api::get_config().await {
-                                                    cfg.audio.countdown_enabled = checked;
+                                                    cfg.audio.tts_enabled = checked;
                                                     if let Err(err) = api::update_config(&cfg).await {
                                                         toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
                                                     }
@@ -2228,29 +2199,13 @@ pub fn App() -> Element {
                                         }
                                     }
                                 }
-
-                                div { class: "setting-row",
-                                    label { "Alert Audio" }
-                                    input {
-                                        r#type: "checkbox",
-                                        checked: audio_alerts_enabled(),
-                                        disabled: !audio_enabled(),
-                                        onchange: move |e| {
-                                            let checked = e.checked();
-                                            audio_alerts_enabled.set(checked);
-                                            let mut toast = use_toast();
-                                            spawn(async move {
-                                                if let Some(mut cfg) = api::get_config().await {
-                                                    cfg.audio.alerts_enabled = checked;
-                                                    if let Err(err) = api::update_config(&cfg).await {
-                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
-                                                    }
-                                                }
-                                            });
-                                        }
+                                p { class: "hint",
+                                    "Reads alerts and countdowns aloud when no sound file or voice pack is set"
+                                    if is_linux() {
+                                        " (requires espeak to be installed)"
                                     }
+                                    "."
                                 }
-
                             }
 
                             div { class: "settings-section",
@@ -2378,6 +2333,62 @@ pub fn App() -> Element {
                                     }
                                     span { class: "save-status", "{parsely_save_status}" }
                                 }
+                            }
+
+                            div { class: "settings-section",
+                                h4 { "Name Detection" }
+                                if is_macos() {
+                                    p { class: "hint hint-warning",
+                                        i { class: "fa-solid fa-triangle-exclamation" }
+                                        " Name detection is not supported on macOS."
+                                    }
+                                }
+                                div { class: "setting-row",
+                                    label { "Save detection images" }
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: ocr_debug_dump(),
+                                        onchange: move |e| {
+                                            let checked = e.checked();
+                                            ocr_debug_dump.set(checked);
+                                            let mut toast = use_toast();
+                                            spawn(async move {
+                                                if let Some(mut cfg) = api::get_config().await {
+                                                    cfg.ocr_debug_dump = checked;
+                                                    if let Err(err) = api::update_config(&cfg).await {
+                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                                p { class: "hint", "Writes what name detection saw to baras/ocr-debug, so a misread name can be diagnosed from the images rather than guessed at." }
+                                div { class: "setting-row",
+                                    label { "Detections to keep" }
+                                    input {
+                                        r#type: "number",
+                                        min: "1",
+                                        max: "1000",
+                                        step: "1",
+                                        value: "{ocr_debug_max_dumps()}",
+                                        onchange: move |e| {
+                                            let Ok(count) = e.value().parse::<u32>() else { return };
+                                            let count = count.clamp(1, 1000);
+                                            ocr_debug_max_dumps.set(count);
+                                            let mut toast = use_toast();
+                                            spawn(async move {
+                                                if let Some(mut cfg) = api::get_config().await {
+                                                    cfg.ocr_debug_max_dumps = count;
+                                                    if let Err(err) = api::update_config(&cfg).await {
+                                                        toast.show(format!("Failed to save settings: {}", err), ToastSeverity::Normal);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                                p { class: "hint", "The oldest detections are deleted before each new one, so the folder never holds more than this many." }
                             }
 
                             } // settings-content

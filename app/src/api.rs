@@ -927,6 +927,11 @@ pub async fn preview_sound(filename: &str) {
     let _ = try_invoke("preview_sound", build_args("filename", filename)).await;
 }
 
+/// Speak a test phrase so the user can hear TTS at the configured volume
+pub async fn preview_tts() {
+    let _ = try_invoke("preview_tts", JsValue::NULL).await;
+}
+
 /// Open a folder picker for the log directory, returns the selected path or None.
 /// This is handled on the Rust side to maintain macOS security-scoped access.
 pub async fn pick_log_directory() -> Option<String> {

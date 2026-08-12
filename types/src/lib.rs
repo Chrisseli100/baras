@@ -3120,17 +3120,14 @@ pub struct AudioSettings {
     #[serde(default = "default_true")]
     pub enabled: bool,
 
-    /// Volume level (0-100)
+    /// Volume level (0-200; 100 = natural loudness, above amplifies)
     #[serde(default = "default_audio_volume")]
     pub volume: u8,
 
-    /// Enable countdown sounds (e.g., "Shield 3... 2... 1...")
-    #[serde(default = "default_true")]
-    pub countdown_enabled: bool,
-
-    /// Enable alert speech when timers fire
-    #[serde(default = "default_true")]
-    pub alerts_enabled: bool,
+    /// Enable TTS fallback for alerts without a sound file and countdowns
+    /// without a voice pack
+    #[serde(default = "default_true", alias = "alerts_enabled")]
+    pub tts_enabled: bool,
 }
 
 fn default_audio_volume() -> u8 {
@@ -3142,8 +3139,7 @@ impl Default for AudioSettings {
         Self {
             enabled: true,
             volume: 80,
-            countdown_enabled: true,
-            alerts_enabled: true,
+            tts_enabled: true,
         }
     }
 }
