@@ -3375,6 +3375,10 @@ pub enum EntityFilter {
     /// Any player (including local)
     #[serde(alias = "group_members")]
     AnyPlayer,
+    /// Any friendly player (PvP: local player's team; PvE: same as AnyPlayer)
+    AnyFriendlyPlayer,
+    /// Any enemy player (PvP: opposing team; PvE: never matches)
+    AnyEnemyPlayer,
     /// Any companion (any player's)
     AnyCompanion,
     /// Any player or companion
@@ -3403,6 +3407,8 @@ impl EntityFilter {
             Self::LocalPlayer => "Local Player",
             Self::OtherPlayers => "Other Players",
             Self::AnyPlayer => "Any Player",
+            Self::AnyFriendlyPlayer => "Any Friendly Player (PvP)",
+            Self::AnyEnemyPlayer => "Any Enemy Player (PvP)",
             Self::AnyCompanion => "Any Companion",
             Self::AnyPlayerOrCompanion => "Any Player or Companion",
             Self::AnyExceptLocal => "Any Except Local",
@@ -3475,6 +3481,8 @@ impl EntityFilter {
             Self::LocalPlayer => "local_player",
             Self::OtherPlayers => "other_players",
             Self::AnyPlayer => "any_player",
+            Self::AnyFriendlyPlayer => "any_friendly_player",
+            Self::AnyEnemyPlayer => "any_enemy_player",
             Self::AnyCompanion => "any_companion",
             Self::AnyPlayerOrCompanion => "any_player_or_companion",
             Self::AnyExceptLocal => "any_except_local",
@@ -3494,6 +3502,8 @@ impl EntityFilter {
             Self::LocalPlayer,
             Self::OtherPlayers,
             Self::AnyPlayer,
+            Self::AnyFriendlyPlayer,
+            Self::AnyEnemyPlayer,
             Self::AnyCompanion,
             Self::AnyPlayerOrCompanion,
             Self::AnyExceptLocal,
@@ -3511,6 +3521,8 @@ impl EntityFilter {
             Self::LocalPlayer,
             Self::OtherPlayers,
             Self::AnyPlayer,
+            Self::AnyFriendlyPlayer,
+            Self::AnyEnemyPlayer,
             Self::AnyCompanion,
             Self::AnyPlayerOrCompanion,
             Self::AnyExceptLocal,

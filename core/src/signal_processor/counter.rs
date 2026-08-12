@@ -32,7 +32,7 @@ pub fn check_counter_increments(
     cache: &mut SessionCache,
     current_signals: &[GameSignal],
 ) -> Vec<GameSignal> {
-    let (definitions, def_idx, boss_ids, local_player_id, current_target_id, entity_positions) = {
+    let (definitions, def_idx, boss_ids, local_player_id, current_target_id, entity_positions, pvp_factions) = {
         let Some(enc) = cache.current_encounter() else {
             return Vec::new();
         };
@@ -43,7 +43,7 @@ pub fn check_counter_increments(
         let local_player_id = Some(cache.player.id).filter(|&id| id != 0);
         let current_target_id =
             local_player_id.and_then(|pid| enc.local_player_target_id(pid));
-        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id, enc.entity_positions())
+        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id, enc.entity_positions(), enc.pvp_faction_share())
     };
     let def = &definitions[def_idx];
 
@@ -53,6 +53,7 @@ pub fn check_counter_increments(
         current_target_id,
         boss_entity_ids: boss_ids.as_ref(),
         entity_positions,
+        pvp_factions,
     };
 
     let mut signals = Vec::new();
@@ -149,7 +150,7 @@ pub fn check_counter_signal_triggers(
         return Vec::new();
     }
 
-    let (definitions, def_idx, boss_ids, local_player_id, current_target_id, entity_positions) = {
+    let (definitions, def_idx, boss_ids, local_player_id, current_target_id, entity_positions, pvp_factions) = {
         let Some(enc) = cache.current_encounter() else {
             return Vec::new();
         };
@@ -160,7 +161,7 @@ pub fn check_counter_signal_triggers(
         let local_player_id = Some(cache.player.id).filter(|&id| id != 0);
         let current_target_id =
             local_player_id.and_then(|pid| enc.local_player_target_id(pid));
-        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id, enc.entity_positions())
+        (enc.boss_definitions_arc(), idx, boss_ids, local_player_id, current_target_id, enc.entity_positions(), enc.pvp_faction_share())
     };
     let def = &definitions[def_idx];
 
@@ -170,6 +171,7 @@ pub fn check_counter_signal_triggers(
         current_target_id,
         boss_entity_ids: boss_ids.as_ref(),
         entity_positions,
+        pvp_factions,
     };
 
     let mut signals = Vec::new();
@@ -596,6 +598,7 @@ fn aggregate_effect_stacks(
                 local_player_id,
                 current_target_id,
                 boss_entity_ids,
+                enc.pvp_faction_context(),
             ) {
                 matching_stacks.push(stacks);
             }

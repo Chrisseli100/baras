@@ -32,6 +32,7 @@ pub fn matches_source_target_filters(
     local_player_id: Option<i64>,
     current_target_id: Option<i64>,
     boss_entity_ids: &HashSet<i64>,
+    pvp_factions: Option<&crate::encounter::PvpFactionMap>,
     source_pos: Option<Position>,
     target_pos: Option<Position>,
 ) -> bool {
@@ -51,6 +52,7 @@ pub fn matches_source_target_filters(
             local_player_id,
             current_target_id,
             boss_entity_ids,
+            pvp_factions,
         ) {
             return false;
         }
@@ -67,6 +69,7 @@ pub fn matches_source_target_filters(
             local_player_id,
             current_target_id,
             boss_entity_ids,
+            pvp_factions,
         ) {
             return false;
         }

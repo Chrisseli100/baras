@@ -986,6 +986,22 @@ impl CombatEncounter {
             .is_some_and(|id| pvp_area_kind(id) == Some(PvpAreaKind::Warzone))
     }
 
+    /// Whether this encounter takes place in any PvP instance (warzone or arena).
+    pub fn is_pvp(&self) -> bool {
+        self.area_id.is_some_and(|id| pvp_area_kind(id).is_some())
+    }
+
+    /// Faction map for entity-filter matching: Some in PvP encounters,
+    /// None in PvE (where friendly-player filters fall back to any player).
+    pub fn pvp_faction_context(&self) -> Option<&super::PvpFactionMap> {
+        self.is_pvp().then(|| self.pvp_factions.map())
+    }
+
+    /// Arc-shared faction map for FilterContext (held across cache borrows).
+    pub fn pvp_faction_share(&self) -> Option<Arc<super::PvpFactionMap>> {
+        self.is_pvp().then(|| self.pvp_factions.share())
+    }
+
     /// Get the effective end time of the encounter.
     /// For victory-trigger encounters, this is when the victory trigger fired.
     /// Otherwise, it's the exit_combat_time.

@@ -1228,6 +1228,7 @@ impl EffectTracker {
             local_player_id.and_then(|id| self.current_targets.get(&id).map(|(tid, _, _)| *tid));
         let boss_ids = get_boss_ids(encounter);
         let entities = get_entities(encounter);
+        let pvp_factions = encounter.and_then(|e| e.pvp_faction_context());
 
         // Collect matching definitions with all info needed for creation
         struct RefreshableEffect {
@@ -1272,6 +1273,7 @@ impl EffectTracker {
                     local_player_id,
                     current_target_id,
                     &boss_ids,
+                    pvp_factions,
                 ) && def.target_filter().matches(
                     entities,
                     target_id,
@@ -1281,6 +1283,7 @@ impl EffectTracker {
                     local_player_id,
                     current_target_id,
                     &boss_ids,
+                    pvp_factions,
                 )
             })
             .filter(|def| {
@@ -1690,6 +1693,7 @@ impl EffectTracker {
         let is_from_local = local_player_id == Some(source_id);
 
         let entities = get_entities(encounter);
+        let pvp_factions = encounter.and_then(|e| e.pvp_faction_context());
         let current_target_id =
             local_player_id.and_then(|id| self.current_targets.get(&id).map(|(tid, _, _)| *tid));
         for def in matching_defs {
@@ -1715,6 +1719,7 @@ impl EffectTracker {
                     local_player_id,
                     current_target_id,
                     &boss_ids,
+                    pvp_factions,
                 )
             {
                 continue;
@@ -1744,6 +1749,7 @@ impl EffectTracker {
                 local_player_id,
                 current_target_id,
                 &boss_ids,
+                pvp_factions,
             ) {
                 continue;
             }
@@ -2321,6 +2327,7 @@ impl EffectTracker {
         let boss_ids = get_boss_ids(encounter);
 
         let entities = get_entities(encounter);
+        let pvp_factions = encounter.and_then(|e| e.pvp_faction_context());
 
         def.source_filter().matches(
             entities,
@@ -2331,6 +2338,7 @@ impl EffectTracker {
             local_player_id,
             current_target_id,
             &boss_ids,
+            pvp_factions,
         ) && def.target_filter().matches(
             entities,
             target.id,
@@ -2340,6 +2348,7 @@ impl EffectTracker {
             local_player_id,
             current_target_id,
             &boss_ids,
+            pvp_factions,
         )
     }
 

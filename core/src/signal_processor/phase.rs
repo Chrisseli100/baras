@@ -158,6 +158,7 @@ pub fn check_ability_phase_transitions(
             current_target_id,
             boss_entity_ids: boss_ids.as_ref(),
             entity_positions: enc.entity_positions(),
+            pvp_factions: enc.pvp_faction_share(),
         };
 
         let mut found = None;
@@ -277,6 +278,7 @@ pub fn check_entity_phase_transitions(
             current_target_id,
             boss_entity_ids: boss_ids.as_ref(),
             entity_positions: enc.entity_positions(),
+            pvp_factions: enc.pvp_faction_share(),
         };
 
         let mut found = None;
@@ -676,6 +678,7 @@ pub fn check_phase_end_triggers(
         current_target_id,
         boss_entity_ids: boss_ids.as_ref(),
         entity_positions: enc.entity_positions(),
+        pvp_factions: enc.pvp_faction_share(),
     };
 
     // Check ability/effect-based triggers (from CombatEvent)

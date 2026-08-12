@@ -5,6 +5,8 @@
 //! damage always crosses factions, healing always stays within one. Once a
 //! player is classified they stay classified for the rest of the match.
 
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 
 pub use baras_types::PvpFaction;
@@ -12,10 +14,15 @@ pub use baras_types::PvpFaction;
 use crate::combat_log::{CombatEvent, EntityType};
 use crate::game_data::effect_id;
 
+/// Entity ID → faction map, Arc-shared so FilterContexts can hold a cheap
+/// refcount clone across mutable-cache borrows (same pattern as
+/// `CombatEncounter::entity_positions`).
+pub type PvpFactionMap = HashMap<i64, PvpFaction>;
+
 /// Transitive friend/enemy classifier for one PvP match.
 #[derive(Debug, Clone, Default)]
 pub struct PvpFactionTracker {
-    factions: HashMap<i64, PvpFaction>,
+    factions: Arc<PvpFactionMap>,
 }
 
 impl PvpFactionTracker {
@@ -52,11 +59,11 @@ impl PvpFactionTracker {
         match (src, tgt) {
             (Some(known), None) => {
                 let f = if is_damage { known.opposite() } else { known };
-                self.factions.insert(tgt_id, f);
+                Arc::make_mut(&mut self.factions).insert(tgt_id, f);
             }
             (None, Some(known)) => {
                 let f = if is_damage { known.opposite() } else { known };
-                self.factions.insert(src_id, f);
+                Arc::make_mut(&mut self.factions).insert(src_id, f);
             }
             // Both known (nothing to learn) or both unknown (no anchor yet)
             _ => {}
@@ -69,6 +76,16 @@ impl PvpFactionTracker {
             return Some(PvpFaction::Friendly);
         }
         self.factions.get(&entity_id).copied()
+    }
+
+    /// Borrow the underlying faction map (for entity-filter matching).
+    pub fn map(&self) -> &PvpFactionMap {
+        &self.factions
+    }
+
+    /// Cheap refcount clone of the faction map (for FilterContext).
+    pub fn share(&self) -> Arc<PvpFactionMap> {
+        Arc::clone(&self.factions)
     }
 }
 

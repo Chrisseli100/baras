@@ -720,6 +720,7 @@ impl EventProcessor {
                     current_target_id: None,
                     boss_entity_ids: &empty_boss_ids,
                     entity_positions: enc.entity_positions(),
+                    pvp_factions: enc.pvp_faction_share(),
                 };
                 if super::trigger_eval::check_event_trigger(trigger, event, Some(&filter_ctx)) {
                     if def.encounter_trigger_fallback_secs.is_some() {
@@ -1148,6 +1149,7 @@ impl EventProcessor {
             current_target_id,
             boss_entity_ids: boss_ids.as_ref(),
             entity_positions: enc.entity_positions(),
+            pvp_factions: enc.pvp_faction_share(),
         };
 
         // Check if trigger matches (needs immutable borrow)

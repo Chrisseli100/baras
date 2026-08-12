@@ -1123,6 +1123,7 @@ impl TimerManager {
         target_type: crate::combat_log::EntityType,
         target_name: crate::context::IStr,
         target_npc_id: i64,
+        pvp_factions: Option<&crate::encounter::PvpFactionMap>,
         source_pos: Option<crate::combat_log::Position>,
         target_pos: Option<crate::combat_log::Position>,
         trigger_matches: F,
@@ -1154,6 +1155,7 @@ impl TimerManager {
                         local_player_id,
                         current_target_id,
                         boss_entity_ids,
+                        pvp_factions,
                         source_pos,
                         target_pos,
                     )
@@ -1212,6 +1214,7 @@ impl TimerManager {
         target_type: crate::combat_log::EntityType,
         target_name: crate::context::IStr,
         target_npc_id: i64,
+        pvp_factions: Option<&crate::encounter::PvpFactionMap>,
         source_pos: Option<crate::combat_log::Position>,
         target_pos: Option<crate::combat_log::Position>,
         trigger_matches: F,
@@ -1246,6 +1249,7 @@ impl TimerManager {
                         local_player_id,
                         current_target_id,
                         boss_entity_ids,
+                        pvp_factions,
                         source_pos,
                         target_pos,
                     )
@@ -1587,6 +1591,7 @@ impl TimerManager {
         target_type: EntityType,
         target_name: IStr,
         target_npc_id: i64,
+        pvp_factions: Option<&crate::encounter::PvpFactionMap>,
         source_pos: Option<crate::combat_log::Position>,
         target_pos: Option<crate::combat_log::Position>,
     ) -> bool {
@@ -1604,6 +1609,7 @@ impl TimerManager {
             self.local_player_id,
             self.current_target_id,
             &self.boss_entity_ids,
+            pvp_factions,
             source_pos,
             target_pos,
         )

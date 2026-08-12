@@ -9,6 +9,7 @@ use crate::combat_log::EntityType;
 use crate::context::IStr;
 use crate::dsl::EntityDefinition;
 use crate::dsl::EntitySelectorExt;
+use crate::encounter::{PvpFaction, PvpFactionMap};
 
 // Re-export the type from the shared crate
 pub use baras_types::{EntityFilter, EntitySelector};
@@ -29,6 +30,8 @@ pub trait EntityFilterMatching {
     /// * `local_player_id` - The local player's entity ID (for LocalPlayer filter)
     /// * `current_target_id` - The local player's current target entity ID
     /// * `boss_entity_ids` - Set of entity IDs marked as bosses
+    /// * `pvp_factions` - Faction tracker for PvP encounters (None in PvE, where
+    ///   friendly-player filters match any player and enemy filters never match)
     fn matches(
         &self,
         entities: &[EntityDefinition],
@@ -39,6 +42,7 @@ pub trait EntityFilterMatching {
         local_player_id: Option<i64>,
         current_target_id: Option<i64>,
         boss_entity_ids: &HashSet<i64>,
+        pvp_factions: Option<&PvpFactionMap>,
     ) -> bool;
 
     /// Check if an entity matches this filter for challenge conditions.
@@ -90,17 +94,32 @@ impl EntityFilterMatching for EntityFilter {
         local_player_id: Option<i64>,
         current_target_id: Option<i64>,
         boss_entity_ids: &HashSet<i64>,
+        pvp_factions: Option<&PvpFactionMap>,
     ) -> bool {
         let is_local = local_player_id == Some(entity_id);
         let is_player = matches!(entity_type, EntityType::Player);
         let is_companion = matches!(entity_type, EntityType::Companion);
         let is_npc = matches!(entity_type, EntityType::Npc);
+        // Faction of this entity in PvP; None in PvE or if not yet classified.
+        // The local player is always friendly.
+        let faction = pvp_factions.and_then(|m| {
+            if is_local {
+                Some(PvpFaction::Friendly)
+            } else {
+                m.get(&entity_id).copied()
+            }
+        });
 
         match self {
             // Player filters
             EntityFilter::LocalPlayer => is_local && is_player,
             EntityFilter::OtherPlayers => !is_local && is_player,
             EntityFilter::AnyPlayer => is_player,
+            // PvP faction filters: in PvE every player is friendly, none are enemies
+            EntityFilter::AnyFriendlyPlayer => {
+                is_player && (pvp_factions.is_none() || faction == Some(PvpFaction::Friendly))
+            }
+            EntityFilter::AnyEnemyPlayer => is_player && faction == Some(PvpFaction::Enemy),
 
             // Companion filters
             EntityFilter::AnyCompanion => is_companion,
@@ -143,6 +162,9 @@ impl EntityFilterMatching for EntityFilter {
             EntityFilter::LocalPlayer => is_player && is_local_player,
             EntityFilter::OtherPlayers => is_player && !is_local_player,
             EntityFilter::AnyPlayer => is_player,
+            // Challenges are PvE content: all players friendly, no enemies
+            EntityFilter::AnyFriendlyPlayer => is_player,
+            EntityFilter::AnyEnemyPlayer => false,
 
             // Companion filters - not applicable in challenge context
             EntityFilter::AnyCompanion | EntityFilter::AnyPlayerOrCompanion => false,
@@ -184,9 +206,11 @@ impl EntityFilterMatching for EntityFilter {
             EntityFilter::AnyNpc | EntityFilter::Boss | EntityFilter::NpcExceptBoss => npc_id != 0,
 
             // Player filters - match when npc_id is 0 (players don't have NPC IDs)
-            EntityFilter::LocalPlayer | EntityFilter::OtherPlayers | EntityFilter::AnyPlayer => {
-                npc_id == 0
-            }
+            EntityFilter::LocalPlayer
+            | EntityFilter::OtherPlayers
+            | EntityFilter::AnyPlayer
+            | EntityFilter::AnyFriendlyPlayer
+            | EntityFilter::AnyEnemyPlayer => npc_id == 0,
 
             // Companion filters
             EntityFilter::AnyCompanion | EntityFilter::AnyPlayerOrCompanion => {

@@ -32,6 +32,8 @@ pub struct FilterContext<'a> {
     pub boss_entity_ids: &'a HashSet<i64>,
     /// Last-known entity positions from the encounter (for position constraints)
     pub entity_positions: std::sync::Arc<hashbrown::HashMap<i64, crate::combat_log::Position>>,
+    /// Faction map for PvP encounters (None in PvE); Arc-shared like positions
+    pub pvp_factions: Option<std::sync::Arc<crate::encounter::PvpFactionMap>>,
 }
 
 impl FilterContext<'_> {
@@ -238,6 +240,7 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.pvp_factions.as_deref(),
                     filter_ctx.position_of(*source_id),
                     filter_ctx.position_of(*target_id),
                 )
@@ -281,6 +284,7 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.pvp_factions.as_deref(),
                     filter_ctx.position_of(*source_id),
                     filter_ctx.position_of(*target_id),
                 )
@@ -325,6 +329,7 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.pvp_factions.as_deref(),
                     filter_ctx.position_of(*source_id),
                     filter_ctx.position_of(*target_id),
                 )
@@ -368,6 +373,7 @@ pub fn check_signal_trigger(
                     filter_ctx.local_player_id,
                     filter_ctx.current_target_id,
                     filter_ctx.boss_entity_ids,
+                    filter_ctx.pvp_factions.as_deref(),
                     filter_ctx.position_of(*source_id),
                     filter_ctx.position_of(*target_id),
                 )
@@ -549,6 +555,7 @@ fn check_event_filters(
         ctx.local_player_id,
         ctx.current_target_id,
         ctx.boss_entity_ids,
+        ctx.pvp_factions.as_deref(),
         event.source_entity.position,
         event.target_entity.position,
     )
