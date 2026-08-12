@@ -24,6 +24,7 @@ use crate::{effect_type_id, is_boss};
 
 use super::challenge::ChallengeTracker;
 use super::effect_instance::EffectInstance;
+use super::pvp_faction::PvpFactionTracker;
 use super::entity_info::{NpcInfo, PlayerInfo};
 use super::metrics::MetricAccumulator;
 use super::{EncounterState, OverlayHealthEntry};
@@ -146,6 +147,10 @@ pub struct CombatEncounter {
     /// backdated to the final ExitCombat seen.
     pub last_exit_combat_time: Option<NaiveDateTime>,
 
+    // ─── PvP Faction Tracking ───────────────────────────────────────────────
+    /// Friend/enemy inference for PvP matches (unused in PvE)
+    pub pvp_factions: PvpFactionTracker,
+
     // ─── Boss Shield State ────────────────────────────────────────────────
     /// Active boss shield state: (npc_log_id, entity_name, shield_def_index) → (remaining, effective_total)
     /// Keyed by (log_id, entity_name, shield_idx) so that two different entity definitions
@@ -250,6 +255,7 @@ impl CombatEncounter {
             battle_rez_pending: false,
             local_player_ooc_revive_time: None,
             last_exit_combat_time: None,
+            pvp_factions: PvpFactionTracker::default(),
 
             // Boss shields
             boss_shields: HashMap::new(),

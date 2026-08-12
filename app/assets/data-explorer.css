@@ -864,6 +864,23 @@
   flex-shrink: 0;
 }
 
+/* PvP faction icons (friend/enemy, text-presentation glyphs so CSS colors apply) */
+.overview-table .faction-icon {
+  width: 16px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.overview-table .faction-icon.friendly {
+  color: #4caf50;
+}
+
+.overview-table .faction-icon.enemy {
+  color: #e74c3c;
+}
+
 .overview-table .num {
   text-align: right;
   font-size: 14px;
@@ -952,6 +969,51 @@
   background: hsla(0, 0%, 40%, 0.8);
   border-color: hsl(0, 0%, 55%);
   transform: translateY(-1px);
+}
+
+/* PvP: local player's own death / killing blow highlights */
+.death-item.local-death {
+  background: hsla(0, 65%, 50%, 0.3);
+  border-color: hsla(0, 65%, 60%, 0.7);
+}
+
+.death-item.local-death:hover {
+  background: hsla(0, 65%, 55%, 0.45);
+}
+
+.death-item.local-kill {
+  background: hsla(120, 40%, 45%, 0.3);
+  border-color: hsla(120, 40%, 55%, 0.7);
+}
+
+.death-item.local-kill:hover {
+  background: hsla(120, 40%, 50%, 0.45);
+}
+
+/* PvP: friendly/enemy death subgroups */
+.death-subgroup {
+  margin-top: 6px;
+}
+
+.death-subgroup-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.death-subgroup-label.friendly {
+  color: #4caf50;
+}
+
+.death-subgroup-label.enemy {
+  color: #e74c3c;
+}
+
+.death-subgroup-label.unknown {
+  color: var(--text-secondary);
 }
 
 .death-name {

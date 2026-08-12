@@ -168,11 +168,31 @@ pub struct EntityBreakdown {
     pub abilities_used: i64,
 }
 
+/// Which side of a PvP match a player is on, relative to the local player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PvpFaction {
+    Friendly,
+    Enemy,
+}
+
+impl PvpFaction {
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::Friendly => Self::Enemy,
+            Self::Enemy => Self::Friendly,
+        }
+    }
+}
+
 /// Raid overview row - aggregated stats per player across all metrics.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RaidOverviewRow {
     pub name: String,
     pub entity_type: String,
+    /// Friend/enemy classification (PvP encounters only)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub faction: Option<PvpFaction>,
     pub class_name: Option<String>,
     pub discipline_name: Option<String>,
     /// Icon filename (e.g., "assassin.png") - derived from discipline
@@ -260,6 +280,15 @@ pub struct PlayerDeath {
     pub name: String,
     /// Time of death in seconds from combat start
     pub death_time_secs: f32,
+    /// Victim's side (PvP encounters only)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub faction: Option<PvpFaction>,
+    /// The victim is the local player (PvP only)
+    #[serde(default)]
+    pub is_local: bool,
+    /// The local player dealt the killing blow (PvP only)
+    #[serde(default)]
+    pub local_kill: bool,
 }
 
 /// The final hit that killed a player.

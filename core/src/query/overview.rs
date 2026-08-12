@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use super::*;
+use crate::encounter::{PvpFaction, PvpFactionTracker};
 use crate::game_data::effect_id;
 
 impl EncounterQuery<'_> {
@@ -86,12 +87,75 @@ impl EncounterQuery<'_> {
         Ok(names)
     }
 
+    /// Infer friend/enemy factions for a PvP encounter by replaying stored
+    /// player-to-player damage/heal events through the faction tracker, in log
+    /// order — same semantics as live inference. Runs over the whole encounter
+    /// (not the selected time range) so classification converges regardless of
+    /// the viewed window. Returns a name → faction map.
+    /// The local player is the source of EnterCombat (only logged for them).
+    async fn query_local_player_id(&self) -> Result<Option<i64>, String> {
+        let batches = self
+            .sql(&format!(
+                "SELECT source_id FROM events WHERE effect_id = {} ORDER BY line_number LIMIT 1",
+                effect_id::ENTERCOMBAT
+            ))
+            .await?;
+        Ok(batches
+            .iter()
+            .find_map(|b| col_i64(b, 0).ok().and_then(|v| v.first().copied())))
+    }
+
+    async fn query_pvp_factions(&self) -> Result<HashMap<String, PvpFaction>, String> {
+        let Some(local_id) = self.query_local_player_id().await? else {
+            return Ok(HashMap::new());
+        };
+
+        let batches = self
+            .sql(&format!(
+                r#"
+            SELECT source_id, source_name, target_id, target_name,
+                   CAST(dmg_amount AS BIGINT) as dmg
+            FROM events
+            WHERE (dmg_amount > 0 OR heal_amount > 0)
+              AND source_entity_type = 'Player'
+              AND target_entity_type = 'Player'
+              AND source_id != target_id
+            ORDER BY line_number
+            "#
+            ))
+            .await?;
+
+        let mut tracker = PvpFactionTracker::default();
+        let mut names: HashMap<i64, String> = HashMap::new();
+        for batch in &batches {
+            let src_ids = col_i64(batch, 0)?;
+            let src_names = col_strings(batch, 1)?;
+            let tgt_ids = col_i64(batch, 2)?;
+            let tgt_names = col_strings(batch, 3)?;
+            let dmgs = col_i64(batch, 4)?;
+
+            for i in 0..batch.num_rows() {
+                names.entry(src_ids[i]).or_insert_with(|| src_names[i].clone());
+                names.entry(tgt_ids[i]).or_insert_with(|| tgt_names[i].clone());
+                tracker.observe_pair(src_ids[i], tgt_ids[i], dmgs[i] > 0, local_id);
+            }
+        }
+
+        Ok(names
+            .into_iter()
+            .filter_map(|(id, name)| tracker.faction_of(id, local_id).map(|f| (name, f)))
+            .collect())
+    }
+
     /// Query raid overview - aggregated stats per player across all metrics.
     /// Returns damage dealt, threat, damage taken, absorbed, and healing for each player.
+    /// For PvP encounters (`pvp = true`), rows carry a friend/enemy faction and
+    /// are sorted friendlies-first, each side by damage descending.
     pub async fn query_raid_overview(
         &self,
         time_range: Option<&TimeRange>,
         duration_secs: Option<f32>,
+        pvp: bool,
     ) -> Result<Vec<RaidOverviewRow>, String> {
         let time_filter = time_range
             .map(|tr| format!("AND {}", tr.sql_filter()))
@@ -104,6 +168,13 @@ impl EncounterQuery<'_> {
             .query_shield_attribution(time_range)
             .await
             .unwrap_or_default();
+
+        // Friend/enemy classification (PvP only)
+        let factions = if pvp {
+            self.query_pvp_factions().await.unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
 
         // CTE-based query to aggregate multiple metrics per player
         // participants: all unique source names (players who did anything)
@@ -203,6 +274,7 @@ impl EncounterQuery<'_> {
                     0.0
                 };
                 results.push(RaidOverviewRow {
+                    faction: factions.get(&name).copied(),
                     name,
                     entity_type: entity_types[i].clone(),
                     class_name: None,
@@ -227,19 +299,40 @@ impl EncounterQuery<'_> {
                 });
             }
         }
+
+        // PvP: friendlies first, then enemies, then unclassified — each by damage desc
+        if pvp {
+            results.sort_by(|a, b| {
+                let rank = |r: &RaidOverviewRow| match r.faction {
+                    Some(PvpFaction::Friendly) => 0u8,
+                    Some(PvpFaction::Enemy) => 1,
+                    None => 2,
+                };
+                rank(a).cmp(&rank(b)).then(
+                    b.damage_total
+                        .partial_cmp(&a.damage_total)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                )
+            });
+        }
+
         Ok(results)
     }
 
     /// Query player deaths in the encounter.
     /// Returns a list of player deaths ordered by time.
-    pub async fn query_player_deaths(&self) -> Result<Vec<PlayerDeath>, String> {
+    /// For PvP encounters (`pvp = true`), deaths carry the victim's faction and
+    /// flags for local-player deaths and killing blows.
+    pub async fn query_player_deaths(&self, pvp: bool) -> Result<Vec<PlayerDeath>, String> {
         // Death events are identified by effect_id::DEATH
         // and target_entity_type = 'Player' or 'Companion'
         let sql = format!(
             r#"
             SELECT
                 target_name,
-                combat_time_secs
+                combat_time_secs,
+                target_id,
+                source_id
             FROM events
             WHERE effect_id = {}
               AND (target_entity_type = 'Player' OR target_entity_type = 'Companion')
@@ -251,15 +344,32 @@ impl EncounterQuery<'_> {
 
         let batches = self.sql(&sql).await?;
 
+        let (local_id, factions) = if pvp {
+            (
+                self.query_local_player_id().await.unwrap_or(None),
+                self.query_pvp_factions().await.unwrap_or_default(),
+            )
+        } else {
+            (None, HashMap::new())
+        };
+
         let mut results = Vec::new();
         for batch in &batches {
             let names = col_strings(batch, 0)?;
             let times = col_f32(batch, 1)?;
+            let target_ids = col_i64(batch, 2)?;
+            let source_ids = col_i64(batch, 3)?;
 
-            for (name, time) in names.into_iter().zip(times) {
+            for i in 0..batch.num_rows() {
+                let name = names[i].clone();
+                let is_local = local_id.is_some_and(|id| target_ids[i] == id);
                 results.push(PlayerDeath {
+                    faction: factions.get(&name).copied(),
+                    is_local,
+                    // Killing blow by the local player (own deaths don't count)
+                    local_kill: !is_local && local_id.is_some_and(|id| source_ids[i] == id),
                     name,
-                    death_time_secs: time,
+                    death_time_secs: times[i],
                 });
             }
         }

@@ -758,6 +758,9 @@ impl ServiceHandle {
             (String, String, String, String),
         > = std::collections::HashMap::new();
 
+        // PvP encounters get friend/enemy faction classification
+        let mut is_pvp = false;
+
         if let Some(idx) = encounter_idx {
             // Historical query: get discipline info from that encounter's summary
             // This captures the discipline each player had AT THAT TIME
@@ -768,6 +771,7 @@ impl ServiceHandle {
                     .iter()
                     .find(|s| s.encounter_id == idx as u64)
                 {
+                    is_pvp = summary.encounter_type == baras_core::encounter::PhaseType::PvP;
                     for pm in &summary.player_metrics {
                         if let (Some(class_icon), Some(role_icon)) = (&pm.class_icon, &pm.role_icon)
                         {
@@ -794,6 +798,10 @@ impl ServiceHandle {
         } else {
             // Live query: use session-level registry (current disciplines)
             if let Some(cache) = session.session_cache.as_ref() {
+                is_pvp = cache
+                    .last_combat_encounter()
+                    .and_then(|e| e.area_id)
+                    .is_some_and(baras_core::game_data::is_pvp_area);
                 for p in cache.player_disciplines.values() {
                     if let Some(disc) = Discipline::from_guid(p.discipline_id) {
                         let name = resolve(p.name).to_string();
@@ -820,7 +828,7 @@ impl ServiceHandle {
             .query()
             .await
             .query()
-            .query_raid_overview(time_range.as_ref(), duration_secs)
+            .query_raid_overview(time_range.as_ref(), duration_secs, is_pvp)
             .await?;
 
         // Enrich results with discipline info
@@ -1422,7 +1430,18 @@ impl ServiceHandle {
         let session = session_guard.as_ref().ok_or("No active session")?;
         let session = session.read().await;
 
+        // PvP encounters get friend/enemy death classification
+        let mut is_pvp = false;
+
         if let Some(idx) = encounter_idx {
+            if let Some(cache) = session.session_cache.as_ref() {
+                is_pvp = cache
+                    .encounter_history
+                    .summaries()
+                    .iter()
+                    .find(|s| s.encounter_id == idx as u64)
+                    .is_some_and(|s| s.encounter_type == baras_core::encounter::PhaseType::PvP);
+            }
             let dir = session.encounters_dir().ok_or("No encounters directory")?;
             let path = dir.join(baras_core::storage::encounter_filename(idx));
             if !path.exists() {
@@ -1430,6 +1449,12 @@ impl ServiceHandle {
             }
             self.shared.query_context.register_parquet(&path).await?;
         } else {
+            if let Some(cache) = session.session_cache.as_ref() {
+                is_pvp = cache
+                    .last_combat_encounter()
+                    .and_then(|e| e.area_id)
+                    .is_some_and(baras_core::game_data::is_pvp_area);
+            }
             let writer = session
                 .encounter_writer()
                 .ok_or("No live encounter buffer")?;
@@ -1442,7 +1467,7 @@ impl ServiceHandle {
             .query()
             .await
             .query()
-            .query_player_deaths()
+            .query_player_deaths(is_pvp)
             .await
     }
 

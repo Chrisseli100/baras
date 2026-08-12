@@ -66,11 +66,15 @@ pub fn handle_in_combat_warzone(
     }
 
     // Everything else is part of the match.
+    let local_player_id = cache.player.id;
     if let Some(enc) = cache.current_encounter_mut() {
         enc.track_event_entities(event);
         enc.accumulate_data(event);
         enc.track_event_line(event.line_number);
         was_accumulated = true;
+
+        // Infer friend/enemy factions from player-to-player damage/healing
+        enc.pvp_factions.observe(event, local_player_id);
 
         if event.effect.effect_id == effect_id::DAMAGE {
             enc.last_damage_time = Some(timestamp);

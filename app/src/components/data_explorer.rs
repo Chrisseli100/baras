@@ -10,7 +10,7 @@ use wasm_bindgen_futures::spawn_local as spawn;
 
 use crate::api::{
     self, AbilityBreakdown, AbilityUsageRow, DamageTakenSummary, EncounterTimeline,
-    EntityBreakdown, NpcHealthRow, PlayerDeath, RaidOverviewRow, TimeRange,
+    EntityBreakdown, NpcHealthRow, PlayerDeath, PvpFaction, RaidOverviewRow, TimeRange,
 };
 use crate::components::ability_icon::AbilityIcon;
 use crate::components::charts_panel::ChartsPanel;
@@ -84,18 +84,45 @@ impl OverviewSort {
 #[derive(Clone, PartialEq, Default)]
 struct OverviewTableData {
     rows: Vec<RaidOverviewRow>,
-    total_damage: f64,
-    total_dps: f64,
-    total_threat: f64,
-    total_tps: f64,
-    total_damage_taken: f64,
-    total_dtps: f64,
-    total_aps: f64,
-    total_shielding: f64,
-    total_sps: f64,
-    total_healing: f64,
-    total_hps: f64,
-    total_ehps: f64,
+    totals: OverviewTotals,
+    /// Per-side totals (friendly, enemy) — PvP encounters only
+    pvp_totals: Option<(OverviewTotals, OverviewTotals)>,
+}
+
+#[derive(Clone, PartialEq, Default)]
+struct OverviewTotals {
+    damage: f64,
+    dps: f64,
+    threat: f64,
+    tps: f64,
+    damage_taken: f64,
+    dtps: f64,
+    aps: f64,
+    shielding: f64,
+    sps: f64,
+    healing: f64,
+    hps: f64,
+    ehps: f64,
+}
+
+impl OverviewTotals {
+    fn from_rows<'a>(rows: impl Iterator<Item = &'a RaidOverviewRow>) -> Self {
+        rows.fold(Self::default(), |mut t, r| {
+            t.damage += r.damage_total;
+            t.dps += r.dps;
+            t.threat += r.threat_total;
+            t.tps += r.tps;
+            t.damage_taken += r.damage_taken_total;
+            t.dtps += r.dtps;
+            t.aps += r.aps;
+            t.shielding += r.shielding_given_total;
+            t.sps += r.sps;
+            t.healing += r.healing_total;
+            t.hps += r.hps;
+            t.ehps += r.ehps;
+            t
+        })
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,27 +370,40 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
             .cloned()
             .collect();
 
-        // Sort rows by selected column
+        // Sort rows by selected column. PvP rows (faction set) group
+        // friendlies first, then enemies, sorting by column within each side.
         rows.sort_by(|a, b| {
-            let cmp = sort_col.extract(a).partial_cmp(&sort_col.extract(b)).unwrap_or(std::cmp::Ordering::Equal);
-            if sort_asc { cmp } else { cmp.reverse() }
+            let rank = |r: &RaidOverviewRow| match r.faction {
+                Some(PvpFaction::Friendly) => 0u8,
+                Some(PvpFaction::Enemy) => 1,
+                None => 2,
+            };
+            rank(a).cmp(&rank(b)).then_with(|| {
+                let cmp = sort_col.extract(a).partial_cmp(&sort_col.extract(b)).unwrap_or(std::cmp::Ordering::Equal);
+                if sort_asc { cmp } else { cmp.reverse() }
+            })
         });
 
-        // Calculate totals
+        // Calculate totals; PvP encounters get per-side totals instead of a
+        // combined group total (friend+enemy sums are meaningless)
+        let totals = OverviewTotals::from_rows(rows.iter());
+        let pvp_totals = if rows.iter().any(|r| r.faction.is_some()) {
+            Some((
+                OverviewTotals::from_rows(
+                    rows.iter().filter(|r| r.faction == Some(PvpFaction::Friendly)),
+                ),
+                OverviewTotals::from_rows(
+                    rows.iter().filter(|r| r.faction == Some(PvpFaction::Enemy)),
+                ),
+            ))
+        } else {
+            None
+        };
+
         OverviewTableData {
-            total_damage: rows.iter().map(|r| r.damage_total).sum(),
-            total_dps: rows.iter().map(|r| r.dps).sum(),
-            total_threat: rows.iter().map(|r| r.threat_total).sum(),
-            total_tps: rows.iter().map(|r| r.tps).sum(),
-            total_damage_taken: rows.iter().map(|r| r.damage_taken_total).sum(),
-            total_dtps: rows.iter().map(|r| r.dtps).sum(),
-            total_aps: rows.iter().map(|r| r.aps).sum(),
-            total_shielding: rows.iter().map(|r| r.shielding_given_total).sum(),
-            total_sps: rows.iter().map(|r| r.sps).sum(),
-            total_healing: rows.iter().map(|r| r.healing_total).sum(),
-            total_hps: rows.iter().map(|r| r.hps).sum(),
-            total_ehps: rows.iter().map(|r| r.ehps).sum(),
             rows,
+            totals,
+            pvp_totals,
         }
     });
 
@@ -1140,6 +1180,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     // Memoized filtered history - only recomputes when encounters or filter changes
     // When filtering for boss-only, propagate is_phase_start to the next visible
     // encounter so phase boundaries aren't lost when trash encounters are hidden
+    // PvP matches count as bosses (there's no "trash" in a warzone/arena)
     let filtered_history = use_memo(move || {
         let history = encounters();
         let bosses_only = show_only_bosses();
@@ -1151,7 +1192,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                     if e.is_phase_start {
                         pending_phase_start = true;
                     }
-                    if e.boss_name.is_some() {
+                    if e.boss_name.is_some() || e.encounter_type == "PvP" {
                         if pending_phase_start {
                             e.is_phase_start = true;
                             pending_phase_start = false;
@@ -1883,6 +1924,50 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                             // Death Tracker (only shown if deaths occurred) - at top for visibility
                             {
                                 let deaths = player_deaths.read();
+                                let death_badge = move |death: &PlayerDeath| {
+                                    let d = death.clone();
+                                    let name = death.name.clone();
+                                    let time_str = formatting::format_duration(death.death_time_secs as i64);
+                                    // PvP: highlight the local player's own deaths and killing blows
+                                    let class = if death.is_local {
+                                        "death-item local-death"
+                                    } else if death.local_kill {
+                                        "death-item local-kill"
+                                    } else {
+                                        "death-item"
+                                    };
+                                    rsx! {
+                                        button {
+                                            class: "{class}",
+                                            title: "Click for death recap",
+                                            onclick: move |_| recap_death.set(Some(d.clone())),
+                                            span { class: "death-name", "{name}" }
+                                            span { class: "death-time", "@ {time_str}" }
+                                        }
+                                    }
+                                };
+                                // PvP: group deaths by side
+                                let is_pvp = deaths.iter().any(|d| d.faction.is_some());
+                                let groups: Vec<(&str, &str, Vec<PlayerDeath>)> = if is_pvp {
+                                    [
+                                        ("Friendly", "friendly", Some(PvpFaction::Friendly)),
+                                        ("Enemy", "enemy", Some(PvpFaction::Enemy)),
+                                        ("Unknown", "unknown", None),
+                                    ]
+                                    .into_iter()
+                                    .map(|(label, cls, side)| {
+                                        let side_deaths: Vec<PlayerDeath> = deaths
+                                            .iter()
+                                            .filter(|d| d.faction == side)
+                                            .cloned()
+                                            .collect();
+                                        (label, cls, side_deaths)
+                                    })
+                                    .filter(|(_, _, v)| !v.is_empty())
+                                    .collect()
+                                } else {
+                                    Vec::new()
+                                };
                                 rsx! {
                                     if !deaths.is_empty() {
                                         div { class: "death-tracker",
@@ -1890,21 +1975,23 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                 i { class: "fa-solid fa-skull" }
                                                 " Deaths ({deaths.len()})"
                                             }
-                                            div { class: "death-list",
-                                                for death in deaths.iter() {
-                                                    {
-                                                        let d = death.clone();
-                                                        let name = death.name.clone();
-                                                        let time_str = formatting::format_duration(death.death_time_secs as i64);
-                                                        rsx! {
-                                                            button {
-                                                                class: "death-item",
-                                                                title: "Click for death recap",
-                                                                onclick: move |_| recap_death.set(Some(d.clone())),
-                                                                span { class: "death-name", "{name}" }
-                                                                span { class: "death-time", "@ {time_str}" }
+                                            if is_pvp {
+                                                for (label, cls, side_deaths) in groups {
+                                                    div { class: "death-subgroup",
+                                                        span { class: "death-subgroup-label {cls}",
+                                                            "{label} ({side_deaths.len()})"
+                                                        }
+                                                        div { class: "death-list",
+                                                            for death in side_deaths.iter() {
+                                                                {death_badge(death)}
                                                             }
                                                         }
+                                                    }
+                                                }
+                                            } else {
+                                                div { class: "death-list",
+                                                    for death in deaths.iter() {
+                                                        {death_badge(death)}
                                                     }
                                                 }
                                             }
@@ -1994,6 +2081,13 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                 tr {
                                                     td { class: "name-col",
                                                         span { class: "name-with-icon",
+                                                            if let Some(faction) = row.faction {
+                                                                if faction == PvpFaction::Friendly {
+                                                                    span { class: "faction-icon friendly", title: "Friendly", "🛡\u{fe0e}" }
+                                                                } else {
+                                                                    span { class: "faction-icon enemy", title: "Enemy", "⚔\u{fe0e}" }
+                                                                }
+                                                            }
                                                             if let Some(role_name) = &row.role_icon {
                                                                 if let Some(role_asset) = get_role_icon(role_name) {
                                                                     img {
@@ -2034,22 +2128,33 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                             }
                                         }
                                         tfoot {
-                                            tr { class: "totals-row",
-                                                td { class: "name-col", "Group Total" }
-                                                td { class: "num dmg", "{format_number(table_data.total_damage)}" }
-                                                td { class: "num dmg", "{format_number(table_data.total_dps)}" }
-                                                td { class: "num threat", "{format_number(table_data.total_threat)}" }
-                                                td { class: "num threat", "{format_number(table_data.total_tps)}" }
-                                                td { class: "num taken", "{format_number(table_data.total_damage_taken)}" }
-                                                td { class: "num taken", "{format_number(table_data.total_dtps)}" }
-                                                td { class: "num taken", "{format_number(table_data.total_aps)}" }
-                                                td { class: "num heal", "{format_number(table_data.total_healing)}" }
-                                                td { class: "num heal", "{format_number(table_data.total_hps)}" }
-                                                td { class: "num heal", "" }
-                                                td { class: "num heal", "{format_number(table_data.total_ehps)}" }
-                                                td { class: "num shield", "{format_number(table_data.total_shielding)}" }
-                                                td { class: "num shield", "{format_number(table_data.total_sps)}" }
-                                                td { class: "num apm" }
+                                            // PvP: per-side totals; PvE: one group total
+                                            {
+                                                let total_rows: Vec<(&str, &OverviewTotals)> = match &table_data.pvp_totals {
+                                                    Some((friendly, enemy)) => vec![("Friendly Total", friendly), ("Enemy Total", enemy)],
+                                                    None => vec![("Group Total", &table_data.totals)],
+                                                };
+                                                rsx! {
+                                                    for (label, t) in total_rows {
+                                                        tr { class: "totals-row",
+                                                            td { class: "name-col", "{label}" }
+                                                            td { class: "num dmg", "{format_number(t.damage)}" }
+                                                            td { class: "num dmg", "{format_number(t.dps)}" }
+                                                            td { class: "num threat", "{format_number(t.threat)}" }
+                                                            td { class: "num threat", "{format_number(t.tps)}" }
+                                                            td { class: "num taken", "{format_number(t.damage_taken)}" }
+                                                            td { class: "num taken", "{format_number(t.dtps)}" }
+                                                            td { class: "num taken", "{format_number(t.aps)}" }
+                                                            td { class: "num heal", "{format_number(t.healing)}" }
+                                                            td { class: "num heal", "{format_number(t.hps)}" }
+                                                            td { class: "num heal", "" }
+                                                            td { class: "num heal", "{format_number(t.ehps)}" }
+                                                            td { class: "num shield", "{format_number(t.shielding)}" }
+                                                            td { class: "num shield", "{format_number(t.sps)}" }
+                                                            td { class: "num apm" }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

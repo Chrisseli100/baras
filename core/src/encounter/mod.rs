@@ -3,12 +3,14 @@ pub mod combat;
 pub mod effect_instance;
 pub mod entity_info;
 pub mod metrics;
+pub mod pvp_faction;
 pub mod shielding;
 pub mod summary;
 
 pub use challenge::{ChallengeTracker, ChallengeValue};
 pub use combat::{ActiveBoss, CombatEncounter, ProcessingMode};
 pub use effect_instance::EffectInstance;
+pub use pvp_faction::{PvpFaction, PvpFactionTracker};
 pub use shielding::ShieldContext;
 
 use chrono::NaiveDateTime;

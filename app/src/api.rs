@@ -959,7 +959,7 @@ pub use baras_types::{
     CombatLogRow, CombatLogSortColumn, DamageTakenSummary, DataTab, DeathRecap,
     DeathRecapEventKind, EffectChartData, EffectWindow,
     EncounterTimeline, EntityBreakdown, GroupedEntityNames, HpPoint, NpcHealthRow,
-    PhaseSegment, PlayerDeath, RaidOverviewRow, RotationAnalysis,
+    PhaseSegment, PlayerDeath, PvpFaction, RaidOverviewRow, RotationAnalysis,
     SortDirection, TimeRange, TimeSeriesPoint,
 };
 
