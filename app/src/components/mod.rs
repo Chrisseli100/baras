@@ -15,6 +15,7 @@ pub mod encounter_editor;
 pub mod modifier_editor;
 pub mod encounter_types;
 pub mod hotkey_input;
+pub mod overview_table;
 pub mod parsely_upload_modal;
 pub mod phase_timeline;
 pub mod rotation_view;

@@ -1016,6 +1016,28 @@
   color: var(--text-secondary);
 }
 
+/* PvP: friendly/enemy overview table split */
+.overview-side-label {
+  display: block;
+  margin: 16px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.overview-side-label.friendly {
+  color: #4caf50;
+}
+
+.overview-side-label.enemy {
+  color: #e74c3c;
+}
+
+.overview-side-label.unknown {
+  color: var(--text-secondary);
+}
+
 .death-name {
   color: var(--text-primary);
   font-weight: 500;
