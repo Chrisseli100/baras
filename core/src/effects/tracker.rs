@@ -19,6 +19,7 @@ use crate::signal_processor::{GameSignal, SignalHandler};
 
 use crate::timers::FiredAlert;
 
+use super::alacrity::AlacrityBuffTracker;
 use super::{ActiveEffect, AlertTrigger, DisplayTarget, EffectDefinition, EffectKey, RefreshScope, RefreshTrigger};
 
 fn format_effect_alert(text: &str, source_name: IStr, target_name: IStr) -> String {
@@ -437,6 +438,10 @@ pub struct EffectTracker {
     /// Used to adjust durations for effects with is_affected_by_alacrity = true
     alacrity_percent: f32,
 
+    /// Temporary alacrity buffs currently active on the local player.
+    /// Their bonus is added to `alacrity_percent` when new entries are created.
+    alacrity_buffs: AlacrityBuffTracker,
+
     /// Player's network latency in milliseconds
     /// Added to effect durations to compensate for network delay
     latency_ms: u16,
@@ -491,6 +496,7 @@ impl EffectTracker {
             local_player_discipline: None,
             player_disciplines: HashMap::new(),
             alacrity_percent: 0.0,
+            alacrity_buffs: AlacrityBuffTracker::default(),
             latency_ms: 0,
             new_targets: Vec::new(),
             pending_aoe_refresh: None,
@@ -558,9 +564,15 @@ impl EffectTracker {
     /// Formula: (base_duration / (1 + alacrity)) + latency + cooldown_ready_secs
     fn effective_duration(&self, def: &super::EffectDefinition) -> Option<Duration> {
         def.duration_secs.map(|base_secs| {
+            // Baseline alacrity plus any temporary alacrity buffs on the local player
+            let buff_bonus = self
+                .current_game_time
+                .map(|now| self.alacrity_buffs.bonus_percent(now))
+                .unwrap_or(0.0);
+            let total_alacrity = self.alacrity_percent + buff_bonus;
             // Apply alacrity reduction if enabled for this effect
-            let adjusted = if def.is_affected_by_alacrity && self.alacrity_percent > 0.0 {
-                base_secs / (1.0 + self.alacrity_percent / 100.0)
+            let adjusted = if def.is_affected_by_alacrity && total_alacrity > 0.0 {
+                base_secs / (1.0 + total_alacrity / 100.0)
             } else {
                 base_secs
             };
@@ -967,6 +979,11 @@ impl EffectTracker {
         // Note: GC is handled by tick() - don't duplicate here to reduce work per signal
 
         let local_player_id = self.local_player_id;
+
+        // Track alacrity buffs landing on the local player (affects future durations)
+        if local_player_id == Some(target_id) {
+            self.alacrity_buffs.on_applied(effect_id, charges, timestamp);
+        }
 
         // Build entity info for filter matching
         let source_info = EntityInfo {
@@ -1999,6 +2016,11 @@ impl EffectTracker {
         self.advance_game_time_anchor(timestamp);
         let local_player_id = self.local_player_id;
 
+        // Alacrity buff fell off the local player
+        if local_player_id == Some(target_id) {
+            self.alacrity_buffs.on_removed(effect_id);
+        }
+
         // Build entity info for filter matching
         let source_info = EntityInfo {
             id: source_id,
@@ -2124,6 +2146,11 @@ impl EffectTracker {
         charges: u8,
     ) {
         self.advance_game_time_anchor(timestamp);
+
+        // Stack count changed on a local-player alacrity buff
+        if self.local_player_id == Some(target_id) {
+            self.alacrity_buffs.on_charges_changed(effect_id, charges, timestamp);
+        }
 
         // Find matching definitions (by ID or name)
         let effect_name_str = crate::context::resolve(effect_name);
@@ -2272,6 +2299,7 @@ impl EffectTracker {
         self.pending_aoe_refresh = None;
         self.aoe_collecting = None;
         self.pending_dot_refresh = None;
+        self.alacrity_buffs.clear();
 
         for (_key, effect) in self.active_effects.iter_mut() {
             if effect.mark_removed() && !effect.timer_expired {
@@ -2618,6 +2646,10 @@ impl SignalHandler for EffectTracker {
     ) {
         for signal in signals {
             self.handle_signal(signal, encounter);
+        }
+        // Drop alacrity buffs that outlived their duration (missed remove events)
+        if let Some(now) = self.current_game_time {
+            self.alacrity_buffs.prune_expired(now);
         }
         // Evaluate modifiers on active effects against this batch of signals
         self.evaluate_modifiers(signals);

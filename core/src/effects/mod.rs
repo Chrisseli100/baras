@@ -26,6 +26,7 @@
 //! ```
 
 mod active;
+mod alacrity;
 mod definition;
 pub mod tracker;
 

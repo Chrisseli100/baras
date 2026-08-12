@@ -9,9 +9,11 @@ fn main() {
 
     generate_off_gcd_set(&out_dir);
     generate_attack_types_map(&out_dir);
+    generate_alacrity_buffs_map(&out_dir);
 
     println!("cargo:rerun-if-changed=data/off_gcd.json");
     println!("cargo:rerun-if-changed=data/attack_types.csv");
+    println!("cargo:rerun-if-changed=data/alacrity_abilities.csv");
 }
 
 fn generate_off_gcd_set(out_dir: &str) {
@@ -68,5 +70,49 @@ fn generate_attack_types_map(out_dir: &str) {
     }
 
     writeln!(file, "pub static ATTACK_TYPES: phf::Map<i64, &'static str> = {};", builder.build())
+        .unwrap();
+}
+
+fn generate_alacrity_buffs_map(out_dir: &str) {
+    let csv = fs::read_to_string("data/alacrity_abilities.csv")
+        .expect("failed to read alacrity_abilities.csv");
+
+    // BTreeMap for deterministic output (sorted by key)
+    let mut entries = BTreeMap::new();
+    for line in csv.lines().skip(1) {
+        let fields: Vec<&str> = line.split(',').collect();
+        if fields.len() < 5 {
+            continue;
+        }
+        let id: i64 = match fields[0].trim().parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let amount: f32 = match fields[2].trim().parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let is_stack = fields[3].trim().eq_ignore_ascii_case("true");
+        let duration_secs: f32 = match fields[4].trim().parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        entries.insert(
+            id,
+            format!(
+                "AlacrityBuff {{ amount: {amount}f32, is_stack: {is_stack}, duration_secs: {duration_secs}f32 }}"
+            ),
+        );
+    }
+
+    let path = Path::new(out_dir).join("alacrity_buffs.rs");
+    let mut file = BufWriter::new(fs::File::create(&path).unwrap());
+
+    let mut builder = phf_codegen::Map::new();
+    for (id, buff) in &entries {
+        builder.entry(*id, buff);
+    }
+
+    writeln!(file, "pub static ALACRITY_BUFFS: phf::Map<i64, AlacrityBuff> = {};", builder.build())
         .unwrap();
 }

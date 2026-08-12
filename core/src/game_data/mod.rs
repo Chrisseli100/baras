@@ -1,3 +1,4 @@
+mod alacrity_buffs;
 mod boss_registry;
 mod bosses;
 mod discipline;
@@ -14,6 +15,7 @@ mod off_gcd_abilities;
 mod shield_effects;
 mod world_bosses;
 
+pub use alacrity_buffs::{ALACRITY_BUFFS, AlacrityBuff};
 pub use boss_registry::{
     clear_boss_registry, is_registered_boss, lookup_registered_name, register_hp_overlay_entity,
 };
