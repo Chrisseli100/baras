@@ -1885,7 +1885,7 @@ fn EffectEditForm(
                                         "Alert Text"
                                         span {
                                             class: "help-icon",
-                                            title: "Text shown in the alert notification. Leave blank for no alert",
+                                            title: "Text shown in the alert notification. Leave blank for no alert. {{source}} and {{target}} will show the source/target names if available",
                                             "?"
                                         }
                                     }

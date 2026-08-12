@@ -1196,7 +1196,7 @@ fn TimerEditForm(
                                     "Alert Text"
                                     span {
                                         class: "help-icon",
-                                        title: "Text shown in the alert notification. Defaults to timer name",
+                                        title: "Text shown in the alert notification. Defaults to timer name. {{source}} and {{target}} will show the source/target names if available",
                                         "?"
                                     }
                                 }
