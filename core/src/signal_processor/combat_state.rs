@@ -12,7 +12,7 @@ use chrono::NaiveDateTime;
 use crate::combat_log::CombatEvent;
 use crate::encounter::EncounterState;
 use crate::encounter::summary::determine_success;
-use crate::game_data::{effect_id, effect_type_id};
+use crate::game_data::{PvpAreaKind, effect_id, effect_type_id};
 use crate::state::SessionCache;
 
 use super::GameSignal;
@@ -75,10 +75,14 @@ pub fn advance_combat_state(
         EncounterState::InCombat => {
             // PvP instances replace all PvE encounter boundary logic (timeouts,
             // revive splits, wipe detection, ExitCombat ends) with their own rules.
-            if cache.current_encounter().is_some_and(|e| e.is_warzone()) {
-                super::pvp_combat_state::handle_in_combat_warzone(event, cache)
-            } else {
-                handle_in_combat(event, cache, effect_id, effect_type_id, timestamp)
+            match cache.current_encounter().and_then(|e| e.pvp_kind()) {
+                Some(PvpAreaKind::Warzone) => {
+                    super::pvp_combat_state::handle_in_combat_warzone(event, cache)
+                }
+                Some(PvpAreaKind::Arena) => {
+                    super::pvp_combat_state::handle_in_combat_arena(event, cache)
+                }
+                None => handle_in_combat(event, cache, effect_id, effect_type_id, timestamp),
             }
         }
         EncounterState::PostCombat { .. } => handle_post_combat(event, cache, effect_id, timestamp),
@@ -772,11 +776,11 @@ pub fn tick_combat_state(cache: &mut SessionCache, now: NaiveDateTime) -> Vec<Ga
         .map(|e| e.state.clone())
         .unwrap_or_default();
 
-    // PvP warzones have no wall-clock encounter boundaries (no inactivity
-    // timeout, no revive splits) — the match ends only when the player zones
-    // out. See `pvp_combat_state`.
+    // PvP matches have no wall-clock encounter boundaries (no inactivity
+    // timeout, no revive splits) — warzones end on zone-out, arena rounds
+    // end on the round-end heal burst. See `pvp_combat_state`.
     if matches!(current_state, EncounterState::InCombat)
-        && cache.current_encounter().is_some_and(|e| e.is_warzone())
+        && cache.current_encounter().is_some_and(|e| e.is_pvp())
     {
         return signals;
     }

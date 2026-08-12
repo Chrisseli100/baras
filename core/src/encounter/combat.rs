@@ -24,7 +24,7 @@ use crate::{effect_type_id, is_boss};
 
 use super::challenge::ChallengeTracker;
 use super::effect_instance::EffectInstance;
-use super::pvp_faction::PvpFactionTracker;
+use super::pvp_faction::{PvpFaction, PvpFactionTracker, PvpOutcome};
 use super::entity_info::{NpcInfo, PlayerInfo};
 use super::metrics::MetricAccumulator;
 use super::{EncounterState, OverlayHealthEntry};
@@ -150,6 +150,9 @@ pub struct CombatEncounter {
     // ─── PvP Faction Tracking ───────────────────────────────────────────────
     /// Friend/enemy inference for PvP matches (unused in PvE)
     pub pvp_factions: PvpFactionTracker,
+    /// Arena round outcome, set at the death that wipes a full team
+    /// (None = undetermined: round in progress or ended without a team wipe)
+    pub arena_outcome: Option<PvpOutcome>,
 
     // ─── Boss Shield State ────────────────────────────────────────────────
     /// Active boss shield state: (npc_log_id, entity_name, shield_def_index) → (remaining, effective_total)
@@ -256,6 +259,7 @@ impl CombatEncounter {
             local_player_ooc_revive_time: None,
             last_exit_combat_time: None,
             pvp_factions: PvpFactionTracker::default(),
+            arena_outcome: None,
 
             // Boss shields
             boss_shields: HashMap::new(),
@@ -978,17 +982,21 @@ impl CombatEncounter {
         Some(self.duration_ms(current_time)? / 1000)
     }
 
+    /// PvP instance kind for this encounter's area, if any.
+    pub fn pvp_kind(&self) -> Option<PvpAreaKind> {
+        self.area_id.and_then(pvp_area_kind)
+    }
+
     /// Whether this encounter takes place in an 8-player PvP warzone.
     /// Warzone matches are one contiguous encounter: respawns, revives, and
     /// ExitCombat events never split; only zoning out ends the match.
     pub fn is_warzone(&self) -> bool {
-        self.area_id
-            .is_some_and(|id| pvp_area_kind(id) == Some(PvpAreaKind::Warzone))
+        self.pvp_kind() == Some(PvpAreaKind::Warzone)
     }
 
     /// Whether this encounter takes place in any PvP instance (warzone or arena).
     pub fn is_pvp(&self) -> bool {
-        self.area_id.is_some_and(|id| pvp_area_kind(id).is_some())
+        self.pvp_kind().is_some()
     }
 
     /// Faction map for entity-filter matching: Some in PvP encounters,
@@ -1202,6 +1210,46 @@ impl CombatEncounter {
 
         self.all_players_dead =
             !dominated_players.is_empty() && dominated_players.iter().all(|p| p.is_dead);
+    }
+
+    /// Decide an arena round from faction deaths: a fully dead team ends the
+    /// round (there are no battle rezzes in PvP), so the result is final the
+    /// moment it's observed — the round-end Revived burst can't undo it.
+    /// Called on player deaths.
+    pub fn check_arena_round_outcome(&mut self, local_player_id: i64) {
+        if self.arena_outcome.is_some()
+            || self.state != EncounterState::InCombat
+            || self.pvp_kind() != Some(PvpAreaKind::Arena)
+        {
+            return;
+        }
+
+        let (mut friendly_total, mut friendly_dead) = (0u32, 0u32);
+        let (mut enemy_total, mut enemy_dead) = (0u32, 0u32);
+        for (id, player) in &self.players {
+            // Only players seen during this round's combat
+            let in_combat = self.enter_combat_time.is_none_or(|start| {
+                player.last_seen_at.is_some_and(|seen| seen >= start)
+            });
+            if !in_combat {
+                continue;
+            }
+            let (total, dead) = match self.pvp_factions.faction_of(*id, local_player_id) {
+                Some(PvpFaction::Friendly) => (&mut friendly_total, &mut friendly_dead),
+                Some(PvpFaction::Enemy) => (&mut enemy_total, &mut enemy_dead),
+                None => continue,
+            };
+            *total += 1;
+            if player.is_dead {
+                *dead += 1;
+            }
+        }
+
+        if friendly_total > 0 && friendly_dead == friendly_total {
+            self.arena_outcome = Some(PvpOutcome::Loss);
+        } else if enemy_total > 0 && enemy_dead == enemy_total {
+            self.arena_outcome = Some(PvpOutcome::Win);
+        }
     }
 
     /// Check if this encounter is likely a wipe.

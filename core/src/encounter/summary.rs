@@ -8,12 +8,16 @@ use serde::{Deserialize, Serialize};
 
 use super::CombatEncounter;
 use super::PhaseType;
+use super::PvpOutcome;
 use super::entity_info::PlayerInfo;
 use super::metrics::PlayerMetrics;
 use crate::combat_log::EntityType;
 use crate::context::resolve;
 use crate::debug_log;
-use crate::game_data::{BossInfo, ContentType, Difficulty, is_pvp_area, lookup_boss, pvp_match_label};
+use crate::game_data::{
+    BossInfo, ContentType, Difficulty, PvpAreaKind, is_pvp_area, lookup_boss, pvp_area_kind,
+    pvp_match_label,
+};
 use crate::state::info::AreaInfo;
 
 /// Summary of a single challenge metric from a completed encounter
@@ -56,6 +60,9 @@ pub struct EncounterSummary {
     pub end_time: Option<String>,
     pub duration_seconds: i64,
     pub success: bool,
+    /// Arena round outcome inferred from faction deaths (None for non-arena encounters)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pvp_outcome: Option<PvpOutcome>,
     pub area_name: String,
     pub difficulty: Option<String>,
     pub boss_name: Option<String>,
@@ -296,6 +303,12 @@ pub fn classify_encounter(
 /// For victory-trigger encounters, success requires the trigger to have fired
 /// (but only if the victory trigger applies to the current difficulty)
 pub fn determine_success(encounter: &CombatEncounter) -> bool {
+    // Arena rounds are decided by faction deaths: only a friendly-team wipe
+    // is a failure; a win or an undetermined round both count as success.
+    if encounter.pvp_kind() == Some(PvpAreaKind::Arena) {
+        return encounter.arena_outcome != Some(PvpOutcome::Loss);
+    }
+
     // Check if the ACTIVE boss requires a victory trigger
     // Only check the specific boss being fought, not all bosses in the area
     if let Some(idx) = encounter.active_boss_idx() {
@@ -373,11 +386,23 @@ pub fn create_encounter_summary(
     let difficulty_id_for_classification = encounter.difficulty_id.unwrap_or(area.difficulty_id);
     let encounter_area_name = encounter.area_name.clone().unwrap_or_else(|| area.area_name.clone());
 
+    // Line of the AreaEntered this encounter belongs to (Parsely uploads and
+    // PvP match disambiguation). Prefer the encounter's own line so we get the
+    // right one even if the player exited to a different area.
+    let area_entered_line = encounter.area_entered_line.or(area.entered_at_line);
+
     // Check if this is a new phase (area change)
     // Compare encounter's area_name with the last summary's area_name
     // This prevents creating new sections when player temporarily leaves and returns to same area
+    // PvP is the exception: every zone-in is a separate match, so back-to-back
+    // queues into the same map (same area_name, different AreaEntered line)
+    // start a new section with fresh match/round numbering.
     let is_phase_start = history.summaries().last()
-        .map(|last| last.area_name != encounter_area_name)
+        .map(|last| {
+            last.area_name != encounter_area_name
+                || (is_pvp_area(area_id_for_classification)
+                    && last.area_entered_line != area_entered_line)
+        })
         .unwrap_or(true);  // First encounter is always a phase start
     
     // Reset pull counts on phase change (area transition)
@@ -534,6 +559,9 @@ pub fn create_encounter_summary(
             .map(|t| t.format("%Y-%m-%dT%H:%M:%S").to_string()),
         duration_seconds: encounter.duration_seconds(None).unwrap_or(0),
         success: determine_success(encounter),
+        // Arena rounds surface a tri-state outcome; no team wipe = unknown
+        pvp_outcome: (pvp_area_kind(area_id_for_classification) == Some(PvpAreaKind::Arena))
+            .then(|| encounter.arena_outcome.unwrap_or(PvpOutcome::Unknown)),
         area_name: encounter_area_name,
         difficulty,
         boss_name,
@@ -542,9 +570,7 @@ pub fn create_encounter_summary(
         npc_names,
         challenges,
         // Line number tracking for per-encounter Parsely uploads
-        // Use encounter's area_entered_line (set when combat started) instead of cache's current area
-        // This ensures we get the correct AreaEntered line even if player exits to a different area
-        area_entered_line: encounter.area_entered_line.or(area.entered_at_line),
+        area_entered_line,
         event_start_line: encounter.first_event_line,
         event_end_line: encounter.last_event_line,
         // Parsely link (set after successful upload)

@@ -379,6 +379,7 @@ impl EventProcessor {
 
             // Always update state (idempotent) — ensures death_time gets the
             // authoritative timestamp from the real death event
+            let local_player_id = cache.player.id;
             if let Some(enc) = cache.current_encounter_mut() {
                 enc.set_entity_death(
                     event.target_entity.log_id,
@@ -386,6 +387,7 @@ impl EventProcessor {
                     event.timestamp,
                 );
                 enc.check_all_players_dead();
+                enc.check_arena_round_outcome(local_player_id);
             }
 
             // Only emit signal if not already dead (prevents duplicate signals)
@@ -535,6 +537,7 @@ impl EventProcessor {
                     });
                 }
                 EntityType::Player => {
+                    let local_player_id = cache.player.id;
                     let Some(enc) = cache.current_encounter_mut() else {
                         continue;
                     };
@@ -549,6 +552,7 @@ impl EventProcessor {
 
                     enc.set_entity_death(entity.log_id, &entity.entity_type, event.timestamp);
                     enc.check_all_players_dead();
+                    enc.check_arena_round_outcome(local_player_id);
 
                     out.push(GameSignal::EntityDeath {
                         entity_id: entity.log_id,

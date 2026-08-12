@@ -7446,6 +7446,10 @@ a.contributor-name:hover {
   color: var(--color-error);
 }
 
+.sidebar-encounter-item .result-indicator.unknown {
+  color: var(--text-muted);
+}
+
 .sidebar-encounter-item .encounter-meta {
   display: flex;
   align-items: center;

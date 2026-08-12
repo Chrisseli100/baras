@@ -11,8 +11,20 @@ use hashbrown::HashMap;
 
 pub use baras_types::PvpFaction;
 
+use serde::{Deserialize, Serialize};
+
 use crate::combat_log::{CombatEvent, EntityType};
 use crate::game_data::effect_id;
+
+/// Arena round outcome, decided the moment one team is fully dead
+/// (there are no battle rezzes in PvP, so a full team wipe is final).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PvpOutcome {
+    Win,
+    Loss,
+    Unknown,
+}
 
 /// Entity ID → faction map, Arc-shared so FilterContexts can hold a cheap
 /// refcount clone across mutable-cache borrows (same pattern as

@@ -1658,7 +1658,14 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                     let enc_idx = enc.encounter_id as u32;
                                                     let enc_id = enc.encounter_id;
                                                     let is_selected = *selected_encounter.read() == Some(enc_idx);
-                                                    let success_class = if enc.success { "success" } else { "wipe" };
+                                                    // Arena rounds carry a tri-state outcome; everything else uses success
+                                                    let (result_class, result_icon) = match enc.pvp_outcome.as_deref() {
+                                                        Some("win") => ("success", "fa-solid fa-check"),
+                                                        Some("loss") => ("wipe", "fa-solid fa-skull"),
+                                                        Some(_) => ("unknown", "fa-solid fa-question"),
+                                                        None if enc.success => ("success", "fa-solid fa-check"),
+                                                        None => ("wipe", "fa-solid fa-skull"),
+                                                    };
                                                     let npc_list = enc.npc_names.iter()
                                                         .filter(|n| !n.trim().is_empty())
                                                         .cloned()
@@ -1770,13 +1777,9 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                                             }
                                                                         }
                                                                     }
-                                                                    // Result indicator (success/wipe)
-                                                                    span { class: "result-indicator {success_class}",
-                                                                        if enc.success {
-                                                                            i { class: "fa-solid fa-check" }
-                                                                        } else {
-                                                                            i { class: "fa-solid fa-skull" }
-                                                                        }
+                                                                    // Result indicator (success/wipe/unknown)
+                                                                    span { class: "result-indicator {result_class}",
+                                                                        i { class: "{result_icon}" }
                                                                     }
                                                                 }
                                                             }

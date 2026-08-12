@@ -10,7 +10,7 @@ pub mod summary;
 pub use challenge::{ChallengeTracker, ChallengeValue};
 pub use combat::{ActiveBoss, CombatEncounter, ProcessingMode};
 pub use effect_instance::EffectInstance;
-pub use pvp_faction::{PvpFaction, PvpFactionMap, PvpFactionTracker};
+pub use pvp_faction::{PvpFaction, PvpFactionMap, PvpFactionTracker, PvpOutcome};
 pub use shielding::ShieldContext;
 
 use chrono::NaiveDateTime;

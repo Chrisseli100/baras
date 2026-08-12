@@ -75,6 +75,9 @@ pub struct EncounterSummary {
     pub end_time: Option<String>,
     pub duration_seconds: i64,
     pub success: bool,
+    /// Arena round outcome ("win"/"loss"/"unknown"), None for non-arena encounters
+    #[serde(default)]
+    pub pvp_outcome: Option<String>,
     pub area_name: String,
     pub difficulty: Option<String>,
     pub boss_name: Option<String>,

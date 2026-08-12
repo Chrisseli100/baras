@@ -43,6 +43,15 @@ pub fn is_pvp_area(area_id: i64) -> bool {
     pvp_area_kind(area_id).is_some()
 }
 
+/// System abilities whose Heal events mark an arena round boundary: the game
+/// heals every player to full the instant a round ends ("Heal Target"), and
+/// additionally fires "Rebirth" when the final round ends the match (a few ms
+/// before the Heal Target burst). Neither occurs mid-round.
+pub const ARENA_ROUND_END_ABILITY_IDS: [i64; 2] = [
+    773652459028480, // Rebirth (match end only)
+    813707324030976, // Heal Target (every round end)
+];
+
 /// Display label for a PvP area's match type
 pub fn pvp_match_label(area_id: i64) -> &'static str {
     match pvp_area_kind(area_id) {
