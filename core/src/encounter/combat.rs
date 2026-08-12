@@ -17,7 +17,9 @@ use hashbrown::{HashMap, HashSet};
 use crate::combat_log::{CombatEvent, Entity, EntityType, Position};
 use crate::context::IStr;
 use crate::dsl::{BossEncounterDefinition, CounterCondition, CounterDefinition};
-use crate::game_data::{Difficulty, Discipline, SHIELD_EFFECT_IDS, defense_type, effect_id};
+use crate::game_data::{
+    Difficulty, Discipline, PvpAreaKind, SHIELD_EFFECT_IDS, defense_type, effect_id, pvp_area_kind,
+};
 use crate::{effect_type_id, is_boss};
 
 use super::challenge::ChallengeTracker;
@@ -139,6 +141,10 @@ pub struct CombatEncounter {
     pub battle_rez_pending: bool,
     /// Local player revived out of combat (no battle rez) — triggers immediate combat end
     pub local_player_ooc_revive_time: Option<NaiveDateTime>,
+    /// Most recent ExitCombat timestamp (warzones only). Warzone matches never
+    /// split on ExitCombat; when the player zones out, the encounter end is
+    /// backdated to the final ExitCombat seen.
+    pub last_exit_combat_time: Option<NaiveDateTime>,
 
     // ─── Boss Shield State ────────────────────────────────────────────────
     /// Active boss shield state: (npc_log_id, entity_name, shield_def_index) → (remaining, effective_total)
@@ -243,6 +249,7 @@ impl CombatEncounter {
             local_player_revive_immunity_time: None,
             battle_rez_pending: false,
             local_player_ooc_revive_time: None,
+            last_exit_combat_time: None,
 
             // Boss shields
             boss_shields: HashMap::new(),
@@ -963,6 +970,14 @@ impl CombatEncounter {
     /// Get combat duration in seconds (truncated)
     pub fn duration_seconds(&self, current_time: Option<chrono::NaiveDateTime>) -> Option<i64> {
         Some(self.duration_ms(current_time)? / 1000)
+    }
+
+    /// Whether this encounter takes place in an 8-player PvP warzone.
+    /// Warzone matches are one contiguous encounter: respawns, revives, and
+    /// ExitCombat events never split; only zoning out ends the match.
+    pub fn is_warzone(&self) -> bool {
+        self.area_id
+            .is_some_and(|id| pvp_area_kind(id) == Some(PvpAreaKind::Warzone))
     }
 
     /// Get the effective end time of the encounter.

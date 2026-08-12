@@ -2924,14 +2924,17 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
         } else {
             // Trash encounter - use phase type with trash count
             let trash_count = cache.encounter_history.peek_trash_count();
-            let label = match encounter_type {
-                PhaseType::Raid => "Raid Trash",
-                PhaseType::Flashpoint => "Flashpoint Trash",
-                PhaseType::DummyParse => "Dummy Parse",
-                PhaseType::PvP => "PvP Match",
-                PhaseType::OpenWorld => "Open World",
-            };
-            Some(format!("{} {}", label, trash_count))
+            match encounter_type {
+                PhaseType::Raid => Some(format!("Raid Trash {trash_count}")),
+                PhaseType::Flashpoint => Some(format!("Flashpoint Trash {trash_count}")),
+                PhaseType::DummyParse => Some(format!("Dummy Parse {trash_count}")),
+                PhaseType::PvP => Some(format!(
+                    "{} - {}",
+                    baras_core::game_data::pvp_match_label(area_id_for_classification),
+                    trash_count
+                )),
+                PhaseType::OpenWorld => Some(format!("Open World {trash_count}")),
+            }
         };
 
         // Get difficulty from area info (blank for non-instanced content)

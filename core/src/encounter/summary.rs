@@ -13,7 +13,7 @@ use super::metrics::PlayerMetrics;
 use crate::combat_log::EntityType;
 use crate::context::resolve;
 use crate::debug_log;
-use crate::game_data::{BossInfo, ContentType, Difficulty, is_pvp_area, lookup_boss};
+use crate::game_data::{BossInfo, ContentType, Difficulty, is_pvp_area, lookup_boss, pvp_match_label};
 use crate::state::info::AreaInfo;
 
 /// Summary of a single challenge metric from a completed encounter
@@ -191,7 +191,12 @@ impl EncounterHistory {
     }
 
     /// Generate a human-readable name for an encounter based on its type and boss
-    pub fn generate_name(&mut self, encounter_type: PhaseType, boss_name: Option<&str>) -> String {
+    pub fn generate_name(
+        &mut self,
+        encounter_type: PhaseType,
+        boss_name: Option<&str>,
+        area_id: i64,
+    ) -> String {
         match (encounter_type, boss_name) {
             // Boss encounter: "Brontes - 7"
             (_, Some(name)) => {
@@ -213,7 +218,7 @@ impl EncounterHistory {
             }
             (PhaseType::PvP, None) => {
                 self.trash_pull_count += 1;
-                format!("PvP Match {}", self.trash_pull_count)
+                format!("{} - {}", pvp_match_label(area_id), self.trash_pull_count)
             }
             (PhaseType::OpenWorld, None) => {
                 self.trash_pull_count += 1;
@@ -403,7 +408,11 @@ pub fn create_encounter_summary(
             }
         });
 
-    let display_name = history.generate_name(encounter_type, boss_name.as_deref());
+    let display_name = history.generate_name(
+        encounter_type,
+        boss_name.as_deref(),
+        area_id_for_classification,
+    );
 
     // Calculate metrics and filter to players seen during actual combat
     let combat_start = encounter.enter_combat_time;

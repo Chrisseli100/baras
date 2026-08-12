@@ -2,34 +2,52 @@
 //!
 //! Area IDs for PvP instances (warzones, arenas)
 
-use hashbrown::HashSet;
-use std::sync::LazyLock;
+/// PvP instance kind: 8-player warzones vs 4-player arenas
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PvpAreaKind {
+    Warzone,
+    Arena,
+}
 
-/// Known PvP area IDs
-static PVP_AREA_IDS: LazyLock<HashSet<i64>> = LazyLock::new(|| {
-    [
-        137438956902,
-        945872057669561,
-        137438992654,
-        137438993104,
-        137438989517,
-        833571547775744,
-        137438988866,
-        137438953518,
-        833571547775746,
-        137438993370,
-        137438993381,
-        945872057669563,
-        137438993376,
-        833571547775745,
-        137438993374,
-        945872057669629,
-    ]
-    .into_iter()
-    .collect()
-});
+/// Classify a PvP area ID, or `None` if the area is not a PvP instance
+pub fn pvp_area_kind(area_id: i64) -> Option<PvpAreaKind> {
+    match area_id {
+        // Warzones (8-player)
+        137438956902      // The Civil War (Alderaan)
+        | 945872057669561 // Yavin Ruins
+        | 137438992654    // Novare Coast
+        | 137438993104    // Ancient Hypergate
+        | 137438989517    // The Voidstar
+        | 833571547775744 // Odessen Proving Grounds
+        | 137438988866    // The Pit (Nar Shaddaa Huttball)
+        | 137438953518    // Quesh Huttball Pit
+        | 833571547775746 // Vandin Huttball (The Sky Shredder)
+        => Some(PvpAreaKind::Warzone),
+
+        // Arenas (4-player)
+        137438993370      // Corellia Square
+        | 137438993381    // Makeb Mesa Arena
+        | 945872057669563 // Mandalorian Battle Ring
+        | 137438993376    // Orbital Station
+        | 833571547775745 // Rishi Cove
+        | 137438993374    // Tatooine Canyon
+        | 945872057669629 // Onderon Palatial Ruins
+        => Some(PvpAreaKind::Arena),
+
+        _ => None,
+    }
+}
 
 /// Check if an area ID corresponds to a PvP instance
 pub fn is_pvp_area(area_id: i64) -> bool {
-    PVP_AREA_IDS.contains(&area_id)
+    pvp_area_kind(area_id).is_some()
+}
+
+/// Display label for a PvP area's match type
+pub fn pvp_match_label(area_id: i64) -> &'static str {
+    match pvp_area_kind(area_id) {
+        Some(PvpAreaKind::Warzone) => "Warzone Match",
+        Some(PvpAreaKind::Arena) => "Arena Match",
+        None => "PvP Match",
+    }
 }

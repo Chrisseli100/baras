@@ -8,6 +8,7 @@ mod challenge;
 mod combat_state;
 mod counter;
 mod phase;
+mod pvp_combat_state;
 
 #[cfg(test)]
 mod processor_tests;

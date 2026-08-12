@@ -73,7 +73,13 @@ pub fn advance_combat_state(
     match current_state {
         EncounterState::NotStarted => handle_not_started(event, cache, effect_id, timestamp),
         EncounterState::InCombat => {
-            handle_in_combat(event, cache, effect_id, effect_type_id, timestamp)
+            // PvP instances replace all PvE encounter boundary logic (timeouts,
+            // revive splits, wipe detection, ExitCombat ends) with their own rules.
+            if cache.current_encounter().is_some_and(|e| e.is_warzone()) {
+                super::pvp_combat_state::handle_in_combat_warzone(event, cache)
+            } else {
+                handle_in_combat(event, cache, effect_id, effect_type_id, timestamp)
+            }
         }
         EncounterState::PostCombat { .. } => handle_post_combat(event, cache, effect_id, timestamp),
     }
@@ -765,6 +771,15 @@ pub fn tick_combat_state(cache: &mut SessionCache, now: NaiveDateTime) -> Vec<Ga
         .current_encounter()
         .map(|e| e.state.clone())
         .unwrap_or_default();
+
+    // PvP warzones have no wall-clock encounter boundaries (no inactivity
+    // timeout, no revive splits) — the match ends only when the player zones
+    // out. See `pvp_combat_state`.
+    if matches!(current_state, EncounterState::InCombat)
+        && cache.current_encounter().is_some_and(|e| e.is_warzone())
+    {
+        return signals;
+    }
 
     // Check for OOC revive (wall-clock fallback for when no new events arrive after the revive)
     // Start a grace window so trailing death events can still arrive and inform wipe classification
