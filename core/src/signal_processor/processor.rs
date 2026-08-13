@@ -4,8 +4,8 @@ use crate::dsl::triggers::EntitySelectorExt;
 use crate::encounter::combat::ActiveBoss;
 use crate::encounter::EncounterState;
 use crate::game_data::{
-    correct_apply_charges, effect_id, effect_type_id, BATTLE_REZ_ABILITY_IDS,
-    SCRIPTED_REVIVE_EFFECT_IDS,
+    correct_apply_charges, effect_id, effect_type_id, Discipline, BATTLE_REZ_ABILITY_IDS,
+    DISCIPLINE_ABILITIES, SCRIPTED_REVIVE_EFFECT_IDS,
 };
 use crate::signal_processor::signal::GameSignal;
 use crate::state::cache::SessionCache;
@@ -54,6 +54,7 @@ impl EventProcessor {
 
         // 1a. Player/discipline tracking
         self.handle_discipline_event(&event, cache, &mut signals);
+        self.detect_discipline_from_ability(&event, cache, &mut signals);
         self.update_registered_player_health(&event, cache);
 
         // 1b. Entity lifecycle (death/revive)
@@ -270,6 +271,64 @@ impl EventProcessor {
             player.current_hp = event.source_entity.health.0;
             player.max_hp = event.source_entity.health.1;
         }
+    }
+
+    /// Infer discipline from signature abilities for players whose discipline
+    /// is unknown. Enemy players in PvP never emit DisciplineChanged events,
+    /// so this is the only way they get a discipline (and thus a role).
+    /// Matches ability activations and damage/heal events, where the log's
+    /// source entity is the ability's caster. Effect apply/remove lines are
+    /// excluded: RemoveEffect is logged with the *affected* entity as source
+    /// while naming the caster's ability, which would misattribute HoT/DoT
+    /// recipients.
+    fn detect_discipline_from_ability(
+        &self,
+        event: &CombatEvent,
+        cache: &mut SessionCache,
+        out: &mut Vec<GameSignal>,
+    ) {
+        let is_activation = event.effect.effect_id == effect_id::ABILITYACTIVATE;
+        let is_damage_or_heal = event.effect.type_id == effect_type_id::APPLYEFFECT
+            && matches!(event.effect.effect_id, effect_id::DAMAGE | effect_id::HEAL);
+        if !(is_activation || is_damage_or_heal)
+            || event.source_entity.entity_type != EntityType::Player
+            || event.source_entity.log_id == 0
+        {
+            return;
+        }
+        if cache
+            .player_disciplines
+            .get(&event.source_entity.log_id)
+            .is_some_and(|p| p.discipline_id != 0)
+        {
+            return;
+        }
+        let Some(&discipline_id) = DISCIPLINE_ABILITIES.get(&event.action.action_id) else {
+            return;
+        };
+
+        let player = cache
+            .player_disciplines
+            .entry(event.source_entity.log_id)
+            .or_default();
+        player.id = event.source_entity.log_id;
+        player.name = event.source_entity.name;
+        player.discipline_id = discipline_id;
+        player.discipline_name = Discipline::from_guid(discipline_id)
+            .map(|d| d.name().to_string())
+            .unwrap_or_default();
+        player.last_seen_at = Some(event.timestamp);
+        if event.source_entity.health.1 > 0 {
+            player.current_hp = event.source_entity.health.0;
+            player.max_hp = event.source_entity.health.1;
+        }
+
+        out.push(GameSignal::DisciplineChanged {
+            entity_id: event.source_entity.log_id,
+            class_id: player.class_id,
+            discipline_id,
+            timestamp: event.timestamp,
+        });
     }
 
     /// Keep roster health and freshness current without changing roster

@@ -2,6 +2,7 @@ mod alacrity_buffs;
 mod boss_registry;
 mod bosses;
 mod discipline;
+mod discipline_abilities;
 mod effects;
 mod flashpoint_bosses;
 mod flashpoints;
@@ -23,6 +24,7 @@ pub use bosses::{
     BossInfo, ContentType, Difficulty, get_boss_ids, is_boss, lookup_area_content_type, lookup_boss,
 };
 pub use discipline::{Class, Discipline, DisciplineFilter, Role};
+pub use discipline_abilities::DISCIPLINE_ABILITIES;
 pub use effects::*;
 pub use flashpoints::{FLASHPOINT_AREAS, get_flashpoint_name, is_flashpoint};
 pub use pvp_instance::{
