@@ -56,7 +56,7 @@ pub const ARENA_ROUND_END_ABILITY_IDS: [i64; 2] = [
 pub fn pvp_match_label(area_id: i64) -> &'static str {
     match pvp_area_kind(area_id) {
         Some(PvpAreaKind::Warzone) => "Warzone Match",
-        Some(PvpAreaKind::Arena) => "Arena Match",
+        Some(PvpAreaKind::Arena) => "Arena Round",
         None => "PvP Match",
     }
 }
