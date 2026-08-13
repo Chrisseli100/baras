@@ -10,6 +10,10 @@ pub struct PlayerInfo {
     pub class_name: String,
     pub discipline_id: i64,
     pub discipline_name: String,
+    /// Discipline was inferred from a signature ability rather than a
+    /// DisciplineChanged event. Inferred assignments are evicted on area
+    /// change (players can respec between PvP matches).
+    pub discipline_inferred: bool,
     pub is_dead: bool,
     pub death_time: Option<NaiveDateTime>,
     pub received_revive_immunity: bool,
@@ -31,6 +35,7 @@ impl Default for PlayerInfo {
             class_name: String::new(),
             discipline_id: 0,
             discipline_name: String::new(),
+            discipline_inferred: false,
             is_dead: false,
             death_time: None,
             received_revive_immunity: false,

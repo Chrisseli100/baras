@@ -45,6 +45,10 @@ pub struct SessionCache {
     /// Maps player entity_id -> PlayerInfo with discipline data
     /// This is the source of truth for player disciplines, updated on every DisciplineChanged event
     pub player_disciplines: HashMap<i64, PlayerInfo>,
+    /// Set on area change; ability-inferred disciplines are evicted at the next
+    /// encounter boundary. Deferred (not done at AreaEntered directly) so the
+    /// outgoing encounter's summary snapshots disciplines before they're wiped.
+    pub inferred_discipline_eviction_pending: bool,
 
     // Combat exit grace window tracking
     /// Timestamp of last combat exit - used to detect fake combat splits
@@ -78,6 +82,7 @@ impl SessionCache {
             boss_definitions: Arc::new(Vec::new()),
             seen_npc_instances: HashSet::new(),
             player_disciplines: HashMap::new(),
+            inferred_discipline_eviction_pending: false,
             last_combat_exit_time: None,
             character_mismatch: false,
             missing_area: false,
@@ -110,6 +115,20 @@ impl SessionCache {
     /// Set the next encounter ID (used after importing subprocess results)
     pub fn set_next_encounter_id(&mut self, id: u64) {
         self.next_encounter_id = id;
+    }
+
+    /// Evict ability-inferred disciplines (deferred from area change): players
+    /// can respec between PvP matches and enemies never emit a correcting
+    /// DisciplineChanged, so the next area re-detects from scratch.
+    pub fn evict_inferred_disciplines(&mut self) {
+        self.inferred_discipline_eviction_pending = false;
+        for player in self.player_disciplines.values_mut() {
+            if player.discipline_inferred {
+                player.discipline_id = 0;
+                player.discipline_name.clear();
+                player.discipline_inferred = false;
+            }
+        }
     }
 
     pub fn push_new_encounter(&mut self) -> u64 {

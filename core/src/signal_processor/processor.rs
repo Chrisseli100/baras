@@ -53,6 +53,17 @@ impl EventProcessor {
         self.observe_local_player_identity(&event, cache);
 
         // 1a. Player/discipline tracking
+        // Deferred inferred-discipline eviction after an area change: wait until
+        // the prior encounter is finalized (state NotStarted) so its summary
+        // snapshots disciplines first — warzones often finalize via combat
+        // timeout well after the zone-out AreaEntered.
+        if cache.inferred_discipline_eviction_pending
+            && cache
+                .current_encounter()
+                .is_none_or(|e| e.state == EncounterState::NotStarted)
+        {
+            cache.evict_inferred_disciplines();
+        }
         self.handle_discipline_event(&event, cache, &mut signals);
         self.detect_discipline_from_ability(&event, cache, &mut signals);
         self.update_registered_player_health(&event, cache);
@@ -262,6 +273,7 @@ impl EventProcessor {
         player.class_name = resolve(event.effect.effect_name).to_string();
         player.discipline_id = event.effect.discipline_id;
         player.discipline_name = resolve(event.effect.discipline_name).to_string();
+        player.discipline_inferred = false;
         player.is_dead = false;
         player.death_time = None;
         player.received_revive_immunity = false;
@@ -317,6 +329,7 @@ impl EventProcessor {
         player.discipline_name = Discipline::from_guid(discipline_id)
             .map(|d| d.name().to_string())
             .unwrap_or_default();
+        player.discipline_inferred = true;
         player.last_seen_at = Some(event.timestamp);
         if event.source_entity.health.1 > 0 {
             player.current_hp = event.source_entity.health.0;
@@ -363,6 +376,10 @@ impl EventProcessor {
         }
         if area_changed {
             cache.current_area.generation += 1;
+            // Evict ability-inferred disciplines at the next encounter boundary
+            // (deferred so the outgoing encounter's summary — often finalized by
+            // combat timeout well after this AreaEntered — snapshots them first).
+            cache.inferred_discipline_eviction_pending = true;
         }
         cache.current_area.entered_at = Some(event.timestamp);
         cache.current_area.entered_at_line = Some(event.line_number);

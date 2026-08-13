@@ -56,6 +56,8 @@ pub struct WorkerPlayerDiscipline {
     pub current_hp: i32,
     #[serde(default)]
     pub max_hp: i32,
+    #[serde(default)]
+    pub discipline_inferred: bool,
 }
 
 impl WorkerPlayerDiscipline {
@@ -71,6 +73,7 @@ impl WorkerPlayerDiscipline {
             last_seen_at: player.last_seen_at,
             current_hp: player.current_hp,
             max_hp: player.max_hp,
+            discipline_inferred: player.discipline_inferred,
         }
     }
 
@@ -83,6 +86,7 @@ impl WorkerPlayerDiscipline {
             class_name: self.class_name.clone(),
             discipline_id: self.discipline_id,
             discipline_name: self.discipline_name.clone(),
+            discipline_inferred: self.discipline_inferred,
             is_dead: false,
             death_time: None,
             received_revive_immunity: false,
