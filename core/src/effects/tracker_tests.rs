@@ -838,6 +838,78 @@ fn test_other_player_effect_late_registration_not_marked_local() {
     );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Modifier refill_duration must work without is_refreshed_on_modify
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_charges_modifier_refills_duration_without_refresh_on_modify() {
+    // Tactical Advantage style: duration refills only when charges INCREASE,
+    // so is_refreshed_on_modify stays off and a SelfChargesChanged(Increased)
+    // modifier with refill_duration handles the refresh instead.
+    let effect_id: u64 = 12345;
+    let local_player_id: i64 = 1;
+
+    let mut def = make_effect(
+        "tactical_advantage",
+        "Tactical Advantage",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(effect_id)],
+            source: EntityFilter::LocalPlayer,
+            target: EntityFilter::LocalPlayer,
+            position: vec![],
+        },
+        Some(10.0),
+    );
+    def.modifiers = vec![baras_types::EffectModifier {
+        trigger: baras_types::Trigger::SelfChargesChanged {
+            direction: Some(baras_types::ChargeDirection::Increased),
+        },
+        adjust_duration_secs: 0.0,
+        requires_crit: false,
+        refill_duration: true,
+        icd_secs: None,
+        max_duration_secs: None,
+    }];
+
+    let mut tracker = make_tracker(vec![def]);
+    tracker.set_player_context(local_player_id, 0);
+
+    let ts = now();
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, local_player_id, local_player_id, ts),
+        None,
+    );
+    let original_expires = tracker.active_effects().next().unwrap().expires_at;
+
+    // Charges increase 4s later — duration should refill from that timestamp
+    let ts2 = ts + chrono::Duration::seconds(4);
+    tracker.handle_signal(
+        &charges_changed_signal(effect_id as i64, local_player_id, local_player_id, 2, ts2),
+        None,
+    );
+    let effect = tracker.active_effects().next().unwrap();
+    assert_eq!(effect.stacks, 2);
+    assert!(
+        effect.expires_at > original_expires,
+        "refill_duration modifier should extend expires_at on charge increase"
+    );
+    let refilled_expires = effect.expires_at;
+
+    // Charges decrease — Increased direction filter must NOT refill
+    let ts3 = ts + chrono::Duration::seconds(6);
+    tracker.handle_signal(
+        &charges_changed_signal(effect_id as i64, local_player_id, local_player_id, 1, ts3),
+        None,
+    );
+    let effect = tracker.active_effects().next().unwrap();
+    assert_eq!(effect.stacks, 1);
+    assert_eq!(
+        effect.expires_at, refilled_expires,
+        "charge decrease should not refill duration"
+    );
+}
+
 #[test]
 fn test_local_player_cast_does_not_create_phantom_others_via_refresh() {
     // When the LOCAL player casts Kolto Shell, the AbilityActivated signal should

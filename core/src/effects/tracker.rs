@@ -2163,19 +2163,19 @@ impl EffectTracker {
         for def in matching_defs {
             let key = EffectKey::for_scope(&def.id, def.refresh_scope, source_id, target_id);
 
-            // Calculate duration before borrowing active_effects mutably
-            let duration = if def.is_refreshed_on_modify {
-                self.effective_duration(def)
-            } else {
-                None
-            };
+            // Calculate duration before borrowing active_effects mutably.
+            // Needed for the blanket is_refreshed_on_modify refresh AND for
+            // refill_duration modifiers (which refill without is_refreshed_on_modify).
+            let needs_duration =
+                def.is_refreshed_on_modify || def.modifiers.iter().any(|m| m.refill_duration);
+            let duration = if needs_duration { self.effective_duration(def) } else { None };
 
             if let Some(effect) = self.active_effects.get_mut(&key) {
                 let old_stacks = effect.stacks;
                 effect.set_stacks(charges);
 
                 // Refresh duration on ModifyCharges if is_refreshed_on_modify is set.
-                if let Some(dur) = duration {
+                if def.is_refreshed_on_modify && let Some(dur) = duration {
                     effect.refresh_duration(timestamp, dur);
                 }
 
