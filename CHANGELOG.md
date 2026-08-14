@@ -2,7 +2,7 @@
 
 ## Improved PvP Support
 
-- Improved match boundary detectioino for Warzones and Areans. Warzones should now be displayed as a single entry. Arenas are segmented into rounds
+- Improved match boundary detection for Warzones and Areans. Warzones should now be displayed as a single entry. Arenas are segmented into rounds.
 - Friendly/Enemy players are identified and moved into separate tables in the data explorer overview
 - Effect/Ability triggers can now have the source and target filtered by friendly and enemy players
 - Discipline will now be inferred based on player ability casts. (Fury and Rage currently difficult to disambiguate)
@@ -19,7 +19,7 @@
 - Added encounter reset detection for Zorn and Toth and Coratanni
 - Fixed HTPS values in data explorer sidebar
 - Temporary alacrity buffs are now included in alacrity calculations (local player only)
-- Added overlay for tracking interrupt casts (interrupt ability only)
+- Added overlay for tracking interrupt casts (interrupt ability only, leap/charge interrupts not tracked)
 
 # v2026.8.9
 
