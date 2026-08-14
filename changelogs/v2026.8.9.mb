@@ -1,0 +1,18 @@
+# v2026.8.9
+
+## Raid Frame Auto-assignment
+
+Raid frame positions can now be automatically assigned by clicking the icon in the top-right corner of the frame in `Rearrange` mode or by
+binding the command to a hotkey in the application settings.
+
+BARAS will download a small (12mb) image recognition model and process a screenshot of the space underneath your raid frames overlay.
+
+Provisional names will be assigned and filled in as the players are detected in the logs.
+
+Supported on macOS and Linux.
+
+## Other
+
+- Raid frame overlay is now exempted from snap-to-grid alignment.
+- Operations timer will now properly stop when flashpoint/PvP zone is exited
+- Minor adjustments to the death recap display
