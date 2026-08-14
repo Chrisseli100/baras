@@ -11,11 +11,13 @@ fn main() {
     generate_attack_types_map(&out_dir);
     generate_alacrity_buffs_map(&out_dir);
     generate_discipline_abilities_map(&out_dir);
+    generate_interrupt_abilities_set(&out_dir);
 
     println!("cargo:rerun-if-changed=data/off_gcd.json");
     println!("cargo:rerun-if-changed=data/attack_types.csv");
     println!("cargo:rerun-if-changed=data/alacrity_abilities.csv");
     println!("cargo:rerun-if-changed=data/discipline_unique_abilities.csv");
+    println!("cargo:rerun-if-changed=data/interrupts.csv");
 }
 
 fn generate_off_gcd_set(out_dir: &str) {
@@ -39,6 +41,33 @@ fn generate_off_gcd_set(out_dir: &str) {
     }
 
     writeln!(file, "pub static OFF_GCD_ABILITIES: phf::Set<i64> = {};", builder.build()).unwrap();
+}
+
+fn generate_interrupt_abilities_set(out_dir: &str) {
+    let csv = fs::read_to_string("data/interrupts.csv").expect("failed to read interrupts.csv");
+
+    let mut ids: Vec<i64> = csv
+        .lines()
+        .skip(1)
+        .filter_map(|line| line.trim().parse::<i64>().ok())
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+
+    let path = Path::new(out_dir).join("interrupt_abilities.rs");
+    let mut file = BufWriter::new(fs::File::create(&path).unwrap());
+
+    let mut builder = phf_codegen::Set::new();
+    for id in &ids {
+        builder.entry(*id);
+    }
+
+    writeln!(
+        file,
+        "pub static INTERRUPT_ABILITIES: phf::Set<i64> = {};",
+        builder.build()
+    )
+    .unwrap();
 }
 
 fn generate_attack_types_map(out_dir: &str) {

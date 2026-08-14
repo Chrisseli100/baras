@@ -45,6 +45,7 @@ pub struct MetricAccumulator {
     pub actions: u32,
     pub threat_generated: f64,
     pub taunt_count: u32,
+    pub interrupt_casts: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -99,6 +100,7 @@ pub struct EntityMetrics {
     pub apm: f32,
     pub tps: i32,
     pub total_threat: i64,
+    pub interrupt_casts: u32,
 }
 
 impl EntityMetrics {
@@ -157,6 +159,7 @@ impl EntityMetrics {
 
             // Activity
             apm: self.apm,
+            interrupt_casts: self.interrupt_casts,
         }
     }
 }
@@ -217,4 +220,6 @@ pub struct PlayerMetrics {
 
     // Activity
     pub apm: f32,
+    #[serde(default)]
+    pub interrupt_casts: u32,
 }

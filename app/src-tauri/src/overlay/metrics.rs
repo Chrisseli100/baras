@@ -110,6 +110,15 @@ fn extract_values(m: &PlayerMetrics, overlay_type: MetricType) -> MetricValues {
             display_value: Some(format!("{:.1}", m.apm)),
             display_total: Some("-".to_string()),
         },
+        MetricType::Interrupts => MetricValues {
+            rate: m.interrupt_casts as i64,
+            total: 0,
+            split_rate: None,
+            split_total: None,
+            split_color: None,
+            display_value: Some(m.interrupt_casts.to_string()),
+            display_total: Some("-".to_string()),
+        },
     }
 }
 

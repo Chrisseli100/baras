@@ -1560,6 +1560,9 @@ impl CombatEncounter {
                 && self.exit_combat_time.is_none_or(|t| t >= event.timestamp)
             {
                 source.actions += 1;
+                if crate::game_data::INTERRUPT_ABILITIES.contains(&event.action.action_id) {
+                    source.interrupt_casts += 1;
+                }
             }
 
             if event.effect.effect_id == effect_id::TAUNT {
@@ -1725,6 +1728,7 @@ impl CombatEncounter {
                     total_shield_absorbed: acc.shield_roll_absorbed,
                     taunt_count: acc.taunt_count,
                     apm: (acc.actions as f32 * 60000.0 / duration_ms as f32),
+                    interrupt_casts: acc.interrupt_casts,
                     tps: (acc.threat_generated * 1000.0 / duration_ms as f64) as i32,
                     total_threat: acc.threat_generated as i64,
                 })

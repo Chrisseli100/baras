@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use super::*;
 use crate::encounter::{PvpFaction, PvpFactionTracker};
-use crate::game_data::effect_id;
+use crate::game_data::{INTERRUPT_ABILITIES, effect_id};
 
 impl EncounterQuery<'_> {
     /// Query shield attribution - maps shield source IDs to total shielding given.
@@ -227,6 +227,14 @@ impl EncounterQuery<'_> {
                 FROM events
                 WHERE effect_id = {ability_activate} {time_filter}
                 GROUP BY source_name
+            ),
+            interrupts AS (
+                SELECT source_name as name,
+                       COUNT(*) as interrupt_count
+                FROM events
+                WHERE effect_id = {ability_activate}
+                  AND ability_id IN ({interrupt_ids}) {time_filter}
+                GROUP BY source_name
             )
             SELECT
                 p.name,
@@ -237,16 +245,23 @@ impl EncounterQuery<'_> {
                 COALESCE(t.absorbed_total, 0) as absorbed_total,
                 COALESCE(h.healing_total, 0) as healing_total,
                 COALESCE(h.healing_effective, 0) as healing_effective,
-                COALESCE(a.action_count, 0) as action_count
+                COALESCE(a.action_count, 0) as action_count,
+                COALESCE(i.interrupt_count, 0) as interrupt_count
             FROM participants p
             LEFT JOIN damage_dealt d ON p.name = d.name
             LEFT JOIN damage_taken t ON p.name = t.name
             LEFT JOIN healing_done h ON p.name = h.name
             LEFT JOIN threat as th ON p.name = th.name
             LEFT JOIN actions a ON p.name = a.name
+            LEFT JOIN interrupts i ON p.name = i.name
             ORDER BY damage_total DESC
         "#,
                 ability_activate = effect_id::ABILITYACTIVATE,
+                interrupt_ids = INTERRUPT_ABILITIES
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
             ))
             .await?;
 
@@ -261,6 +276,7 @@ impl EncounterQuery<'_> {
             let healing_totals = col_f64(batch, 6)?;
             let healing_effectives = col_f64(batch, 7)?;
             let action_counts = col_f64(batch, 8)?;
+            let interrupt_counts = col_f64(batch, 9)?;
 
             for i in 0..batch.num_rows() {
                 let name = names[i].clone();
@@ -296,6 +312,7 @@ impl EncounterQuery<'_> {
                     ehps: healing_effective * 1000.0 / duration_ms as f64,
                     healing_pct,
                     apm: action_counts[i] * 60000.0 / duration_ms as f64,
+                    interrupts: interrupt_counts[i],
                 });
             }
         }

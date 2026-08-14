@@ -22,6 +22,7 @@ pub enum MetricType {
     Dtps,
     Tps,
     Apm,
+    Interrupts,
 }
 
 impl MetricType {
@@ -37,6 +38,7 @@ impl MetricType {
             MetricType::Dtps => "Damage Taken",
             MetricType::Htps => "Healing Taken",
             MetricType::Apm => "APM",
+            MetricType::Interrupts => "Interrupts",
         }
     }
 
@@ -52,6 +54,7 @@ impl MetricType {
             MetricType::Dtps => "baras-dtps",
             MetricType::Htps => "baras-abs",
             MetricType::Apm => "baras-apm",
+            MetricType::Interrupts => "baras-interrupts",
         }
     }
 
@@ -67,6 +70,7 @@ impl MetricType {
             MetricType::Dtps => (350, 50),
             MetricType::Htps => (350, 280),
             MetricType::Apm => (350, 510),
+            MetricType::Interrupts => (350, 740),
         }
     }
 
@@ -82,6 +86,7 @@ impl MetricType {
             MetricType::Dtps,
             MetricType::Tps,
             MetricType::Apm,
+            MetricType::Interrupts,
         ]
     }
 
@@ -97,6 +102,7 @@ impl MetricType {
             MetricType::Dtps => "dtps",
             MetricType::Htps => "abs",
             MetricType::Apm => "apm",
+            MetricType::Interrupts => "interrupts",
         }
     }
 
@@ -112,6 +118,7 @@ impl MetricType {
             "dtps" => Some(MetricType::Dtps),
             "abs" => Some(MetricType::Htps),
             "apm" => Some(MetricType::Apm),
+            "interrupts" => Some(MetricType::Interrupts),
             _ => None,
         }
     }

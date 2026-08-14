@@ -230,6 +230,9 @@ pub struct RaidOverviewRow {
     // Activity
     /// Actions per minute
     pub apm: f64,
+    /// Interrupt ability casts
+    #[serde(default)]
+    pub interrupts: f64,
 }
 
 /// Query result for time-series data (DPS/HPS over time).
@@ -1528,6 +1531,7 @@ pub mod overlay_colors {
     pub const DTPS: Color = [180, 80, 80, 255]; // Dark red
     pub const ABS: Color = [100, 150, 200, 255]; // Light blue
     pub const APM: Color = [140, 140, 140, 255]; // Grey
+    pub const INTERRUPTS: Color = [180, 130, 50, 255]; // Amber
     pub const BOSS_BAR: Color = [200, 50, 50, 255]; // Boss health red
     pub const FRAME_BG: Color = [40, 40, 40, 200]; // Raid frame background
 
@@ -1540,6 +1544,7 @@ pub mod overlay_colors {
             "dtps" | "edtps" => DTPS,
             "abs" => HPS,
             "apm" => APM,
+            "interrupts" => INTERRUPTS,
             _ => DPS,
         }
     }

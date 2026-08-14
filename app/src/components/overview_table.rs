@@ -29,6 +29,7 @@ pub enum OverviewSort {
     ShieldingTotal,
     SPS,
     APM,
+    Interrupts,
 }
 
 impl OverviewSort {
@@ -48,6 +49,7 @@ impl OverviewSort {
             Self::ShieldingTotal => row.shielding_given_total,
             Self::SPS => row.sps,
             Self::APM => row.apm,
+            Self::Interrupts => row.interrupts,
         }
     }
 }
@@ -67,6 +69,7 @@ pub struct OverviewTotals {
     healing: f64,
     hps: f64,
     ehps: f64,
+    interrupts: f64,
 }
 
 impl OverviewTotals {
@@ -84,6 +87,7 @@ impl OverviewTotals {
             t.healing += r.healing_total;
             t.hps += r.hps;
             t.ehps += r.ehps;
+            t.interrupts += r.interrupts;
             t
         })
     }
@@ -146,7 +150,7 @@ pub fn OverviewTable(props: OverviewTableProps) -> Element {
                     th { class: "section-header", colspan: "3", "Damage Taken" }
                     th { class: "section-header", colspan: "4", "Healing" }
                     th { class: "section-header", colspan: "2", "Shielding" }
-                    th { class: "section-header", colspan: "1", "Activity" }
+                    th { class: "section-header", colspan: "2", "Activity" }
                 }
                 tr { class: "sub-header",
                     th {}
@@ -164,6 +168,7 @@ pub fn OverviewTable(props: OverviewTableProps) -> Element {
                     th { class: "num sortable", onclick: sort_click(OverviewSort::ShieldingTotal), "Total{arrow(OverviewSort::ShieldingTotal)}" }
                     th { class: "num sortable", onclick: sort_click(OverviewSort::SPS), "SPS{arrow(OverviewSort::SPS)}" }
                     th { class: "num sortable", onclick: sort_click(OverviewSort::APM), "APM{arrow(OverviewSort::APM)}" }
+                    th { class: "num sortable", title: "Interrupt casts", onclick: sort_click(OverviewSort::Interrupts), "Int{arrow(OverviewSort::Interrupts)}" }
                 }
             }
             tbody {
@@ -207,6 +212,7 @@ pub fn OverviewTable(props: OverviewTableProps) -> Element {
                         td { class: "num shield", "{format_number(row.shielding_given_total)}" }
                         td { class: "num shield", "{format_number(row.sps)}" }
                         td { class: "num apm", "{formatting::format_decimal_f64(row.apm, 1, eu)}" }
+                        td { class: "num apm", "{formatting::format_decimal_f64(row.interrupts, 0, eu)}" }
                     }
                 }
             }
@@ -228,6 +234,7 @@ pub fn OverviewTable(props: OverviewTableProps) -> Element {
                         td { class: "num shield", "{format_number(t.shielding)}" }
                         td { class: "num shield", "{format_number(t.sps)}" }
                         td { class: "num apm" }
+                        td { class: "num apm", "{formatting::format_decimal_f64(t.interrupts, 0, eu)}" }
                     }
                 }
             }
