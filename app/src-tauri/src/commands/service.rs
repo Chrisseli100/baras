@@ -274,6 +274,15 @@ pub async fn update_config(
     handle.update_config(config).await
 }
 
+/// Whether the app is running in a Wayland session (always false off Linux)
+#[tauri::command]
+pub fn is_wayland_session() -> bool {
+    #[cfg(target_os = "linux")]
+    return crate::hotkeys::is_wayland();
+    #[cfg(not(target_os = "linux"))]
+    false
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Session Commands
 // ─────────────────────────────────────────────────────────────────────────────

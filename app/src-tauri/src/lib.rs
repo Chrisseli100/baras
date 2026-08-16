@@ -264,6 +264,7 @@ pub fn run() {
             commands::get_current_metrics,
             commands::get_config,
             commands::update_config,
+            commands::is_wayland_session,
             commands::get_active_file,
             commands::get_session_info,
             commands::get_encounter_history,

@@ -121,6 +121,10 @@ pub fn App() -> Element {
     let mut hotkey_live_mode = use_signal(String::new);
     let mut hotkey_detect_raid = use_signal(String::new);
     let mut hotkey_save_status = use_signal(String::new);
+    let mut is_wayland_session = use_signal(|| false);
+    use_future(move || async move {
+        is_wayland_session.set(api::is_wayland_session().await);
+    });
 
     // Log management state
     let mut log_dir_size = use_signal(|| 0u64);
@@ -2023,9 +2027,11 @@ pub fn App() -> Element {
                             div { class: "settings-section",
                                 h4 { "Global Hotkeys" }
                                 p { class: "hint", "Click to capture a key combination. Backspace to clear." }
-                                p { class: "hint hint-warning",
-                                    i { class: "fa-solid fa-triangle-exclamation" }
-                                    " Linux Wayland: Experimental, requires compositor support for freedesktop global shortcuts portal."
+                                if is_wayland_session() {
+                                    p { class: "hint hint-warning",
+                                        i { class: "fa-solid fa-triangle-exclamation" }
+                                        " Linux Wayland: Experimental, requires compositor support for freedesktop global shortcuts portal."
+                                    }
                                 }
                                 p { class: "hint hint-warning",
                                     i { class: "fa-solid fa-info-circle" }

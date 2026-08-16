@@ -17,35 +17,52 @@ pub struct HotkeyInputProps {
     pub placeholder: String,
 }
 
-/// Convert key to string representation
-fn key_to_string(key: &Key) -> Option<String> {
-    match key {
-        Key::Character(c) => Some(c.to_uppercase()),
-        Key::F1 => Some("F1".to_string()),
-        Key::F2 => Some("F2".to_string()),
-        Key::F3 => Some("F3".to_string()),
-        Key::F4 => Some("F4".to_string()),
-        Key::F5 => Some("F5".to_string()),
-        Key::F6 => Some("F6".to_string()),
-        Key::F7 => Some("F7".to_string()),
-        Key::F8 => Some("F8".to_string()),
-        Key::F9 => Some("F9".to_string()),
-        Key::F10 => Some("F10".to_string()),
-        Key::F11 => Some("F11".to_string()),
-        Key::F12 => Some("F12".to_string()),
-        Key::ArrowUp => Some("Up".to_string()),
-        Key::ArrowDown => Some("Down".to_string()),
-        Key::ArrowLeft => Some("Left".to_string()),
-        Key::ArrowRight => Some("Right".to_string()),
-        Key::Home => Some("Home".to_string()),
-        Key::End => Some("End".to_string()),
-        Key::PageUp => Some("PageUp".to_string()),
-        Key::PageDown => Some("PageDown".to_string()),
-        Key::Insert => Some("Insert".to_string()),
-        Key::Tab => Some("Tab".to_string()),
-        Key::Enter => Some("Enter".to_string()),
-        _ => None,
+/// Convert a physical key code to its hotkey string representation.
+///
+/// Uses the physical code rather than the produced character so modifier
+/// combos capture the base key (Shift+8 → "8", not the shifted "*" which
+/// the global-shortcut parser can't register).
+fn code_to_string(code: Code) -> Option<String> {
+    use Code::*;
+    let name = code.to_string();
+    // Letters and digits: code names are "KeyA".."KeyZ" / "Digit0".."Digit9"
+    if let Some(c) = name.strip_prefix("Key").filter(|c| c.len() == 1) {
+        return Some(c.to_string());
     }
+    if let Some(d) = name.strip_prefix("Digit").filter(|d| d.len() == 1) {
+        return Some(d.to_string());
+    }
+    // Numpad digits: keep the full "Numpad8" token (parsed by the shortcut backend)
+    if name.strip_prefix("Numpad").is_some_and(|d| d.len() == 1 && d.chars().all(|c| c.is_ascii_digit())) {
+        return Some(name);
+    }
+    let s = match code {
+        F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 => return Some(name),
+        ArrowUp => "Up",
+        ArrowDown => "Down",
+        ArrowLeft => "Left",
+        ArrowRight => "Right",
+        Home => "Home",
+        End => "End",
+        PageUp => "PageUp",
+        PageDown => "PageDown",
+        Insert => "Insert",
+        Tab => "Tab",
+        Enter => "Enter",
+        Minus => "-",
+        Equal => "=",
+        Comma => ",",
+        Period => ".",
+        Slash => "/",
+        Backslash => "\\",
+        Semicolon => ";",
+        Quote => "'",
+        BracketLeft => "[",
+        BracketRight => "]",
+        Backquote => "`",
+        _ => return None,
+    };
+    Some(s.to_string())
 }
 
 /// Build modifier prefix string
@@ -145,8 +162,8 @@ pub fn HotkeyInput(props: HotkeyInputProps) -> Element {
                     return;
                 }
 
-                // Try to convert the key to a string
-                if let Some(key_str) = key_to_string(&key) {
+                // Convert the physical key code to a string
+                if let Some(key_str) = code_to_string(e.code()) {
                     let mut parts = build_modifier_prefix(&e.modifiers());
                     parts.push(key_str);
                     let hotkey = parts.join("+");

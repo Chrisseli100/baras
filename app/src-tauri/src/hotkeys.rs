@@ -13,7 +13,7 @@ use futures_util::StreamExt;
 
 /// Check if running on Wayland (Linux only)
 #[cfg(target_os = "linux")]
-fn is_wayland() -> bool {
+pub fn is_wayland() -> bool {
     std::env::var("WAYLAND_DISPLAY").is_ok()
         || std::env::var("XDG_SESSION_TYPE")
             .map(|v| v == "wayland")
@@ -42,8 +42,14 @@ fn convert_key_format(tauri_key: &str) -> String {
                 "command" | "super" | "meta" => "LOGO",  // LOGO is the XDG name for Super/Windows key
                 "alt" => "ALT",
                 "shift" => "SHIFT",
-                // Everything else is a key - keep it lowercase
-                key => return key.to_owned(),
+                // Numpad digits use XKB keysym names in the portal spec
+                key => {
+                    return match key.strip_prefix("numpad") {
+                        Some(d) => format!("KP_{d}"),
+                        // Everything else is a key - keep it lowercase
+                        None => key.to_owned(),
+                    };
+                }
             }.to_owned()
         })
         .collect::<Vec<_>>()

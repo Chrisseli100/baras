@@ -98,6 +98,12 @@ pub async fn update_config(config: &AppConfig) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether the app is running in a Wayland session
+pub async fn is_wayland_session() -> bool {
+    let result = invoke("is_wayland_session", JsValue::NULL).await;
+    from_js(result).unwrap_or(false)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Overlay Commands
 // ─────────────────────────────────────────────────────────────────────────────
