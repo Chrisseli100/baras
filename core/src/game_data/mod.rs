@@ -30,8 +30,8 @@ pub use effects::*;
 pub use flashpoints::{FLASHPOINT_AREAS, get_flashpoint_name, is_flashpoint};
 pub use interrupt_abilities::INTERRUPT_ABILITIES;
 pub use pvp_instance::{
-    ARENA_ROUND_END_ABILITY_IDS, PvpAreaKind, REBIRTH_ABILITY_ID, is_pvp_area, pvp_area_kind,
-    pvp_match_label,
+    ARENA_ROUND_END_ABILITY_IDS, DESERTER_DETECTION_EFFECT_IDS, PvpAreaKind, REBIRTH_ABILITY_ID,
+    is_pvp_area, pvp_area_kind, pvp_match_label,
 };
 pub use raids::{OPERATION_AREAS, get_operation_name, is_operation, is_world_boss};
 pub use shield_absorbs::{SHIELD_INFO, ShieldInfo, get_shield_info, is_known_shield};

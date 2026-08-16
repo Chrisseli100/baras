@@ -12,7 +12,7 @@ use chrono::NaiveDateTime;
 use crate::combat_log::CombatEvent;
 use crate::encounter::EncounterState;
 use crate::encounter::summary::determine_success;
-use crate::game_data::{PvpAreaKind, effect_id, effect_type_id};
+use crate::game_data::{DESERTER_DETECTION_EFFECT_IDS, PvpAreaKind, effect_id, effect_type_id};
 use crate::state::SessionCache;
 
 use super::GameSignal;
@@ -117,7 +117,16 @@ fn handle_not_started(
     let mut signals = Vec::new();
     let mut was_accumulated = false;
 
-    if effect_id == effect_id::ENTERCOMBAT {
+    // PvP round start: "Deserter Detection" is applied to players in the spawn
+    // area the moment the round begins (barrier drop), before any EnterCombat.
+    // The game clocks PvP DPS/HPS from that moment, so start the encounter here
+    // to match. EnterCombat stays as the fallback (e.g. logging started
+    // mid-match).
+    let pvp_round_started = event.effect.type_id == effect_type_id::APPLYEFFECT
+        && DESERTER_DETECTION_EFFECT_IDS.contains(&effect_id)
+        && cache.current_encounter().is_some_and(|e| e.is_pvp());
+
+    if effect_id == effect_id::ENTERCOMBAT || pvp_round_started {
         if let Some(enc) = cache.current_encounter_mut() {
             enc.state = EncounterState::InCombat;
             enc.enter_combat_time = Some(timestamp);

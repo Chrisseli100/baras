@@ -43,6 +43,16 @@ pub fn is_pvp_area(area_id: i64) -> bool {
     pvp_area_kind(area_id).is_some()
 }
 
+/// "Deserter Detection" effects applied to every player the moment a PvP round
+/// begins (the spawn barrier drops), before any EnterCombat. The first
+/// application is the round-start anchor: the game clocks PvP DPS/HPS from
+/// this moment. Warzones and arenas use distinct effect IDs. Re-applies on
+/// warzone respawns, so only the first application per round matters.
+pub const DESERTER_DETECTION_EFFECT_IDS: [i64; 2] = [
+    2730083076800512, // Warzones
+    3297813328822272, // Arenas
+];
+
 /// System heal fired at every player when a PvP match ends: the final arena
 /// round (a few ms before the Heal Target burst) and the end of every warzone.
 /// Never occurs mid-match — not even on warzone spawn respawns.
