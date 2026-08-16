@@ -23,6 +23,7 @@ enum ModifierTriggerType {
     DamageTaken,
     DamageDealt,
     HealingTaken,
+    HealingDealt,
     EffectApplied,
     EffectRemoved,
     ChargesChanged,
@@ -36,6 +37,7 @@ impl ModifierTriggerType {
             Self::DamageTaken => "Damage Taken",
             Self::DamageDealt => "Damage Dealt",
             Self::HealingTaken => "Healing Taken",
+            Self::HealingDealt => "Healing Dealt",
             Self::EffectApplied => "Effect Applied",
             Self::EffectRemoved => "Effect Removed",
             Self::ChargesChanged => "Charges Changed",
@@ -49,6 +51,7 @@ impl ModifierTriggerType {
             Self::DamageTaken,
             Self::DamageDealt,
             Self::HealingTaken,
+            Self::HealingDealt,
             Self::EffectApplied,
             Self::EffectRemoved,
             Self::ChargesChanged,
@@ -62,6 +65,7 @@ impl ModifierTriggerType {
             Trigger::DamageTaken { .. } => Self::DamageTaken,
             Trigger::DamageDealt { .. } => Self::DamageDealt,
             Trigger::HealingTaken { .. } => Self::HealingTaken,
+            Trigger::HealingDealt { .. } => Self::HealingDealt,
             Trigger::EffectApplied { .. } => Self::EffectApplied,
             Trigger::EffectRemoved { .. } => Self::EffectRemoved,
             Trigger::ChargesChanged { .. } => Self::ChargesChanged,
@@ -93,6 +97,12 @@ impl ModifierTriggerType {
                 position: vec![],
             },
             Self::HealingTaken => Trigger::HealingTaken {
+                abilities: vec![],
+                source: Default::default(),
+                target: Default::default(),
+                position: vec![],
+            },
+            Self::HealingDealt => Trigger::HealingDealt {
                 abilities: vec![],
                 source: Default::default(),
                 target: Default::default(),
@@ -246,6 +256,7 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                                 "Damage Taken" => ModifierTriggerType::DamageTaken,
                                 "Damage Dealt" => ModifierTriggerType::DamageDealt,
                                 "Healing Taken" => ModifierTriggerType::HealingTaken,
+                                "Healing Dealt" => ModifierTriggerType::HealingDealt,
                                 "Effect Applied" => ModifierTriggerType::EffectApplied,
                                 "Effect Removed" => ModifierTriggerType::EffectRemoved,
                                 "Charges Changed" => ModifierTriggerType::ChargesChanged,
@@ -296,7 +307,7 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
             }
 
             // Requires Crit (only for DamageTaken/HealingTaken)
-            if matches!(trigger_type, ModifierTriggerType::DamageTaken | ModifierTriggerType::DamageDealt | ModifierTriggerType::HealingTaken) {
+            if matches!(trigger_type, ModifierTriggerType::DamageTaken | ModifierTriggerType::DamageDealt | ModifierTriggerType::HealingTaken | ModifierTriggerType::HealingDealt) {
                 div { class: "form-row-hz",
                     label { "Requires Critical Hit" }
                     input {
@@ -556,6 +567,27 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                     on_change: move |new_abs: Vec<AbilitySelector>| {
                         let mut m = modifier.clone();
                         m.trigger = Trigger::HealingTaken {
+                            abilities: new_abs,
+                            source: Default::default(),
+                            target: Default::default(),
+                            position: vec![],
+                        };
+                        on_update.call(m);
+                    }
+                }
+            }
+        }
+        Trigger::HealingDealt { abilities, .. } => {
+            let abilities = abilities.clone();
+            let modifier = modifier.clone();
+            let on_update = on_update.clone();
+            rsx! {
+                AbilitySelectorEditor {
+                    label: "Abilities",
+                    selectors: abilities,
+                    on_change: move |new_abs: Vec<AbilitySelector>| {
+                        let mut m = modifier.clone();
+                        m.trigger = Trigger::HealingDealt {
                             abilities: new_abs,
                             source: Default::default(),
                             target: Default::default(),

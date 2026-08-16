@@ -1285,6 +1285,19 @@ pub enum Trigger {
         position: Vec<PositionConstraint>,
     },
 
+    /// Healing is dealt to a target. [M only]
+    HealingDealt {
+        #[serde(default)]
+        abilities: Vec<AbilitySelector>,
+        #[serde(default)]
+        source: EntityFilter,
+        #[serde(default)]
+        target: EntityFilter,
+        /// Coordinate constraints on source/target (AND semantics, empty = any)
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        position: Vec<PositionConstraint>,
+    },
+
     /// Another effect's charges/stacks change. [M only]
     ChargesChanged {
         #[serde(default)]
@@ -1409,6 +1422,7 @@ impl Trigger {
             | Self::DamageTaken { position, .. }
             | Self::DamageDealt { position, .. }
             | Self::HealingTaken { position, .. }
+            | Self::HealingDealt { position, .. }
             | Self::NpcAppears { position, .. }
             | Self::EntityDeath { position, .. } => position,
             _ => &[],
@@ -1425,6 +1439,7 @@ impl Trigger {
                 | Self::DamageTaken { .. }
                 | Self::DamageDealt { .. }
                 | Self::HealingTaken { .. }
+                | Self::HealingDealt { .. }
                 | Self::NpcAppears { .. }
                 | Self::EntityDeath { .. }
         )
@@ -1440,6 +1455,7 @@ impl Trigger {
             | Self::DamageTaken { position, .. }
             | Self::DamageDealt { position, .. }
             | Self::HealingTaken { position, .. }
+            | Self::HealingDealt { position, .. }
             | Self::NpcAppears { position, .. }
             | Self::EntityDeath { position, .. } => *position = constraints,
             _ => {}
@@ -1458,6 +1474,7 @@ impl Trigger {
             Self::DamageTaken { .. } => "Damage Taken",
             Self::DamageDealt { .. } => "Damage Dealt",
             Self::HealingTaken { .. } => "Healing Taken",
+            Self::HealingDealt { .. } => "Healing Dealt",
             Self::ChargesChanged { .. } => "Charges Changed",
             Self::SelfChargesChanged { .. } => "Self Charges Changed",
             Self::ThreatModified { .. } => "Threat Modified",
@@ -1492,6 +1509,7 @@ impl Trigger {
             Self::DamageTaken { .. } => "damage_taken",
             Self::DamageDealt { .. } => "damage_dealt",
             Self::HealingTaken { .. } => "healing_taken",
+            Self::HealingDealt { .. } => "healing_dealt",
             Self::ChargesChanged { .. } => "charges_changed",
             Self::SelfChargesChanged { .. } => "self_charges_changed",
             Self::ThreatModified { .. } => "threat_modified",

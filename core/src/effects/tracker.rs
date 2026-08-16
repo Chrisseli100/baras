@@ -2476,10 +2476,26 @@ impl EffectTracker {
                     Trigger::HealingTaken { abilities, .. } => {
                         let eid = effect.target_entity_id;
                         signals.iter().filter(|s| {
-                            if let GameSignal::HealingDone { ability_id, ability_name, target_id, .. } = s {
+                            if let GameSignal::HealingDone { ability_id, ability_name, target_id, is_crit, .. } = s {
                                 if *target_id != eid { return false; }
                                 let name = crate::context::resolve(*ability_name);
-                                abilities.is_empty() || abilities.iter().any(|a| a.matches(*ability_id as u64, Some(name)))
+                                let ability_ok = abilities.is_empty() || abilities.iter().any(|a| a.matches(*ability_id as u64, Some(name)));
+                                let crit_ok = !modifier.requires_crit || *is_crit;
+                                ability_ok && crit_ok
+                            } else {
+                                false
+                            }
+                        }).count()
+                    }
+                    Trigger::HealingDealt { abilities, .. } => {
+                        let eid = effect.target_entity_id;
+                        signals.iter().filter(|s| {
+                            if let GameSignal::HealingDone { ability_id, ability_name, source_id, is_crit, .. } = s {
+                                if *source_id != eid { return false; }
+                                let name = crate::context::resolve(*ability_name);
+                                let ability_ok = abilities.is_empty() || abilities.iter().any(|a| a.matches(*ability_id as u64, Some(name)));
+                                let crit_ok = !modifier.requires_crit || *is_crit;
+                                ability_ok && crit_ok
                             } else {
                                 false
                             }
@@ -2928,6 +2944,7 @@ impl SignalHandler for EffectTracker {
                 target_name,
                 target_npc_id,
                 timestamp,
+                ..
             } => {
                 // Refresh effects on heal completion
                 self.refresh_effects_by_action(

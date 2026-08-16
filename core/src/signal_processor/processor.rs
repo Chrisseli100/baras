@@ -1566,6 +1566,7 @@ impl EventProcessor {
             target_entity_type: event.target_entity.entity_type,
             target_name: event.target_entity.name,
             target_npc_id: event.target_entity.class_id,
+            is_crit: event.details.is_crit,
             timestamp: event.timestamp,
         });
     }

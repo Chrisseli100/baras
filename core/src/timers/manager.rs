@@ -1959,6 +1959,7 @@ impl SignalHandler for TimerManager {
                 target_name,
                 target_npc_id,
                 timestamp,
+                ..
             } => {
                 signal_handlers::handle_healing_taken(
                     self,
