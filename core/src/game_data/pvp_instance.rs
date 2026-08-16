@@ -43,13 +43,18 @@ pub fn is_pvp_area(area_id: i64) -> bool {
     pvp_area_kind(area_id).is_some()
 }
 
+/// System heal fired at every player when a PvP match ends: the final arena
+/// round (a few ms before the Heal Target burst) and the end of every warzone.
+/// Never occurs mid-match — not even on warzone spawn respawns.
+pub const REBIRTH_ABILITY_ID: i64 = 773652459028480;
+
 /// System abilities whose Heal events mark an arena round boundary: the game
 /// heals every player to full the instant a round ends ("Heal Target"), and
 /// additionally fires "Rebirth" when the final round ends the match (a few ms
 /// before the Heal Target burst). Neither occurs mid-round.
 pub const ARENA_ROUND_END_ABILITY_IDS: [i64; 2] = [
-    773652459028480, // Rebirth (match end only)
-    813707324030976, // Heal Target (every round end)
+    REBIRTH_ABILITY_ID,  // Rebirth (match end only)
+    813707324030976,     // Heal Target (every round end)
 ];
 
 /// Display label for a PvP area's match type

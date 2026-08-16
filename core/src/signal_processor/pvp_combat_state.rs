@@ -9,7 +9,7 @@ use chrono::NaiveDateTime;
 
 use crate::combat_log::CombatEvent;
 use crate::encounter::EncounterState;
-use crate::game_data::{ARENA_ROUND_END_ABILITY_IDS, effect_id, effect_type_id};
+use crate::game_data::{ARENA_ROUND_END_ABILITY_IDS, REBIRTH_ABILITY_ID, effect_id, effect_type_id};
 use crate::state::SessionCache;
 
 use super::GameSignal;
@@ -17,15 +17,24 @@ use super::GameSignal;
 /// Advance an InCombat warzone encounter.
 ///
 /// A warzone match is one contiguous encounter: EnterCombat/ExitCombat from
-/// respawns and rejoins never split it. The only boundary is zoning out
-/// (AreaEntered with a different area ID); the encounter end is then backdated
-/// to the final ExitCombat seen, so scoreboard idle time isn't counted.
+/// respawns and rejoins never split it. The primary boundary is the "Rebirth"
+/// full heal the game fires at every player the instant the match ends.
+/// Zoning out (AreaEntered with a different area ID) remains as a fallback
+/// for quits/disconnects; the encounter end is then backdated to the final
+/// ExitCombat seen, so scoreboard idle time isn't counted.
 pub fn handle_in_combat_warzone(
     event: &CombatEvent,
     cache: &mut SessionCache,
 ) -> (Vec<GameSignal>, bool) {
     let mut signals = Vec::new();
     let timestamp = event.timestamp;
+
+    let match_ended = event.effect.effect_id == effect_id::HEAL
+        && event.action.action_id == REBIRTH_ABILITY_ID;
+    if match_ended {
+        end_pvp_match(cache, &mut signals, timestamp, true, "Warzone match ended");
+        return (signals, false);
+    }
 
     if zoned_out(event, cache) {
         let exit_time = cache
