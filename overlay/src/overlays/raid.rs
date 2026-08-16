@@ -418,6 +418,10 @@ pub struct RaidOverlayConfig {
     /// Negative = above frame, Positive = into frame
     /// Clamped to [EFFECT_OFFSET_MIN, EFFECT_OFFSET_MAX]
     pub effect_vertical_offset: f32,
+    /// Horizontal offset of effects from frame left edge
+    /// Negative = left of frame, Positive = into frame
+    /// Clamped to [EFFECT_OFFSET_MIN, EFFECT_OFFSET_MAX]
+    pub effect_horizontal_offset: f32,
     /// Opacity of the effect fill (0-255)
     /// Lower values useful when icons are displayed as background
     pub effect_fill_opacity: u8,
@@ -438,6 +442,7 @@ impl Default for RaidOverlayConfig {
             selection_color: [80, 120, 180, 220],
             effect_size: EFFECT_SIZE_DEFAULT,
             effect_vertical_offset: EFFECT_OFFSET_DEFAULT,
+            effect_horizontal_offset: EFFECT_OFFSET_DEFAULT,
             effect_fill_opacity: 255, // Fully opaque when no icons
             show_effect_icons: false,
             frame_spacing: BASE_GAP,
@@ -456,6 +461,12 @@ impl RaidOverlayConfig {
         self.effect_vertical_offset
             .clamp(EFFECT_OFFSET_MIN, EFFECT_OFFSET_MAX)
     }
+
+    /// Get the clamped effect horizontal offset
+    pub fn effect_horizontal_offset(&self) -> f32 {
+        self.effect_horizontal_offset
+            .clamp(EFFECT_OFFSET_MIN, EFFECT_OFFSET_MAX)
+    }
 }
 
 impl From<baras_core::context::RaidOverlaySettings> for RaidOverlayConfig {
@@ -468,6 +479,7 @@ impl From<baras_core::context::RaidOverlaySettings> for RaidOverlayConfig {
             selection_color: [80, 120, 180, 220], // Keep hardcoded for now
             effect_size: settings.effect_size,
             effect_vertical_offset: settings.effect_vertical_offset,
+            effect_horizontal_offset: settings.effect_horizontal_offset,
             effect_fill_opacity: settings.effect_fill_opacity,
             show_effect_icons: settings.show_effect_icons,
             frame_spacing: settings.frame_spacing.clamp(0.0, 75.0),
@@ -1329,10 +1341,11 @@ impl RaidOverlay {
     fn render_placeholder_effect(&mut self, x: f32, y: f32) {
         let effect_size = self.config.effect_size();
         let vertical_offset = self.config.effect_vertical_offset();
+        let horizontal_offset = self.config.effect_horizontal_offset();
         let corner_radius = 2.0;
 
         // Position: same as first effect in render_effects
-        let ex = x + 3.0;
+        let ex = x + horizontal_offset;
         let ey = y + vertical_offset;
 
         // Semi-transparent background with dashed border to indicate placeholder
@@ -1367,6 +1380,7 @@ impl RaidOverlay {
         let max_effects = self.config.max_effects_per_frame as usize;
         let effect_size = self.config.effect_size();
         let vertical_offset = self.config.effect_vertical_offset();
+        let horizontal_offset = self.config.effect_horizontal_offset();
         let fill_opacity = self.config.effect_fill_opacity;
         let spacing = effect_size * 0.2;
         let corner_radius = 2.0;
@@ -1374,7 +1388,7 @@ impl RaidOverlay {
 
         for (i, effect) in raid_frame.effects.iter().take(max_effects).enumerate() {
             // LEFT side positioning, growing rightward
-            let ex = x + 3.0 + (i as f32 * (effect_size + spacing));
+            let ex = x + horizontal_offset + (i as f32 * (effect_size + spacing));
             let ey = y + vertical_offset;
 
             // Draw icon or colored square (overlay toggle AND per-effect flag)

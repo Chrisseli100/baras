@@ -2099,6 +2099,8 @@ pub struct RaidOverlaySettings {
     pub effect_size: f32,
     #[serde(default = "default_effect_offset")]
     pub effect_vertical_offset: f32,
+    #[serde(default = "default_effect_offset")]
+    pub effect_horizontal_offset: f32,
     #[serde(default = "default_frame_bg")]
     pub frame_bg_color: Color,
     #[serde(default = "default_true")]
@@ -2146,6 +2148,7 @@ impl Default for RaidOverlaySettings {
             max_effects_per_frame: 4,
             effect_size: 14.0,
             effect_vertical_offset: 3.0,
+            effect_horizontal_offset: 3.0,
             frame_bg_color: overlay_colors::FRAME_BG,
             show_role_icons: true,
             show_class_icons: false,

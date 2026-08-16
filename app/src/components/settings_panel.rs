@@ -2790,6 +2790,19 @@ pub fn SettingsPanel(
                                 },
                             }
 
+                            Slider {
+                                label: "Effect Horizontal Offset",
+                                value: current_settings.raid_overlay.effect_horizontal_offset as i32 as f64,
+                                min: -10.0,
+                                max: 30.0,
+                                suffix: "px",
+                                on_change: move |v: f64| {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.raid_overlay.effect_horizontal_offset = (v as f32).clamp(-10.0, 30.0);
+                                    update_draft(new_settings);
+                                },
+                            }
+
                             div { class: "setting-row",
                                 label { "Show Role Icons" }
                                 input {
