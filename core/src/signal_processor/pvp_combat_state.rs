@@ -73,8 +73,16 @@ pub fn handle_in_combat_arena(
             .map_or(true, |e| e.arena_outcome != Some(crate::encounter::PvpOutcome::Loss))
     };
 
+    // Require damage before honoring a round-end heal: arenas also fire a
+    // "Heal Target" prep burst ~30s before the barrier drops, and a local
+    // player backfilling between rounds starts the encounter (via Deserter
+    // Detection) before that burst lands. A round that hasn't seen damage
+    // can't have ended.
     let round_ended = event.effect.effect_id == effect_id::HEAL
-        && ARENA_ROUND_END_ABILITY_IDS.contains(&event.action.action_id);
+        && ARENA_ROUND_END_ABILITY_IDS.contains(&event.action.action_id)
+        && cache
+            .current_encounter()
+            .is_some_and(|e| e.last_damage_time.is_some());
     if round_ended {
         let success = round_success();
         end_pvp_match(cache, &mut signals, timestamp, success, "Arena round ended");

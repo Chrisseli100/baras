@@ -46,8 +46,9 @@ pub fn is_pvp_area(area_id: i64) -> bool {
 /// "Deserter Detection" effects applied to every player the moment a PvP round
 /// begins (the spawn barrier drops), before any EnterCombat. The first
 /// application is the round-start anchor: the game clocks PvP DPS/HPS from
-/// this moment. Warzones and arenas use distinct effect IDs. Re-applies on
-/// warzone respawns, so only the first application per round matters.
+/// this moment. Warzones and arenas use distinct effect IDs. Also applied to
+/// individual players on warzone respawns and when backfilling an in-progress
+/// match, so only the local player's first application per round matters.
 pub const DESERTER_DETECTION_EFFECT_IDS: [i64; 2] = [
     2730083076800512, // Warzones
     3297813328822272, // Arenas

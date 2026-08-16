@@ -120,10 +120,14 @@ fn handle_not_started(
     // PvP round start: "Deserter Detection" is applied to players in the spawn
     // area the moment the round begins (barrier drop), before any EnterCombat.
     // The game clocks PvP DPS/HPS from that moment, so start the encounter here
-    // to match. EnterCombat stays as the fallback (e.g. logging started
+    // to match. Only the local player's application counts — backfill players
+    // joining an in-progress match also receive it, which must not start an
+    // encounter. EnterCombat stays as the fallback (e.g. logging started
     // mid-match).
     let pvp_round_started = event.effect.type_id == effect_type_id::APPLYEFFECT
         && DESERTER_DETECTION_EFFECT_IDS.contains(&effect_id)
+        && cache.player_initialized
+        && event.target_entity.log_id == cache.player.id
         && cache.current_encounter().is_some_and(|e| e.is_pvp());
 
     if effect_id == effect_id::ENTERCOMBAT || pvp_round_started {
