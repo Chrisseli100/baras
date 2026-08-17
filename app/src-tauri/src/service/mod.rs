@@ -28,6 +28,7 @@ use baras_core::{
     ActiveEffect, BossEncounterDefinition, DefinitionConfig, DefinitionSet, DisplayTarget,
     EFFECTS_DSL_VERSION, EntityType, GameSignal, PlayerMetrics, Reader, SignalHandler,
 };
+pub use baras_core::IncomingDamageRow;
 use baras_overlay::{
     BossEffectIcon, BossHealthData, ChallengeData, ChallengeEntry, Color, CooldownData,
     CooldownEntry, DotEntry, DotTarget, DotTrackerData, EffectABEntry, EffectsABData, NotesData,
@@ -2946,11 +2947,91 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
 
         // Calculate metrics for all players (use session-level discipline registry)
         let entity_metrics = encounter.calculate_entity_metrics(&cache.player_disciplines, session.interpolated_game_time())?;
+        let is_pvp = encounter.is_pvp();
         let metrics: Vec<PlayerMetrics> = entity_metrics
             .into_iter()
             .filter(|m| m.entity_type != EntityType::Npc)
-            .map(|m| m.to_player_metrics())
+            .map(|m| {
+                let mut pm = m.to_player_metrics();
+                // Faction relative to the local player (drives the friendly/enemy
+                // split in metric overlays)
+                if is_pvp {
+                    pm.pvp_faction = encounter
+                        .pvp_factions
+                        .faction_of(pm.entity_id, player_entity_id);
+                }
+                pm
+            })
             .collect();
+
+        // Enemy player frames for the PvP enemy HP overlay: stable first-seen
+        // slot order; discipline from the session registry (source of truth)
+        let enemy_frames: Vec<baras_overlay::EnemyFrame> = if is_pvp {
+            let mut enemies: Vec<_> = encounter
+                .players
+                .values()
+                .filter(|p| {
+                    encounter.pvp_factions.faction_of(p.id, player_entity_id)
+                        == Some(baras_core::encounter::PvpFaction::Enemy)
+                })
+                .collect();
+            enemies.sort_by_key(|p| (p.first_seen_at, p.id));
+            enemies
+                .into_iter()
+                .map(|p| {
+                    let disc = cache
+                        .player_disciplines
+                        .get(&p.id)
+                        .and_then(|info| Discipline::from_guid(info.discipline_id));
+                    let target_id = if p.current_target_id != 0 {
+                        p.current_target_id
+                    } else {
+                        p.last_offensive_target_id
+                    };
+                    let target_name = (target_id != 0)
+                        .then(|| encounter.get_entity_name(target_id))
+                        .flatten()
+                        .map(|n| resolve(n).to_string());
+                    baras_overlay::EnemyFrame {
+                        entity_id: p.id,
+                        name: resolve(p.name).to_string(),
+                        class_name: disc.map(|d| format!("{:?}", d.class())),
+                        discipline_icon: disc.map(|d| d.icon_name().to_string()),
+                        current_hp: p.current_hp as i64,
+                        max_hp: p.max_hp as i64,
+                        target_name,
+                        targeting_you: target_id == player_entity_id,
+                        is_dead: p.is_dead,
+                        guarded: false,
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Per-source incoming damage for the local player (game-clock anchored
+        // so the sliding window stays in sync with the display timer)
+        let incoming_damage: Vec<IncomingDamageRow> = session
+            .interpolated_game_time()
+            .or(session.last_event_time)
+            .map(|now| {
+                encounter
+                    .incoming_damage
+                    .snapshot(now)
+                    .into_iter()
+                    .filter_map(|(id, rate, total)| {
+                        let name = encounter.get_entity_name(id)?;
+                        Some(IncomingDamageRow {
+                            entity_id: id,
+                            name: resolve(name).to_string(),
+                            rate,
+                            total,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // Build challenge data from encounter's tracker (persists with encounter, not boss state)
         let challenges = if encounter.challenge_tracker.is_active() {
@@ -3097,6 +3178,9 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
             challenges,
             current_phase,
             phase_time_secs,
+            incoming_damage,
+            is_warzone: encounter.is_warzone(),
+            enemy_frames,
         })
     } else if let Some(summary) = cache.encounter_history.summaries().last() {
         // Fallback to historical summary for initial hydration when no live encounter exists
@@ -3195,6 +3279,10 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
             challenges,
             current_phase: None,
             phase_time_secs: 0.0,
+            incoming_damage: summary.incoming_damage.clone(),
+            is_warzone: summary.is_warzone,
+            // Historical hydration: the match is over, enemy frames are stale
+            enemy_frames: Vec::new(),
         })
     } else {
         None
@@ -4351,6 +4439,12 @@ pub struct CombatData {
     pub current_phase: Option<String>,
     /// Time spent in the current phase (seconds)
     pub phase_time_secs: f32,
+    /// Damage taken by the local player per source (Incoming Damage overlay)
+    pub incoming_damage: Vec<IncomingDamageRow>,
+    /// Warzone match in progress — metric overlays suppress the totals column
+    pub is_warzone: bool,
+    /// Enemy player frames (PvP enemy HP overlay); empty outside PvP
+    pub enemy_frames: Vec<baras_overlay::EnemyFrame>,
 }
 
 impl CombatData {

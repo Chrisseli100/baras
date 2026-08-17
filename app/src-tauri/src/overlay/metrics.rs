@@ -119,6 +119,17 @@ fn extract_values(m: &PlayerMetrics, overlay_type: MetricType) -> MetricValues {
             display_value: Some(m.interrupt_casts.to_string()),
             display_total: Some("-".to_string()),
         },
+        // Not derived from PlayerMetrics — entries come from CombatData::incoming_damage
+        // via create_incoming_damage_entries
+        MetricType::IncomingDamage => MetricValues {
+            rate: 0,
+            total: 0,
+            split_rate: None,
+            split_total: None,
+            split_color: None,
+            display_value: None,
+            display_total: None,
+        },
     }
 }
 
@@ -145,23 +156,25 @@ pub fn create_entries_for_type(
                 GameRole::Dps => OverlayRole::Damage,
             });
             let is_local = m.entity_id == local_player_id;
-            (m.name.clone(), v, class_icon, discipline_icon, class_name, role, is_local)
+            let is_enemy = m.pvp_faction == Some(baras_core::encounter::PvpFaction::Enemy);
+            (m.name.clone(), v, class_icon, discipline_icon, class_name, role, is_local, is_enemy)
         })
         .collect();
 
-    // Sort by rate value descending (highest first)
-    values.sort_by(|a, b| b.1.rate.cmp(&a.1.rate));
+    // Friendly group first, then enemies (PvP); rate descending within each group
+    values.sort_by(|a, b| a.7.cmp(&b.7).then(b.1.rate.cmp(&a.1.rate)));
 
-    let max_value = values.iter().map(|(_, v, _, _, _, _, _)| v.rate).max().unwrap_or(1);
+    let max_value = values.iter().map(|(_, v, _, _, _, _, _, _)| v.rate).max().unwrap_or(1);
 
     values
         .into_iter()
-        .map(|(name, v, class_icon, discipline_icon, class_name, role, is_local)| {
+        .map(|(name, v, class_icon, discipline_icon, class_name, role, is_local, is_enemy)| {
             let mut entry = MetricEntry::new(&name, v.rate, max_value).with_total(v.total);
             if let (Some(dv), Some(dt)) = (v.display_value, v.display_total) {
                 entry = entry.with_display(dv, dt);
             }
             entry.is_local = is_local;
+            entry.is_enemy = is_enemy;
             if let (Some(sr), Some(st)) = (v.split_rate, v.split_total) {
                 entry = entry.with_split(sr, st);
                 if let Some(color) = v.split_color {
@@ -186,6 +199,41 @@ pub fn create_entries_for_type(
         .collect()
 }
 
+/// Create entries for the Incoming Damage overlay (local player's DTPS by source).
+/// `metrics` provides class/discipline icons for attackers that are players.
+pub fn create_incoming_damage_entries(
+    rows: &[crate::service::IncomingDamageRow],
+    metrics: &[PlayerMetrics],
+) -> Vec<MetricEntry> {
+    let max_value = rows.iter().map(|r| r.rate).max().unwrap_or(1);
+    rows.iter()
+        .map(|row| {
+            let mut entry = MetricEntry::new(&row.name, row.rate, max_value).with_total(row.total);
+            if let Some(m) = metrics.iter().find(|m| m.entity_id == row.entity_id) {
+                let role = m.discipline.map(|d| match d.role() {
+                    GameRole::Tank => OverlayRole::Tank,
+                    GameRole::Healer => OverlayRole::Healer,
+                    GameRole::Dps => OverlayRole::Damage,
+                });
+                if let Some(icon) = m.class_icon.clone() {
+                    if let Some(role) = role {
+                        entry = entry.with_class_icon(icon, role);
+                    } else {
+                        entry = entry.with_icon(icon);
+                    }
+                }
+                if let Some(d) = m.discipline {
+                    entry = entry.with_discipline_icon(d.icon_name().to_string());
+                }
+                if let Some(name) = m.class_name.clone() {
+                    entry = entry.with_class_name(name);
+                }
+            }
+            entry
+        })
+        .collect()
+}
+
 /// Create entries for all overlay types from metrics
 pub fn create_all_entries(
     metrics: &[PlayerMetrics],
@@ -193,6 +241,10 @@ pub fn create_all_entries(
 ) -> HashMap<MetricType, Vec<MetricEntry>> {
     let mut result = HashMap::new();
     for overlay_type in MetricType::all() {
+        // Incoming Damage is built from CombatData::incoming_damage by the router
+        if *overlay_type == MetricType::IncomingDamage {
+            continue;
+        }
         result.insert(
             *overlay_type,
             create_entries_for_type(*overlay_type, metrics, local_player_id),

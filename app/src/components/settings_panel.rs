@@ -148,6 +148,10 @@ pub fn SettingsPanel(
                 config.overlay_settings.combat_time_opacity = new_settings.combat_time_opacity;
                 config.overlay_settings.operation_timer = new_settings.operation_timer.clone();
                 config.overlay_settings.operation_timer_opacity = new_settings.operation_timer_opacity;
+                config.overlay_settings.ability_queue = new_settings.ability_queue.clone();
+                config.overlay_settings.ability_queue_opacity = new_settings.ability_queue_opacity;
+                config.overlay_settings.enemy_frames = new_settings.enemy_frames.clone();
+                config.overlay_settings.enemy_frames_opacity = new_settings.enemy_frames_opacity;
                 config.overlay_settings.positions = existing_positions;
                 config.overlay_settings.enabled = existing_enabled;
 
@@ -541,6 +545,7 @@ pub fn SettingsPanel(
                     div { class: "tab-group-buttons",
                         TabButton { label: "Personal Stats", tab_key: "personal", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Raid Frames", tab_key: "raid", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
+                        TabButton { label: "Enemy Frames", tab_key: "enemy_frames", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Alerts", tab_key: "alerts", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Combat Time", tab_key: "combat_time", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Op Timer", tab_key: "operation_timer", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
@@ -2661,6 +2666,52 @@ pub fn SettingsPanel(
                         i { class: "fa-solid fa-info-circle" }
                         " Per-alert color can be set when defining timers with is_alert enabled."
                     }
+                }
+            } else if tab == "enemy_frames" {
+                // Enemy Frames Settings (PvP enemy HP overlay)
+                div { class: "settings-section",
+                        h4 { "Enemy Frames" }
+
+                        Slider {
+                            label: "Frame Scale",
+                            value: current_settings.enemy_frames.scale as f64,
+                            min: 0.5,
+                            max: 2.0,
+                            step: 0.05,
+                            on_change: move |v: f64| {
+                                let mut new_settings = draft_settings();
+                                new_settings.enemy_frames.scale = (v as f32).clamp(0.5, 2.0);
+                                update_draft(new_settings);
+                            },
+                        }
+
+                        div { class: "setting-row",
+                            label { "Show Current Target" }
+                            input {
+                                r#type: "checkbox",
+                                checked: current_settings.enemy_frames.show_target,
+                                onchange: move |e: Event<FormData>| {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.enemy_frames.show_target = e.checked();
+                                    update_draft(new_settings);
+                                }
+                            }
+                        }
+
+                        OpacitySlider {
+                            label: "Background Opacity",
+                            value: current_settings.enemy_frames_opacity,
+                            on_change: move |val| {
+                                let mut new_settings = draft_settings();
+                                new_settings.enemy_frames_opacity = val;
+                                update_draft(new_settings);
+                            },
+                        }
+
+                        p { class: "text-muted text-sm", style: "margin-top: 12px;",
+                            i { class: "fa-solid fa-info-circle" }
+                            " HP bars use the class colors from Global Metrics Settings."
+                        }
                 }
             } else if tab == "raid" {
                 // Raid Settings

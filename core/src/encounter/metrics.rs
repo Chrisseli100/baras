@@ -2,7 +2,78 @@ use crate::combat_log::EntityType;
 use crate::context::resolve;
 use crate::context::IStr;
 use crate::game_data::Discipline;
+use baras_types::PvpFaction;
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
+
+/// Sliding window length for "recent" incoming damage rates
+pub const INCOMING_DAMAGE_WINDOW_SECS: i64 = 20;
+
+/// One attacker row for the Incoming Damage overlay.
+/// Live: rate is windowed DTPS; finalized summaries: rate is encounter-wide DTPS.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IncomingDamageRow {
+    pub entity_id: i64,
+    pub name: String,
+    /// Effective DTPS from this source
+    pub rate: i64,
+    /// Effective damage taken from this source over the whole encounter
+    pub total: i64,
+}
+
+/// Tracks damage taken by the local player, attributed per source entity.
+/// Rate is computed over a short sliding window (who is on you *right now*),
+/// totals accumulate for the whole encounter.
+#[derive(Debug, Clone, Default)]
+pub struct IncomingDamageTracker {
+    /// Encounter-total effective damage per source entity
+    totals: hashbrown::HashMap<i64, i64>,
+    /// Recent hits: (timestamp, source entity id, effective damage)
+    window: VecDeque<(NaiveDateTime, i64, i32)>,
+}
+
+impl IncomingDamageTracker {
+    pub fn record(&mut self, timestamp: NaiveDateTime, source_id: i64, effective: i32) {
+        *self.totals.entry(source_id).or_default() += effective as i64;
+        self.window.push_back((timestamp, source_id, effective));
+        self.trim(timestamp);
+    }
+
+    fn trim(&mut self, now: NaiveDateTime) {
+        let cutoff = now - chrono::Duration::seconds(INCOMING_DAMAGE_WINDOW_SECS);
+        while self.window.front().is_some_and(|(ts, _, _)| *ts < cutoff) {
+            self.window.pop_front();
+        }
+    }
+
+    /// Per-source (rate, total) sorted by rate then total, descending.
+    /// `now` anchors the sliding window (game time, not wall clock).
+    pub fn snapshot(&self, now: NaiveDateTime) -> Vec<(i64, i64, i64)> {
+        let cutoff = now - chrono::Duration::seconds(INCOMING_DAMAGE_WINDOW_SECS);
+        let mut window_sums: hashbrown::HashMap<i64, i64> = hashbrown::HashMap::new();
+        for (ts, source_id, effective) in &self.window {
+            if *ts >= cutoff {
+                *window_sums.entry(*source_id).or_default() += *effective as i64;
+            }
+        }
+        let mut rows: Vec<(i64, i64, i64)> = self
+            .totals
+            .iter()
+            .map(|(&id, &total)| {
+                let rate = window_sums.get(&id).copied().unwrap_or(0) / INCOMING_DAMAGE_WINDOW_SECS;
+                (id, rate, total)
+            })
+            .collect();
+        rows.sort_by(|a, b| b.1.cmp(&a.1).then(b.2.cmp(&a.2)));
+        rows
+    }
+
+    /// Encounter-total effective damage per source entity
+    pub fn totals(&self) -> &hashbrown::HashMap<i64, i64> {
+        &self.totals
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricAccumulator {
@@ -160,6 +231,9 @@ impl EntityMetrics {
             // Activity
             apm: self.apm,
             interrupt_casts: self.interrupt_casts,
+
+            // Annotated by the service in PvP encounters
+            pvp_faction: None,
         }
     }
 }
@@ -222,4 +296,8 @@ pub struct PlayerMetrics {
     pub apm: f32,
     #[serde(default)]
     pub interrupt_casts: u32,
+
+    /// Faction relative to the local player (Some only in PvP encounters)
+    #[serde(default)]
+    pub pvp_faction: Option<PvpFaction>,
 }

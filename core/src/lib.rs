@@ -33,7 +33,7 @@ pub use effects::{
     ActiveEffect, DefinitionConfig, DefinitionSet, DisplayTarget, EFFECTS_DSL_VERSION,
     EffectDefinition, EffectTracker, NewTargetInfo,
 };
-pub use encounter::metrics::PlayerMetrics;
+pub use encounter::metrics::{IncomingDamageRow, PlayerMetrics};
 pub use encounter::summary::{EncounterHistory, EncounterSummary};
 pub use encounter::{ActiveBoss, CombatEncounter, OverlayHealthEntry, PhaseType, ProcessingMode};
 pub use game_data::*;

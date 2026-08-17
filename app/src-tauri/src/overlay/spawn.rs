@@ -1026,6 +1026,47 @@ pub fn create_dot_tracker_overlay(
     })
 }
 
+/// Create and spawn the enemy HP frames overlay (PvP)
+pub fn create_enemy_frames_overlay(
+    position: OverlayPositionConfig,
+    ef_config: baras_types::EnemyFramesConfig,
+    class_colors: baras_types::ClassColorConfig,
+    background_alpha: u8,
+) -> Result<OverlayHandle, String> {
+    let config = OverlayConfig {
+        x: position.x,
+        y: position.y,
+        width: position.width,
+        height: position.height,
+        namespace: "baras-enemy-frames".to_string(),
+        snap_to_grid: true,
+        click_through: true,
+        target_monitor_id: position.monitor_id.clone(),
+    };
+
+    let kind = OverlayType::EnemyFrames;
+
+    let overlay_config = baras_overlay::EnemyFramesConfig {
+        show_target: ef_config.show_target,
+        scale: ef_config.scale,
+        class_colors,
+    };
+
+    let factory = move || {
+        baras_overlay::EnemyFramesOverlay::new(config, overlay_config, background_alpha)
+            .map_err(|e| format!("Failed to create enemy frames overlay: {}", e))
+    };
+
+    let (tx, handle) = spawn_overlay_with_factory(factory, kind, None)?;
+
+    Ok(OverlayHandle {
+        tx,
+        handle,
+        kind,
+        registry_action_rx: None,
+    })
+}
+
 /// Create and spawn the notes overlay
 pub fn create_notes_overlay(
     position: OverlayPositionConfig,

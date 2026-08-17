@@ -147,6 +147,10 @@ pub struct OverlayStatus {
     pub ability_queue_running: bool,
     #[serde(default)]
     pub ability_queue_enabled: bool,
+    #[serde(default)]
+    pub enemy_frames_running: bool,
+    #[serde(default)]
+    pub enemy_frames_enabled: bool,
     pub overlays_visible: bool,
     pub move_mode: bool,
     pub rearrange_mode: bool,
@@ -217,6 +221,7 @@ pub enum MetricType {
     Tps,
     Apm,
     Interrupts,
+    IncomingDamage,
 }
 
 impl MetricType {
@@ -233,6 +238,7 @@ impl MetricType {
             MetricType::Htps => "Healing Taken",
             MetricType::Apm => "APM",
             MetricType::Interrupts => "Interrupts",
+            MetricType::IncomingDamage => "Incoming Damage",
         }
     }
 
@@ -249,6 +255,7 @@ impl MetricType {
             MetricType::Tps => "fa-solid fa-triangle-exclamation",
             MetricType::Apm => "fa-solid fa-gauge-high",
             MetricType::Interrupts => "fa-solid fa-hand",
+            MetricType::IncomingDamage => "fa-solid fa-burst",
         }
     }
 
@@ -265,6 +272,7 @@ impl MetricType {
             MetricType::Htps => "abs",
             MetricType::Apm => "apm",
             MetricType::Interrupts => "interrupts",
+            MetricType::IncomingDamage => "incoming_damage",
         }
     }
 
@@ -281,7 +289,14 @@ impl MetricType {
             MetricType::Tps,
             MetricType::Apm,
             MetricType::Interrupts,
+            MetricType::IncomingDamage,
         ]
+    }
+
+    /// Metric types shown in the "PvP" overlay controls column
+    /// (everything else goes in the "Metrics" column)
+    pub fn pvp() -> &'static [MetricType] {
+        &[MetricType::IncomingDamage]
     }
 }
 
@@ -309,6 +324,7 @@ pub enum OverlayType {
     CombatTime,
     OperationTimer,
     AbilityQueue,
+    EnemyFrames,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

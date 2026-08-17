@@ -116,6 +116,7 @@ fn handle_not_started(
 ) -> (Vec<GameSignal>, bool) {
     let mut signals = Vec::new();
     let mut was_accumulated = false;
+    let local_player_id = cache.player.id;
 
     // PvP round start: "Deserter Detection" is applied to players in the spawn
     // area the moment the round begins (barrier drop), before any EnterCombat.
@@ -135,7 +136,7 @@ fn handle_not_started(
             enc.state = EncounterState::InCombat;
             enc.enter_combat_time = Some(timestamp);
             enc.track_event_entities(event);
-            enc.accumulate_data(event);
+            enc.accumulate_data(event, local_player_id);
             enc.track_event_line(event.line_number);
             was_accumulated = true;
 
@@ -147,7 +148,7 @@ fn handle_not_started(
     } else if effect_id != effect_id::DAMAGE {
         // Buffer non-damage events for the upcoming encounter (skip pre-combat damage)
         if let Some(enc) = cache.current_encounter_mut() {
-            enc.accumulate_data(event);
+            enc.accumulate_data(event, local_player_id);
             enc.track_event_line(event.line_number);
             was_accumulated = true;
         }
@@ -165,6 +166,7 @@ fn handle_in_combat(
 ) -> (Vec<GameSignal>, bool) {
     let mut signals = Vec::new();
     let mut was_accumulated = false;
+    let local_player_id = cache.player.id;
 
     // Check for combat timeout
     // Skip timeout for victory-trigger encounters (e.g., Coratanni has long phases with no activity)
@@ -317,7 +319,7 @@ fn handle_in_combat(
                 enc.state = EncounterState::InCombat;
                 enc.enter_combat_time = Some(timestamp);
                 enc.track_event_entities(event);
-                enc.accumulate_data(event);
+                enc.accumulate_data(event, local_player_id);
                 enc.track_event_line(event.line_number);
                 was_accumulated = true;
             }
@@ -460,7 +462,7 @@ fn handle_in_combat(
                 enc.state = EncounterState::InCombat;
                 enc.enter_combat_time = Some(timestamp);
                 enc.track_event_entities(event);
-                enc.accumulate_data(event);
+                enc.accumulate_data(event, local_player_id);
                 enc.track_event_line(event.line_number);
                 was_accumulated = true;
             }
@@ -532,7 +534,7 @@ fn handle_in_combat(
                 enc.state = EncounterState::InCombat;
                 enc.enter_combat_time = Some(timestamp);
                 enc.track_event_entities(event);
-                enc.accumulate_data(event);
+                enc.accumulate_data(event, local_player_id);
                 enc.track_event_line(event.line_number);
                 was_accumulated = true;
             }
@@ -591,7 +593,7 @@ fn handle_in_combat(
             // Ignore all other exit conditions (ExitCombat, kill targets, local revive, etc.)
             if let Some(enc) = cache.current_encounter_mut() {
                 enc.track_event_entities(event);
-                enc.accumulate_data(event);
+                enc.accumulate_data(event, local_player_id);
                 enc.track_event_line(event.line_number);
                 was_accumulated = true;
             }
@@ -671,7 +673,7 @@ fn handle_in_combat(
         // Normal combat event
         if let Some(enc) = cache.current_encounter_mut() {
             enc.track_event_entities(event);
-            enc.accumulate_data(event);
+            enc.accumulate_data(event, local_player_id);
             enc.track_event_line(event.line_number);
             was_accumulated = true;
             if effect_id == effect_id::DAMAGE {
@@ -691,6 +693,7 @@ fn handle_post_combat(
 ) -> (Vec<GameSignal>, bool) {
     let mut signals = Vec::new();
     let mut was_accumulated = false;
+    let local_player_id = cache.player.id;
 
     // During grace window, only respond to ENTERCOMBAT (to restore combat)
     // All other events are buffered/ignored until grace expires
@@ -716,7 +719,7 @@ fn handle_post_combat(
             if let Some(enc) = cache.current_encounter_mut() {
                 enc.state = EncounterState::InCombat;
                 enc.enter_combat_time = Some(timestamp);
-                enc.accumulate_data(event);
+                enc.accumulate_data(event, local_player_id);
                 enc.track_event_line(event.line_number);
                 was_accumulated = true;
             }
@@ -730,7 +733,7 @@ fn handle_post_combat(
         // Grace window events belong to this encounter — accumulate them so trailing
         // death/damage events are written to parquet (e.g. NPC deaths after ExitCombat)
         if let Some(enc) = cache.current_encounter_mut() {
-            enc.accumulate_data(event);
+            enc.accumulate_data(event, local_player_id);
             enc.track_event_line(event.line_number);
             was_accumulated = true;
         }
@@ -744,7 +747,7 @@ fn handle_post_combat(
         finalize_pending_combat_exit(cache, &mut signals);
         cache.push_new_encounter();
         if let Some(enc) = cache.current_encounter_mut() {
-            enc.accumulate_data(event);
+            enc.accumulate_data(event, local_player_id);
             enc.track_event_line(event.line_number);
             was_accumulated = true;
         }

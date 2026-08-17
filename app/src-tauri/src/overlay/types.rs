@@ -23,6 +23,7 @@ pub enum MetricType {
     Tps,
     Apm,
     Interrupts,
+    IncomingDamage,
 }
 
 impl MetricType {
@@ -39,6 +40,7 @@ impl MetricType {
             MetricType::Htps => "Healing Taken",
             MetricType::Apm => "APM",
             MetricType::Interrupts => "Interrupts",
+            MetricType::IncomingDamage => "Incoming Damage",
         }
     }
 
@@ -55,6 +57,7 @@ impl MetricType {
             MetricType::Htps => "baras-abs",
             MetricType::Apm => "baras-apm",
             MetricType::Interrupts => "baras-interrupts",
+            MetricType::IncomingDamage => "baras-incoming-damage",
         }
     }
 
@@ -71,6 +74,7 @@ impl MetricType {
             MetricType::Htps => (350, 280),
             MetricType::Apm => (350, 510),
             MetricType::Interrupts => (350, 740),
+            MetricType::IncomingDamage => (50, 740),
         }
     }
 
@@ -87,6 +91,7 @@ impl MetricType {
             MetricType::Tps,
             MetricType::Apm,
             MetricType::Interrupts,
+            MetricType::IncomingDamage,
         ]
     }
 
@@ -103,6 +108,7 @@ impl MetricType {
             MetricType::Htps => "abs",
             MetricType::Apm => "apm",
             MetricType::Interrupts => "interrupts",
+            MetricType::IncomingDamage => "incoming_damage",
         }
     }
 
@@ -119,6 +125,7 @@ impl MetricType {
             "abs" => Some(MetricType::Htps),
             "apm" => Some(MetricType::Apm),
             "interrupts" => Some(MetricType::Interrupts),
+            "incoming_damage" => Some(MetricType::IncomingDamage),
             _ => None,
         }
     }
@@ -170,6 +177,8 @@ pub enum OverlayType {
     OperationTimer,
     /// Ability queue overlay (GCD bar + queued/ready + active countdowns)
     AbilityQueue,
+    /// Enemy HP frames (PvP)
+    EnemyFrames,
 }
 
 impl OverlayType {
@@ -192,6 +201,7 @@ impl OverlayType {
             OverlayType::CombatTime => "combat_time",
             OverlayType::OperationTimer => "operation_timer",
             OverlayType::AbilityQueue => "ability_queue",
+            OverlayType::EnemyFrames => "enemy_frames",
         }
     }
 
@@ -214,6 +224,7 @@ impl OverlayType {
             OverlayType::CombatTime => "baras-combat-time".to_string(),
             OverlayType::OperationTimer => "baras-operation-timer".to_string(),
             OverlayType::AbilityQueue => "baras-ability-queue".to_string(),
+            OverlayType::EnemyFrames => "baras-enemy-frames".to_string(),
         }
     }
 
@@ -236,6 +247,7 @@ impl OverlayType {
             OverlayType::CombatTime => (400, 100),
             OverlayType::OperationTimer => (400, 160),
             OverlayType::AbilityQueue => (650, 850),
+            OverlayType::EnemyFrames => (900, 200),
         }
     }
 }

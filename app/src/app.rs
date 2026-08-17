@@ -65,6 +65,7 @@ pub fn App() -> Element {
     let mut effects_b_enabled = use_signal(|| false);
     let mut cooldowns_enabled = use_signal(|| false);
     let mut dot_tracker_enabled = use_signal(|| false);
+    let mut enemy_frames_enabled = use_signal(|| false);
     let mut notes_enabled = use_signal(|| false);
     let mut combat_time_enabled = use_signal(|| false);
     let mut operation_timer_enabled = use_signal(|| false);
@@ -260,6 +261,7 @@ pub fn App() -> Element {
                 &mut combat_time_enabled,
                 &mut operation_timer_enabled,
                 &mut ability_queue_enabled,
+                &mut enemy_frames_enabled,
                 &mut overlays_visible,
                 &mut move_mode,
                 &mut rearrange_mode,
@@ -353,7 +355,7 @@ pub fn App() -> Element {
                         &mut effects_a_enabled, &mut effects_b_enabled,
                         &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
                         &mut combat_time_enabled, &mut operation_timer_enabled,
-                        &mut ability_queue_enabled,
+                        &mut ability_queue_enabled, &mut enemy_frames_enabled,
                         &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
                 }
             });
@@ -588,6 +590,7 @@ pub fn App() -> Element {
     let combat_time_on = combat_time_enabled();
     let operation_timer_on = operation_timer_enabled();
     let ability_queue_on = ability_queue_enabled();
+    let enemy_frames_on = enemy_frames_enabled();
     let any_enabled = enabled_map.values().any(|&v| v)
         || personal_on
         || raid_on
@@ -603,7 +606,8 @@ pub fn App() -> Element {
         || notes_on
         || combat_time_on
         || operation_timer_on
-        || ability_queue_on;
+        || ability_queue_on
+        || enemy_frames_on;
     let is_visible = overlays_visible();
     let is_move_mode = move_mode();
     let is_rearrange = rearrange_mode();
@@ -883,7 +887,7 @@ pub fn App() -> Element {
                                                 &mut effects_a_enabled, &mut effects_b_enabled,
                                                 &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
                                                 &mut combat_time_enabled, &mut operation_timer_enabled,
-                                                &mut ability_queue_enabled,
+                                                &mut ability_queue_enabled, &mut enemy_frames_enabled,
                                                 &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
                                         }
                                     }
@@ -1661,7 +1665,7 @@ pub fn App() -> Element {
                             div { class: "overlay-category",
                                 h4 { class: "category-title", "Metrics" }
                                 div { class: "category-buttons",
-                                    for mt in MetricType::all() {
+                                    for mt in MetricType::all().iter().filter(|mt| !MetricType::pvp().contains(mt)) {
                                         {
                                             let ot = *mt;
                                             let is_on = enabled_map.get(&ot).copied().unwrap_or(false);
@@ -1669,6 +1673,48 @@ pub fn App() -> Element {
                                             rsx! {
                                                 button {
                                                     class: if is_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
+                                                    onclick: move |_| { spawn(async move {
+                                                        if api::toggle_overlay(OverlayType::Metric(ot), is_on).await {
+                                                            let mut map = metric_overlays_enabled();
+                                                            map.insert(ot, !is_on);
+                                                            metric_overlays_enabled.set(map);
+                                                            profile_dirty.set(true);
+                                                        }
+                                                    }); },
+                                                    i { class: "{icon} overlay-btn-icon" }
+                                                    "{ot.label()}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // PvP column
+                            div { class: "overlay-category",
+                                h4 { class: "category-title", "PvP" }
+                                div { class: "category-buttons",
+                                    button {
+                                        class: if enemy_frames_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
+                                        title: "Enemy team HP frames with disciplines and targets",
+                                        onclick: move |_| { spawn(async move {
+                                            if api::toggle_overlay(OverlayType::EnemyFrames, enemy_frames_on).await {
+                                                enemy_frames_enabled.set(!enemy_frames_on);
+                                                profile_dirty.set(true);
+                                            }
+                                        }); },
+                                        i { class: "fa-solid fa-heart-pulse overlay-btn-icon" }
+                                        "Enemy Frames"
+                                    }
+                                    for mt in MetricType::pvp() {
+                                        {
+                                            let ot = *mt;
+                                            let is_on = enabled_map.get(&ot).copied().unwrap_or(false);
+                                            let icon = ot.icon_class();
+                                            rsx! {
+                                                button {
+                                                    class: if is_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
+                                                    title: "Your damage taken per attacker (who is tunneling you)",
                                                     onclick: move |_| { spawn(async move {
                                                         if api::toggle_overlay(OverlayType::Metric(ot), is_on).await {
                                                             let mut map = metric_overlays_enabled();
@@ -2872,6 +2918,7 @@ fn apply_status(
     combat_time_enabled: &mut Signal<bool>,
     operation_timer_enabled: &mut Signal<bool>,
     ability_queue_enabled: &mut Signal<bool>,
+    enemy_frames_enabled: &mut Signal<bool>,
     overlays_visible: &mut Signal<bool>,
     move_mode: &mut Signal<bool>,
     rearrange_mode: &mut Signal<bool>,
@@ -2897,6 +2944,7 @@ fn apply_status(
     combat_time_enabled.set(status.combat_time_enabled);
     operation_timer_enabled.set(status.operation_timer_enabled);
     ability_queue_enabled.set(status.ability_queue_enabled);
+    enemy_frames_enabled.set(status.enemy_frames_enabled);
     overlays_visible.set(status.overlays_visible);
     move_mode.set(status.move_mode);
     rearrange_mode.set(status.rearrange_mode);

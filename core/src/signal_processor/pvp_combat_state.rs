@@ -155,7 +155,7 @@ fn accumulate_match_event(event: &CombatEvent, cache: &mut SessionCache) -> bool
     };
 
     enc.track_event_entities(event);
-    enc.accumulate_data(event);
+    enc.accumulate_data(event, local_player_id);
     enc.track_event_line(event.line_number);
 
     // Infer friend/enemy factions from player-to-player damage/healing

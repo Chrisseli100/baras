@@ -397,7 +397,11 @@ async fn process_overlay_update(
     match update {
         OverlayUpdate::DataUpdated(data) => {
             // Create entries for all metric overlay types
-            let all_entries = create_all_entries(&data.metrics, data.player_entity_id);
+            let mut all_entries = create_all_entries(&data.metrics, data.player_entity_id);
+            all_entries.insert(
+                MetricType::IncomingDamage,
+                crate::overlay::create_incoming_damage_entries(&data.incoming_damage, &data.metrics),
+            );
 
             // Get running metric overlays and their channels
             let (metric_txs, personal_tx): (Vec<_>, _) = {
@@ -424,7 +428,13 @@ async fn process_overlay_update(
                 if let Some(entries) = all_entries.get(&overlay_type) {
                     let _ = tx
                         .send(OverlayCommand::UpdateData(OverlayData::Metrics(
-                            entries.clone(),
+                            baras_overlay::MetricData {
+                                entries: entries.clone(),
+                                // Warzones hide cumulative totals, but Incoming Damage's
+                                // total is the round total — keep it
+                                hide_totals: data.is_warzone
+                                    && overlay_type != MetricType::IncomingDamage,
+                            },
                         )))
                         .await;
                 }
@@ -440,12 +450,15 @@ async fn process_overlay_update(
             }
 
             // Send challenges data to challenges overlay
-            let challenges_tx = {
+            let (challenges_tx, enemy_frames_tx) = {
                 let state = match overlay_state.lock() {
                     Ok(s) => s,
                     Err(_) => return,
                 };
-                state.get_challenges_tx().cloned()
+                (
+                    state.get_challenges_tx().cloned(),
+                    state.get_tx(OverlayType::EnemyFrames).cloned(),
+                )
             };
 
             if let Some(tx) = challenges_tx {
@@ -453,6 +466,17 @@ async fn process_overlay_update(
                 let _ = tx
                     .send(OverlayCommand::UpdateData(OverlayData::Challenges(
                         challenge_data,
+                    )))
+                    .await;
+            }
+
+            // Send enemy frames to the PvP enemy HP overlay
+            if let Some(tx) = enemy_frames_tx {
+                let _ = tx
+                    .send(OverlayCommand::UpdateData(OverlayData::EnemyFrames(
+                        baras_overlay::EnemyFramesData {
+                            frames: data.enemy_frames,
+                        },
                     )))
                     .await;
             }
@@ -746,6 +770,10 @@ async fn process_overlay_update(
                     channels.push((tx.clone(), OverlayData::BossHealth(Default::default())));
                 }
 
+                if let Some(tx) = state.get_tx(OverlayType::EnemyFrames) {
+                    channels.push((tx.clone(), OverlayData::EnemyFrames(Default::default())));
+                }
+
                 // Timers A overlay
                 if let Some(tx) = state.get_timers_a_tx() {
                     channels.push((tx.clone(), OverlayData::TimersA(Default::default())));
@@ -792,7 +820,7 @@ async fn process_overlay_update(
                 // Collect metric overlay channels
                 for metric_type in MetricType::all() {
                     if let Some(tx) = state.get_tx(OverlayType::Metric(*metric_type)) {
-                        channels.push((tx.clone(), OverlayData::Metrics(vec![])));
+                        channels.push((tx.clone(), OverlayData::Metrics(Default::default())));
                     }
                 }
 
@@ -812,6 +840,10 @@ async fn process_overlay_update(
                 // Boss health overlay
                 if let Some(tx) = state.get_boss_health_tx() {
                     channels.push((tx.clone(), OverlayData::BossHealth(Default::default())));
+                }
+
+                if let Some(tx) = state.get_tx(OverlayType::EnemyFrames) {
+                    channels.push((tx.clone(), OverlayData::EnemyFrames(Default::default())));
                 }
 
                 // Timers A overlay

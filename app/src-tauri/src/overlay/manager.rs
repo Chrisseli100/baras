@@ -15,6 +15,7 @@ use super::spawn::{
     create_ability_queue_overlay, create_alerts_overlay, create_boss_health_overlay,
     create_challenges_overlay, create_combat_time_overlay, create_cooldowns_overlay,
     create_dot_tracker_overlay, create_effects_a_overlay, create_effects_b_overlay,
+    create_enemy_frames_overlay,
     create_metric_overlay, create_notes_overlay, create_operation_timer_overlay,
     create_personal_overlay, create_raid_overlay, create_timers_a_overlay,
     create_timers_b_overlay,
@@ -132,6 +133,15 @@ impl OverlayManager {
                 let aq_config = settings.ability_queue.clone();
                 create_ability_queue_overlay(position, aq_config, settings.ability_queue_opacity)?
             }
+            OverlayType::EnemyFrames => {
+                let ef_config = settings.enemy_frames.clone();
+                create_enemy_frames_overlay(
+                    position,
+                    ef_config,
+                    settings.class_colors.clone(),
+                    settings.enemy_frames_opacity,
+                )?
+            }
         };
 
         // Apply the global font family to the freshly-spawned overlay so it
@@ -199,9 +209,24 @@ impl OverlayManager {
                 if data.metrics.is_empty() {
                     return;
                 }
-                let entries = create_entries_for_type(metric_type, &data.metrics, data.player_entity_id);
+                let entries = if metric_type == MetricType::IncomingDamage {
+                    super::metrics::create_incoming_damage_entries(
+                        &data.incoming_damage,
+                        &data.metrics,
+                    )
+                } else {
+                    create_entries_for_type(metric_type, &data.metrics, data.player_entity_id)
+                };
                 let _ = tx
-                    .send(OverlayCommand::UpdateData(OverlayData::Metrics(entries)))
+                    .send(OverlayCommand::UpdateData(OverlayData::Metrics(
+                        baras_overlay::MetricData {
+                            entries,
+                            // Warzones hide cumulative totals, but Incoming Damage's
+                            // total is the round total — keep it
+                            hide_totals: data.is_warzone
+                                && metric_type != MetricType::IncomingDamage,
+                        },
+                    )))
                     .await;
             }
             OverlayType::Personal => {
@@ -232,6 +257,15 @@ impl OverlayManager {
             }
             OverlayType::OperationTimer => {
                 // Operation timer gets data via dedicated tick task, not initial combat data
+            }
+            OverlayType::EnemyFrames => {
+                let _ = tx
+                    .send(OverlayCommand::UpdateData(OverlayData::EnemyFrames(
+                        baras_overlay::EnemyFramesData {
+                            frames: data.enemy_frames.clone(),
+                        },
+                    )))
+                    .await;
             }
             OverlayType::Raid
             | OverlayType::BossHealth
@@ -527,6 +561,15 @@ impl OverlayManager {
                 };
                 OverlayConfigUpdate::AbilityQueue(aq_config, settings.ability_queue_opacity)
             }
+            OverlayType::EnemyFrames => {
+                let cfg = &settings.enemy_frames;
+                let ef_config = baras_overlay::EnemyFramesConfig {
+                    show_target: cfg.show_target,
+                    scale: cfg.scale,
+                    class_colors: settings.class_colors.clone(),
+                };
+                OverlayConfigUpdate::EnemyFrames(ef_config, settings.enemy_frames_opacity, eu)
+            }
         }
     }
 
@@ -699,6 +742,7 @@ impl OverlayManager {
                 "combat_time" => OverlayType::CombatTime,
                 "operation_timer" => OverlayType::OperationTimer,
                 "ability_queue" => OverlayType::AbilityQueue,
+                "enemy_frames" => OverlayType::EnemyFrames,
                 _ => {
                     if let Some(mt) = MetricType::from_config_key(key) {
                         OverlayType::Metric(mt)
@@ -859,6 +903,7 @@ impl OverlayManager {
                 "combat_time" => OverlayType::CombatTime,
                 "operation_timer" => OverlayType::OperationTimer,
                 "ability_queue" => OverlayType::AbilityQueue,
+                "enemy_frames" => OverlayType::EnemyFrames,
                 _ => {
                     if let Some(mt) = MetricType::from_config_key(key) {
                         OverlayType::Metric(mt)
@@ -1211,6 +1256,7 @@ impl OverlayManager {
             OverlayType::Notes,
             OverlayType::CombatTime,
             OverlayType::OperationTimer,
+            OverlayType::EnemyFrames,
         ];
         for mt in MetricType::all() {
             types.push(OverlayType::Metric(*mt));

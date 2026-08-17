@@ -88,6 +88,7 @@ mod examples {
                 display_value: None,
                 display_total: None,
                 is_local: true,
+                is_enemy: false,
             },
             MetricEntry {
                 name: "Player 2".to_string(),
@@ -105,6 +106,7 @@ mod examples {
                 display_value: None,
                 display_total: None,
                 is_local: false,
+                is_enemy: false,
             },
             MetricEntry {
                 name: "Player 3".to_string(),
@@ -122,6 +124,7 @@ mod examples {
                 display_value: None,
                 display_total: None,
                 is_local: false,
+                is_enemy: false,
             },
             MetricEntry {
                 name: "Player 4".to_string(),
@@ -139,6 +142,7 @@ mod examples {
                 display_value: None,
                 display_total: None,
                 is_local: false,
+                is_enemy: false,
             },
         ];
 
@@ -242,6 +246,7 @@ mod examples {
                 display_value: None,
                 display_total: None,
                 is_local: false,
+                is_enemy: false,
             })
             .collect();
 
@@ -363,6 +368,7 @@ mod examples {
                 display_value: None,
                 display_total: None,
                 is_local: false,
+                is_enemy: false,
             })
             .collect();
 

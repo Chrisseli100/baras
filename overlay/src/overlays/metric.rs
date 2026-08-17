@@ -40,10 +40,21 @@ pub struct MetricEntry {
     pub class_name: Option<String>,
     /// Whether this entry belongs to the local player
     pub is_local: bool,
+    /// Whether this entry is an enemy player (PvP) — rendered red, below friendlies
+    pub is_enemy: bool,
     /// Pre-formatted rate string (overrides format_compact when set)
     pub display_value: Option<String>,
     /// Pre-formatted total string (overrides format_compact when set)
     pub display_total: Option<String>,
+}
+
+/// Payload for a metric overlay data update
+#[derive(Debug, Clone, Default)]
+pub struct MetricData {
+    pub entries: Vec<MetricEntry>,
+    /// Suppress the totals column regardless of appearance config
+    /// (set during warzones, where cumulative totals are noise)
+    pub hide_totals: bool,
 }
 
 impl MetricEntry {
@@ -62,6 +73,7 @@ impl MetricEntry {
             discipline_icon: None,
             class_name: None,
             is_local: false,
+            is_enemy: false,
             display_value: None,
             display_total: None,
         }
@@ -162,6 +174,8 @@ pub struct MetricOverlay {
     use_class_color: bool,
     /// Per-archetype color palette
     class_colors: ClassColorConfig,
+    /// Suppress totals column (data-driven: set during warzones)
+    hide_totals: bool,
     /// Compact signature of last rendered entries (detects no-op updates).
     /// (value, total_value) per entry is enough — names/order only change on
     /// join/leave/sort which also shifts the numeric signature.
@@ -204,6 +218,7 @@ impl MetricOverlay {
             european_number_format: false,
             use_class_color: false,
             class_colors: ClassColorConfig::default(),
+            hide_totals: false,
             last_sig: Vec::new(),
         })
     }
@@ -301,8 +316,8 @@ impl MetricOverlay {
         let font_color = color_from_rgba(self.appearance.font_color);
         let bar_color = color_from_rgba(self.appearance.bar_color);
 
-        // Get display options
-        let show_total = self.appearance.show_total;
+        // Get display options (totals suppressed during warzones)
+        let show_total = self.appearance.show_total && !self.hide_totals;
         let show_per_second = self.appearance.show_per_second;
 
         // Filter and limit entries to max_entries
@@ -314,6 +329,18 @@ impl MetricOverlay {
             .take(max_entries)
             .collect();
         let num_entries = visible_entries.len();
+
+        // PvP faction divider: entries are sorted friendly-first, so a single
+        // friendly→enemy transition marks where the separator line goes
+        let divider_before = visible_entries
+            .iter()
+            .position(|e| e.is_enemy)
+            .filter(|&i| i > 0);
+        let divider_space = if divider_before.is_some() {
+            header_spacing * 2.0 + 2.0
+        } else {
+            0.0
+        };
 
         // Calculate space reserved for header and footer (uses base_font_size, unaffected by font_scale)
         // Header with separator: font_size + spacing + 2.0 + spacing + 4.0 * scale
@@ -336,11 +363,12 @@ impl MetricOverlay {
         // Calculate effective bar height and spacing - compress proportionally if needed
         let (bar_height, effective_spacing) = if num_entries > 0 {
             let n = num_entries as f32;
-            let ideal_total = n * ideal_bar_height + (n - 1.0) * bar_spacing;
+            let ideal_total = n * ideal_bar_height + (n - 1.0) * bar_spacing + divider_space;
 
             if ideal_total > available_for_bars && ideal_total > 0.0 {
-                // Compress both bars and spacing proportionally
-                let compression_ratio = available_for_bars / ideal_total;
+                // Compress both bars and spacing proportionally (divider stays fixed)
+                let compression_ratio =
+                    (available_for_bars - divider_space).max(0.0) / (ideal_total - divider_space);
                 let compressed_bar = (ideal_bar_height * compression_ratio).max(min_bar_height);
                 // Preserve a fully-connected look (ratio 0) under compression;
                 // otherwise keep a readable minimum gap.
@@ -362,6 +390,7 @@ impl MetricOverlay {
         let total_bars_height = if num_entries > 0 {
             num_entries as f32 * bar_height
                 + (num_entries.saturating_sub(1)) as f32 * effective_spacing
+                + divider_space
         } else {
             0.0
         };
@@ -441,9 +470,18 @@ impl MetricOverlay {
             base_text_size
         };
 
-        // Calculate footer sums
-        let rate_sum: i64 = visible_entries.iter().map(|e| e.value).sum();
-        let total_sum: i64 = visible_entries.iter().map(|e| e.total_value).sum();
+        // Calculate footer sums (friendly players only — enemy rows would
+        // inflate the group total in PvP)
+        let rate_sum: i64 = visible_entries
+            .iter()
+            .filter(|e| !e.is_enemy)
+            .map(|e| e.value)
+            .sum();
+        let total_sum: i64 = visible_entries
+            .iter()
+            .filter(|e| !e.is_enemy)
+            .map(|e| e.total_value)
+            .sum();
 
         // Icon rendering setup
         // Discipline icons render full-height and left-aligned (flush to the bar edge);
@@ -458,9 +496,23 @@ impl MetricOverlay {
             )
         };
 
-        for entry in &visible_entries {
-            // Determine fill color: class color > custom entry color > configured bar_color
-            let fill_color = if self.use_class_color {
+        for (i, entry) in visible_entries.iter().enumerate() {
+            // Faction divider between friendly and enemy groups
+            if divider_before == Some(i) {
+                self.frame.fill_rect(
+                    padding,
+                    y + header_spacing,
+                    content_width,
+                    2.0,
+                    colors::separator_line(),
+                );
+                y += divider_space;
+            }
+
+            // Determine fill color: enemy tint > class color > custom entry color > configured bar_color
+            let fill_color = if entry.is_enemy {
+                colors::enemy_bar_fill()
+            } else if self.use_class_color {
                 entry.class_name.as_deref()
                     .and_then(|n| self.class_colors.for_class_name(n))
                     .map(color_from_rgba)
@@ -618,19 +670,23 @@ impl MetricOverlay {
 
 impl Overlay for MetricOverlay {
     fn update_data(&mut self, data: OverlayData) -> bool {
-        if let OverlayData::Metrics(entries) = data {
+        if let OverlayData::Metrics(data) = data {
             // Skip render when numeric state is unchanged (service may emit
             // DataUpdated more often than values actually tick).
-            let changed = entries.len() != self.last_sig.len()
-                || entries
+            let changed = data.hide_totals != self.hide_totals
+                || data.entries.len() != self.last_sig.len()
+                || data
+                    .entries
                     .iter()
                     .zip(self.last_sig.iter())
                     .any(|(e, sig)| e.value != sig.0 || e.total_value != sig.1);
             if changed {
                 self.last_sig.clear();
-                self.last_sig.extend(entries.iter().map(|e| (e.value, e.total_value)));
+                self.last_sig
+                    .extend(data.entries.iter().map(|e| (e.value, e.total_value)));
             }
-            self.set_entries(entries);
+            self.hide_totals = data.hide_totals;
+            self.set_entries(data.entries);
             changed
         } else {
             false

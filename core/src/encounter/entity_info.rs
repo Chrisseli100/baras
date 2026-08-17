@@ -18,6 +18,11 @@ pub struct PlayerInfo {
     pub death_time: Option<NaiveDateTime>,
     pub received_revive_immunity: bool,
     pub current_target_id: i64,
+    /// Last entity this player damaged — target fallback when TargetSet
+    /// events don't cover them (enemy players in PvP)
+    pub last_offensive_target_id: i64,
+    /// First time this player appeared in an event (stable slot ordering)
+    pub first_seen_at: Option<NaiveDateTime>,
     /// Last time this player was seen in an event (for filtering stale players)
     pub last_seen_at: Option<NaiveDateTime>,
     /// Most recent health reading from the log.
@@ -40,6 +45,8 @@ impl Default for PlayerInfo {
             death_time: None,
             received_revive_immunity: false,
             current_target_id: 0,
+            last_offensive_target_id: 0,
+            first_seen_at: None,
             last_seen_at: None,
             current_hp: 0,
             max_hp: 0,

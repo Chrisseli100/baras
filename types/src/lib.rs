@@ -1559,7 +1559,7 @@ pub mod overlay_colors {
             "dps" | "edps" | "bossdps" => DPS,
             "hps" | "ehps" => HPS,
             "tps" => TPS,
-            "dtps" | "edtps" => DTPS,
+            "dtps" | "edtps" | "incoming_damage" => DTPS,
             "abs" => HPS,
             "apm" => APM,
             "interrupts" => INTERRUPTS,
@@ -2163,6 +2163,31 @@ impl RaidOverlaySettings {
     /// Get total number of slots
     pub fn total_slots(&self) -> u8 {
         self.grid_columns * self.grid_rows
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enemy Frames Settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Configuration for the enemy HP frames overlay (PvP).
+/// Layout is fixed at 4 rows: arena teams fill one column, warzone teams two.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnemyFramesConfig {
+    /// Show each enemy's current target inside the frame
+    #[serde(default = "default_true")]
+    pub show_target: bool,
+    /// Frame scale multiplier (0.5 - 2.0)
+    #[serde(default = "default_scaling_factor")]
+    pub scale: f32,
+}
+
+impl Default for EnemyFramesConfig {
+    fn default() -> Self {
+        Self {
+            show_target: true,
+            scale: 1.0,
+        }
     }
 }
 
@@ -3044,6 +3069,10 @@ pub struct OverlaySettings {
     pub ability_queue: AbilityQueueOverlayConfig,
     #[serde(default = "default_opacity")]
     pub ability_queue_opacity: u8,
+    #[serde(default)]
+    pub enemy_frames: EnemyFramesConfig,
+    #[serde(default = "default_opacity")]
+    pub enemy_frames_opacity: u8,
     /// Auto-hide overlays when local player is in a conversation
     #[serde(default)]
     pub hide_during_conversations: bool,
@@ -3119,6 +3148,8 @@ impl Default for OverlaySettings {
             operation_timer_opacity: 180,
             ability_queue: AbilityQueueOverlayConfig::default(),
             ability_queue_opacity: 180,
+            enemy_frames: EnemyFramesConfig::default(),
+            enemy_frames_opacity: 180,
             hide_during_conversations: false,
             hide_when_not_live: false,
         }

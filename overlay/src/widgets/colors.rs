@@ -65,6 +65,37 @@ pub fn tank_bar_fill() -> Color {
     Color::from_rgba8(50, 100, 180, 255)
 }
 
+/// Enemy player bar fill (PvP faction split) — dark crimson, distinct from
+/// the brighter default DPS red so both read apart on the same meter
+#[inline]
+pub fn enemy_bar_fill() -> Color {
+    Color::from_rgba8(120, 20, 30, 255)
+}
+
+/// Enemy frame cell background (subtle dark panel)
+#[inline]
+pub fn enemy_cell_bg() -> Color {
+    Color::from_rgba8(25, 25, 28, 190)
+}
+
+/// HP bar fill when an enemy's class is not yet detected
+#[inline]
+pub fn enemy_unknown_class() -> Color {
+    Color::from_rgba8(130, 130, 135, 255)
+}
+
+/// Guard highlight accent (blue border on guarded enemy frames)
+#[inline]
+pub fn guard_blue() -> Color {
+    Color::from_rgba8(80, 150, 230, 255)
+}
+
+/// "Targeting you" alert text (enemy frames target line)
+#[inline]
+pub fn targeting_you_red() -> Color {
+    Color::from_rgba8(235, 80, 80, 255)
+}
+
 /// Dimmed label color for secondary text
 #[inline]
 pub fn label_dim() -> Color {

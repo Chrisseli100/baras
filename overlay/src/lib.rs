@@ -87,7 +87,12 @@ pub use overlays::{
     EffectsData,
     EffectsLayout,
     EffectsOverlay,
+    EnemyFrame,
+    EnemyFramesConfig,
+    EnemyFramesData,
+    EnemyFramesOverlay,
     InteractionMode,
+    MetricData,
     MetricEntry,
     MetricOverlay,
     // Notes overlay

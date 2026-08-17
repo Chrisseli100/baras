@@ -173,6 +173,8 @@ pub struct CombatEncounter {
     // ─── Metrics ────────────────────────────────────────────────────────────
     /// Accumulated damage/healing/etc. data by entity ID
     pub accumulated_data: HashMap<i64, MetricAccumulator>,
+    /// Damage taken by the local player, attributed per source entity
+    pub incoming_damage: super::metrics::IncomingDamageTracker,
     /// Challenge metrics for boss encounters
     pub challenge_tracker: ChallengeTracker,
 
@@ -272,6 +274,7 @@ impl CombatEncounter {
 
             // Metrics
             accumulated_data: HashMap::new(),
+            incoming_damage: Default::default(),
             challenge_tracker: ChallengeTracker::new(),
 
             // Timer snapshot
@@ -1361,6 +1364,7 @@ impl CombatEncounter {
                     .or_insert_with(|| PlayerInfo {
                         id: entity.log_id,
                         name: entity.name,
+                        first_seen_at: Some(timestamp),
                         last_seen_at: Some(timestamp),
                         current_hp: entity.health.0,
                         max_hp: entity.health.1,
@@ -1412,7 +1416,7 @@ impl CombatEncounter {
         )
     }
 
-    fn get_entity_name(&self, id: i64) -> Option<IStr> {
+    pub fn get_entity_name(&self, id: i64) -> Option<IStr> {
         self.players
             .get(&id)
             .map(|e| e.name)
@@ -1501,7 +1505,7 @@ impl CombatEncounter {
     // Metrics Accumulation
     // ═══════════════════════════════════════════════════════════════════════
 
-    pub fn accumulate_data(&mut self, event: &CombatEvent) {
+    pub fn accumulate_data(&mut self, event: &CombatEvent, local_player_id: i64) {
         // Only accumulate metrics once combat has started. Pre-combat events
         // (before EnterCombat sets enter_combat_time) are intentionally dropped
         // so that healing, threat, taunts, etc. don't inflate encounter totals.
@@ -1607,6 +1611,26 @@ impl CombatEncounter {
                 target.healing_received += event.details.heal_amount as i64;
                 target.healing_received_effective += event.details.heal_effective as i64;
             }
+        }
+
+        // Target fallback for players without TargetSet coverage (enemy frames)
+        if event.details.dmg_amount > 0
+            && event.source_entity.log_id != event.target_entity.log_id
+            && let Some(p) = self.players.get_mut(&event.source_entity.log_id)
+        {
+            p.last_offensive_target_id = event.target_entity.log_id;
+        }
+
+        // Per-source incoming damage for the local player (Incoming Damage overlay)
+        if event.details.dmg_amount > 0
+            && event.target_entity.log_id == local_player_id
+            && event.source_entity.log_id != local_player_id
+        {
+            self.incoming_damage.record(
+                event.timestamp,
+                event.source_entity.log_id,
+                event.details.dmg_effective,
+            );
         }
     }
 

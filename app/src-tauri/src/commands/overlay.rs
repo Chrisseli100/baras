@@ -47,6 +47,8 @@ pub struct OverlayStatusResponse {
     pub operation_timer_enabled: bool,
     pub ability_queue_running: bool,
     pub ability_queue_enabled: bool,
+    pub enemy_frames_running: bool,
+    pub enemy_frames_enabled: bool,
     pub overlays_visible: bool,
     pub move_mode: bool,
     pub rearrange_mode: bool,
@@ -199,6 +201,7 @@ pub async fn get_overlay_status(
         combat_time_running,
         operation_timer_running,
         ability_queue_running,
+        enemy_frames_running,
         move_mode,
         rearrange_mode,
     ) = {
@@ -220,6 +223,7 @@ pub async fn get_overlay_status(
             s.is_combat_time_running(),
             s.is_operation_timer_running(),
             s.is_running(OverlayType::AbilityQueue),
+            s.is_running(OverlayType::EnemyFrames),
             s.move_mode,
             s.rearrange_mode,
         )
@@ -248,6 +252,7 @@ pub async fn get_overlay_status(
     let combat_time_enabled = config.overlay_settings.is_enabled("combat_time");
     let operation_timer_enabled = config.overlay_settings.is_enabled("operation_timer");
     let ability_queue_enabled = config.overlay_settings.is_enabled("ability_queue");
+    let enemy_frames_enabled = config.overlay_settings.is_enabled("enemy_frames");
 
     Ok(OverlayStatusResponse {
         running: running_metric_types,
@@ -282,6 +287,8 @@ pub async fn get_overlay_status(
         operation_timer_enabled,
         ability_queue_running,
         ability_queue_enabled,
+        enemy_frames_running,
+        enemy_frames_enabled,
         overlays_visible: config.overlay_settings.overlays_visible,
         move_mode,
         rearrange_mode,

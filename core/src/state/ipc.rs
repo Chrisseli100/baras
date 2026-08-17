@@ -91,6 +91,8 @@ impl WorkerPlayerDiscipline {
             death_time: None,
             received_revive_immunity: false,
             current_target_id: 0,
+            last_offensive_target_id: 0,
+            first_seen_at: None,
             last_seen_at: self.last_seen_at,
             current_hp: self.current_hp,
             max_hp: self.max_hp,

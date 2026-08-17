@@ -63,6 +63,12 @@ pub struct EncounterSummary {
     /// Arena round outcome inferred from faction deaths (None for non-arena encounters)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pvp_outcome: Option<PvpOutcome>,
+    /// True for 8-player warzone matches (metric overlays hide totals)
+    #[serde(default)]
+    pub is_warzone: bool,
+    /// Local player's damage taken per source (rate = encounter-wide DTPS here)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub incoming_damage: Vec<super::metrics::IncomingDamageRow>,
     pub area_name: String,
     pub difficulty: Option<String>,
     pub boss_name: Option<String>,
@@ -350,6 +356,7 @@ pub fn create_encounter_summary(
     area: &AreaInfo,
     history: &mut EncounterHistory,
     player_disciplines: &HashMap<i64, PlayerInfo>,
+    local_player_id: i64,
 ) -> Option<EncounterSummary> {
     // Skip encounters that never started combat
     #[allow(clippy::question_mark)]
@@ -441,6 +448,7 @@ pub fn create_encounter_summary(
 
     // Calculate metrics and filter to players seen during actual combat
     let combat_start = encounter.enter_combat_time;
+    let is_pvp = is_pvp_area(area_id_for_classification);
     let player_metrics: Vec<PlayerMetrics> = encounter
         .calculate_entity_metrics(player_disciplines, None)
         .unwrap_or_default()
@@ -455,8 +463,38 @@ pub fn create_encounter_summary(
                 combat_start.is_none_or(|start| p.last_seen_at.is_some_and(|seen| seen >= start))
             })
         })
-        .map(|m| m.to_player_metrics())
+        .map(|m| {
+            let mut pm = m.to_player_metrics();
+            // Faction relative to the local player (drives the friendly/enemy
+            // overlay split when this summary hydrates CombatData)
+            if is_pvp {
+                pm.pvp_faction = encounter
+                    .pvp_factions
+                    .faction_of(pm.entity_id, local_player_id);
+            }
+            pm
+        })
         .collect();
+
+    let duration_seconds = encounter.duration_seconds(None).unwrap_or(0);
+
+    // Per-source incoming damage. The live sliding window is meaningless once
+    // the fight is over, so the rate becomes encounter-wide DTPS per source.
+    let mut incoming_damage: Vec<super::metrics::IncomingDamageRow> = encounter
+        .incoming_damage
+        .totals()
+        .iter()
+        .filter_map(|(&id, &total)| {
+            let name = encounter.get_entity_name(id)?;
+            Some(super::metrics::IncomingDamageRow {
+                entity_id: id,
+                name: resolve(name).to_string(),
+                rate: total / duration_seconds.max(1),
+                total,
+            })
+        })
+        .collect();
+    incoming_damage.sort_by(|a, b| b.total.cmp(&a.total));
 
     // Use encounter's stored difficulty (falls back to cache if not set)
     let difficulty = encounter.difficulty_name.clone()
@@ -557,11 +595,13 @@ pub fn create_encounter_summary(
         end_time: encounter
             .effective_end_time()
             .map(|t| t.format("%Y-%m-%dT%H:%M:%S").to_string()),
-        duration_seconds: encounter.duration_seconds(None).unwrap_or(0),
+        duration_seconds,
         success: determine_success(encounter),
         // Arena rounds surface a tri-state outcome; no team wipe = unknown
         pvp_outcome: (pvp_area_kind(area_id_for_classification) == Some(PvpAreaKind::Arena))
             .then(|| encounter.arena_outcome.unwrap_or(PvpOutcome::Unknown)),
+        is_warzone: pvp_area_kind(area_id_for_classification) == Some(PvpAreaKind::Warzone),
+        incoming_damage,
         area_name: encounter_area_name,
         difficulty,
         boss_name,

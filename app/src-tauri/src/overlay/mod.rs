@@ -45,7 +45,7 @@ pub use spawn::{
 pub use manager::OverlayManager;
 
 // Metrics helpers
-pub use metrics::{create_all_entries, create_entries_for_type};
+pub use metrics::{create_all_entries, create_entries_for_type, create_incoming_damage_entries};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Appearance Helper

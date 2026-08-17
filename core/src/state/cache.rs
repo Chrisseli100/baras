@@ -107,6 +107,7 @@ impl SessionCache {
             &self.current_area,
             &mut self.encounter_history,
             &self.player_disciplines,
+            self.player.id,
         ) {
             self.encounter_history.add(summary);
         }

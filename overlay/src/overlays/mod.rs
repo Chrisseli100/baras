@@ -17,6 +17,7 @@ mod combat_time;
 mod cooldowns;
 mod dot_tracker;
 mod effects;
+mod enemy_frames;
 mod effects_ab;
 mod metric;
 mod notes;
@@ -31,13 +32,16 @@ pub use combat_time::{CombatTimeConfig, CombatTimeData, CombatTimeOverlay};
 pub use challenges::{ChallengeData, ChallengeEntry, ChallengeOverlay, PlayerContribution};
 pub use cooldowns::{CooldownConfig, CooldownData, CooldownEntry, CooldownOverlay};
 pub use dot_tracker::{DotEntry, DotTarget, DotTrackerConfig, DotTrackerData, DotTrackerOverlay};
+pub use enemy_frames::{
+    EnemyFrame, EnemyFramesConfig, EnemyFramesData, EnemyFramesOverlay,
+};
 pub use notes::{NotesConfig, NotesData, NotesOverlay};
 pub use operation_timer::{OperationTimerConfig, OperationTimerData, OperationTimerOverlay};
 pub use effects::{EffectEntry, EffectsData, EffectsOverlay};
 pub use effects_ab::{
     EffectABEntry, EffectsABConfig, EffectsABData, EffectsABOverlay, EffectsLayout,
 };
-pub use metric::{MetricEntry, MetricOverlay};
+pub use metric::{MetricData, MetricEntry, MetricOverlay};
 pub use personal::{PersonalOverlay, PersonalStats};
 pub use raid::{
     // Effect config bounds (for UI sliders, validation, etc.)
@@ -97,7 +101,7 @@ use baras_types::{ClassColorConfig, ClassIconMode};
 #[derive(Debug, Clone)]
 pub enum OverlayData {
     /// Metric entries for DPS/HPS/TPS meters
-    Metrics(Vec<MetricEntry>),
+    Metrics(MetricData),
     /// Personal player statistics
     Personal(PersonalStats),
     /// Raid frame data
@@ -130,6 +134,8 @@ pub enum OverlayData {
     OperationTimer(OperationTimerData),
     /// Ability queue (GCD + queued + active countdown entries)
     AbilityQueue(AbilityQueueData),
+    /// Enemy HP frames (PvP)
+    EnemyFrames(EnemyFramesData),
 }
 
 /// Configuration updates that can be sent to overlays
@@ -172,6 +178,8 @@ pub enum OverlayConfigUpdate {
     OperationTimer(OperationTimerConfig, u8),
     /// Config for ability queue overlay (+ background alpha)
     AbilityQueue(AbilityQueueConfig, u8),
+    /// Config for enemy frames overlay (+ background alpha, european)
+    EnemyFrames(EnemyFramesConfig, u8, bool),
 }
 
 /// Position information for an overlay
