@@ -133,30 +133,30 @@ impl EnemyFramesOverlay {
         };
 
         // Fixed 4-row, ops-frame layout: 4 enemies (arena) fill one column,
-        // 8 (warzone) two, filling column-major. Rows stretch to the window
-        // height; column width is always sized for the full 4x2 warzone
-        // layout, so an arena's single column keeps the same frame width
-        // instead of stretching across the whole window.
+        // 8 (warzone) two, filling column-major. Cells are always sized for
+        // the full 4x2 warzone grid — a partially-seen team leaves empty
+        // window space rather than stretching frames to fill it.
         let n = frames.len();
         if n == 0 {
             self.frame.begin_frame_with_content_height(0.0);
             self.frame.end_frame();
             return;
         }
-        let rows = n.min(4);
+        const GRID_ROWS: usize = 4;
 
         self.frame.begin_frame();
 
         let cell_w = ((width - padding * 2.0 - gap) / 2.0).max(20.0);
-        let cell_h =
-            ((height - padding * 2.0 - (rows - 1) as f32 * gap) / rows as f32).max(20.0);
+        let cell_h = ((height - padding * 2.0 - (GRID_ROWS - 1) as f32 * gap)
+            / GRID_ROWS as f32)
+            .max(20.0);
 
         // Split borrows: frames may borrow self.data, cells draw via self.frame
         let (frame, config, eu) = (&mut self.frame, &self.config, self.european_number_format);
         for (i, ef) in frames.iter().enumerate() {
             // Column-major fill: slots 0-3 down the first column, 4-7 the second
-            let col = i / rows;
-            let row = i % rows;
+            let col = i / GRID_ROWS;
+            let row = i % GRID_ROWS;
             let x = padding + col as f32 * (cell_w + gap);
             let y = padding + row as f32 * (cell_h + gap);
             render_cell(frame, config, eu, ef, x, y, cell_w, cell_h);
