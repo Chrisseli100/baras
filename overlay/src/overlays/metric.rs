@@ -40,7 +40,7 @@ pub struct MetricEntry {
     pub class_name: Option<String>,
     /// Whether this entry belongs to the local player
     pub is_local: bool,
-    /// Whether this entry is an enemy player (PvP) — rendered red, below friendlies
+    /// Whether this entry is an enemy player (PvP) — sorted below friendlies
     pub is_enemy: bool,
     /// Pre-formatted rate string (overrides format_compact when set)
     pub display_value: Option<String>,
@@ -509,10 +509,8 @@ impl MetricOverlay {
                 y += divider_space;
             }
 
-            // Determine fill color: enemy tint > class color > custom entry color > configured bar_color
-            let fill_color = if entry.is_enemy {
-                colors::enemy_bar_fill()
-            } else if self.use_class_color {
+            // Determine fill color: class color > custom entry color > configured bar_color
+            let fill_color = if self.use_class_color {
                 entry.class_name.as_deref()
                     .and_then(|n| self.class_colors.for_class_name(n))
                     .map(color_from_rgba)

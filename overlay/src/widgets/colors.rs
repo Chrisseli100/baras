@@ -65,13 +65,6 @@ pub fn tank_bar_fill() -> Color {
     Color::from_rgba8(50, 100, 180, 255)
 }
 
-/// Enemy player bar fill (PvP faction split) — dark crimson, distinct from
-/// the brighter default DPS red so both read apart on the same meter
-#[inline]
-pub fn enemy_bar_fill() -> Color {
-    Color::from_rgba8(120, 20, 30, 255)
-}
-
 /// Enemy frame cell background (subtle dark panel)
 #[inline]
 pub fn enemy_cell_bg() -> Color {
