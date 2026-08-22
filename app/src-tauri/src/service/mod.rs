@@ -3511,6 +3511,8 @@ async fn build_raid_frame_data(
     // The registry handles duplicate rejection via try_register
     let new_targets = tracker.take_new_targets();
     if !new_targets.is_empty() {
+        let pvp_backfill =
+            baras_core::game_data::is_pvp_area(shared.current_area_id.load(Ordering::SeqCst));
         // Remember these players past a frame clear: a re-run OCR pass can
         // only rebind names it still has candidates for, and out-of-combat
         // targets never reach the discipline roster.
@@ -3525,7 +3527,24 @@ async fn build_raid_frame_data(
             }
             // A new player is the only thing that can settle a provisional slot, so
             // it is what schedules the match rather than a timer.
-            if registry.try_register(target.entity_id, name).is_some() {
+            if registry.try_register(target.entity_id, name.clone()).is_some() {
+                shared.roster_changed.store(true, Ordering::Relaxed);
+                continue;
+            }
+            // A full PvP grid means someone left and was backfilled: the
+            // player we have not seen for longest gives up their slot.
+            if pvp_backfill
+                && registry.is_full()
+                && !registry.is_registered(target.entity_id)
+                && let Some(cache) = session.session_cache.as_ref()
+                && let Some(encounter) = cache.current_encounter()
+                && registry
+                    .evict_lowest(local_player_id, |id| {
+                        encounter.players.get(&id).and_then(|p| p.last_seen_at)
+                    })
+                    .is_some()
+                && registry.try_register(target.entity_id, name).is_some()
+            {
                 shared.roster_changed.store(true, Ordering::Relaxed);
             }
         }
