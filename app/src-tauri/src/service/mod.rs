@@ -384,6 +384,8 @@ pub enum OverlayUpdate {
     AbilityQueueUpdated(baras_overlay::AbilityQueueData),
     /// Clear all overlay data (sent when switching files)
     ClearAllData,
+    /// Left a PvP area: the last match's enemies are gone
+    EnemyFramesCleared,
     /// Local player entered conversation - temporarily hide overlays
     ConversationStarted,
     /// Local player exited conversation - restore overlays if we hid them
@@ -696,6 +698,14 @@ impl SignalHandler for CombatSignalHandler {
                         .unwrap_or_else(|p| p.into_inner()) = None;
                 }
                 if *area_id != current {
+                    // Metric rebuilds keep the last encounter's enemies until a
+                    // new encounter replaces them; leaving the warzone is the end.
+                    if is_live
+                        && baras_core::game_data::is_pvp_area(current)
+                        && !baras_core::game_data::is_pvp_area(*area_id)
+                    {
+                        let _ = self.overlay_tx.try_send(OverlayUpdate::EnemyFramesCleared);
+                    }
                     self.shared
                         .current_area_id
                         .store(*area_id, Ordering::SeqCst);

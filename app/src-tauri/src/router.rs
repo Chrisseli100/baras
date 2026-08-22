@@ -937,6 +937,19 @@ async fn process_overlay_update(
             }
             service_handle.emit_overlay_status_changed();
         }
+        OverlayUpdate::EnemyFramesCleared => {
+            let tx = overlay_state
+                .lock()
+                .ok()
+                .and_then(|state| state.get_tx(OverlayType::EnemyFrames).cloned());
+            if let Some(tx) = tx {
+                let _ = tx
+                    .send(OverlayCommand::UpdateData(OverlayData::EnemyFrames(
+                        Default::default(),
+                    )))
+                    .await;
+            }
+        }
         OverlayUpdate::ConversationEnded => {
             // Only act if we were actually in conversation auto-hide
             if !shared.auto_hide.is_conversation_active() {
