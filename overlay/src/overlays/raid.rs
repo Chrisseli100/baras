@@ -734,6 +734,25 @@ impl RaidOverlay {
         px >= x && px < x + w && py >= y && py < y + h
     }
 
+    /// Top-left corner: the far side of the overlay from the detect button,
+    /// so a miss on one cannot land on the other.
+    /// A labelled vertical pill rather than an "×": it must not be mistaken
+    /// for the per-frame clear button. Sits on the right edge a quarter of
+    /// the way down, well clear of the detect button in the corner.
+    fn clear_all_button_bounds(&self) -> (f32, f32, f32, f32) {
+        let (x, _, size, _) = self.detect_button_bounds();
+        let h = size * 3.4;
+        let y = (self.frame.height() as f32 * 0.25)
+            .min(self.frame.height() as f32 - h - 2.0)
+            .max(2.0);
+        (x, y, size, h)
+    }
+
+    fn hit_test_clear_all_button(&self, px: f32, py: f32) -> bool {
+        let (x, y, w, h) = self.clear_all_button_bounds();
+        px >= x && px < x + w && py >= y && py < y + h
+    }
+
     /// Find which slot (if any) contains the given point
     fn hit_test(&self, px: f32, py: f32) -> Option<u8> {
         for slot in 0..self.layout.capacity() {
@@ -1023,6 +1042,9 @@ impl RaidOverlay {
         // Overflow indicator
         self.render_overflow_indicator();
 
+        if self.interaction_mode == InteractionMode::Rearrange {
+            self.render_clear_all_button();
+        }
         if self.interaction_mode.shows_detect_button() {
             self.render_detect_button();
         }
@@ -1064,6 +1086,36 @@ impl RaidOverlay {
             handle * 0.4,
             Color::from_rgba8(226, 232, 240, 230),
         );
+    }
+
+    fn render_clear_all_button(&mut self) {
+        let (x, y, w, h) = self.clear_all_button_bounds();
+        self.frame
+            .fill_rounded_rect(x, y, w, h, w / 2.0, Color::from_rgba8(20, 24, 32, 150));
+        self.frame.stroke_rounded_rect(
+            x + 0.5,
+            y + 0.5,
+            w - 1.0,
+            h - 1.0,
+            w / 2.0 - 0.5,
+            1.0,
+            colors::raid_clear_button(),
+        );
+
+        // One letter per row, centred in the pill.
+        let letters = ["C", "L", "E", "A", "R"];
+        let row = (h - w * 0.8) / letters.len() as f32;
+        let mut font = (row * 0.9).min(w * 0.7);
+        while font > 6.0 && !self.fits("R", font, w - 3.0) {
+            font -= 0.5;
+        }
+        let color = Color::from_rgba8(226, 232, 240, 230);
+        for (i, letter) in letters.iter().enumerate() {
+            let (text_w, _) = self.frame.measure_text(letter, font);
+            let baseline = y + w * 0.4 + row * (i as f32 + 1.0) - row * 0.2;
+            self.frame
+                .draw_text_glowed(letter, x + (w - text_w) / 2.0, baseline, font, color);
+        }
     }
 
     fn fits(&mut self, text: &str, font_size: f32, max_width: f32) -> bool {
@@ -1760,7 +1812,14 @@ impl Overlay for RaidOverlay {
             {
                 self.emit_detect_action();
             } else if self.interaction_mode == InteractionMode::Rearrange {
-                self.handle_rearrange_click(px, py);
+                if self.hit_test_clear_all_button(px, py) {
+                    self.clear_all_frames();
+                    self.swap_state.cancel();
+                    self.pending_registry_actions
+                        .push(RaidRegistryAction::ClearAll);
+                } else {
+                    self.handle_rearrange_click(px, py);
+                }
             }
         }
 

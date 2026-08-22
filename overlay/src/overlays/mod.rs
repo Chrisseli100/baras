@@ -77,6 +77,8 @@ pub enum RaidRegistryAction {
     SwapSlots(u8, u8),
     /// Clear a specific slot
     ClearSlot(u8),
+    /// Clear every slot
+    ClearAll,
     /// Captured pixels and overlay-local slot rectangles.
     DetectNames {
         started_at: std::time::Instant,

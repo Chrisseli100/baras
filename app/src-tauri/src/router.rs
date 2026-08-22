@@ -99,6 +99,9 @@ async fn process_registry_action(
         RaidRegistryAction::ClearSlot(slot) => {
             service_handle.remove_raid_slot(slot).await;
         }
+        RaidRegistryAction::ClearAll => {
+            service_handle.clear_raid_registry().await;
+        }
         RaidRegistryAction::DetectNames {
             started_at,
             image,
