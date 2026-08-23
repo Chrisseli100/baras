@@ -869,6 +869,8 @@ fn test_charges_modifier_refills_duration_without_refresh_on_modify() {
         requires_crit: false,
         refill_duration: true,
         icd_secs: None,
+        icd_from_application: false,
+        icd_affected_by_alacrity: false,
         max_duration_secs: None,
         cancel: false,
     }];
@@ -1035,6 +1037,8 @@ fn test_resource_spent_modifier_scales_by_amount() {
         requires_crit: false,
         refill_duration: false,
         icd_secs: None,
+        icd_from_application: false,
+        icd_affected_by_alacrity: false,
         max_duration_secs: None,
         cancel: false,
     });
@@ -1065,6 +1069,8 @@ fn test_resource_spent_modifier_cancels_effect() {
         requires_crit: false,
         refill_duration: false,
         icd_secs: None,
+        icd_from_application: false,
+        icd_affected_by_alacrity: false,
         max_duration_secs: None,
         cancel: true,
     });
@@ -1086,11 +1092,13 @@ fn test_resource_spent_modifier_cancels_effect() {
 #[test]
 fn test_killing_blow_modifier_extends_effect() {
     let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
-        trigger: baras_types::Trigger::KillingBlow { selector: vec![] },
+        trigger: baras_types::Trigger::KillingBlow,
         adjust_duration_secs: 3.0,
         requires_crit: false,
         refill_duration: false,
         icd_secs: None,
+        icd_from_application: false,
+        icd_affected_by_alacrity: false,
         max_duration_secs: None,
         cancel: false,
     });
@@ -1116,4 +1124,159 @@ fn test_killing_blow_modifier_extends_effect() {
     tracker.handle_signals(&[death(player, ts + chrono::Duration::seconds(2))], None);
     let extended = tracker.active_effects().next().unwrap().expires_at.unwrap();
     assert_eq!((extended - original).num_milliseconds(), 3000);
+}
+
+#[test]
+fn test_any_of_modifier_shares_icd_across_trigger_kinds() {
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::AnyOf {
+            conditions: vec![
+                baras_types::Trigger::ResourceSpent { per_amount: 0.0 },
+                baras_types::Trigger::KillingBlow,
+            ],
+        },
+        adjust_duration_secs: 2.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: Some(5.0),
+        icd_from_application: false,
+        icd_affected_by_alacrity: false,
+        max_duration_secs: None,
+        cancel: false,
+    });
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    let original = tracker.active_effects().next().unwrap().expires_at.unwrap();
+
+    // Resource spend procs (+2s)
+    tracker.handle_signals(&[resource_spent_signal(player, 5.0, ts + chrono::Duration::seconds(1))], None);
+    let after_spend = tracker.active_effects().next().unwrap().expires_at.unwrap();
+    assert_eq!((after_spend - original).num_milliseconds(), 2000);
+
+    // Killing blow 1s later is blocked by the ICD shared with the spend
+    let death = GameSignal::EntityDeath {
+        entity_id: 500,
+        entity_type: EntityType::Npc,
+        npc_id: 123,
+        entity_name: "Add".to_string(),
+        killer_id: player,
+        timestamp: ts + chrono::Duration::seconds(2),
+    };
+    tracker.handle_signals(&[death], None);
+    assert_eq!(tracker.active_effects().next().unwrap().expires_at.unwrap(), after_spend);
+
+    // After the ICD elapses, the killing blow procs
+    let death = GameSignal::EntityDeath {
+        entity_id: 501,
+        entity_type: EntityType::Npc,
+        npc_id: 123,
+        entity_name: "Add".to_string(),
+        killer_id: player,
+        timestamp: ts + chrono::Duration::seconds(7),
+    };
+    tracker.handle_signals(&[death], None);
+    let after_kill = tracker.active_effects().next().unwrap().expires_at.unwrap();
+    assert_eq!((after_kill - after_spend).num_milliseconds(), 2000);
+}
+
+#[test]
+fn test_icd_from_application_gates_first_proc() {
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::ResourceSpent { per_amount: 0.0 },
+        adjust_duration_secs: 2.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: Some(3.0),
+        icd_from_application: true,
+        icd_affected_by_alacrity: false,
+        max_duration_secs: None,
+        cancel: false,
+    });
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    let original = tracker.active_effects().next().unwrap().expires_at.unwrap();
+
+    // 1s after application: still inside the ICD window counted from applied_at
+    tracker.handle_signals(&[resource_spent_signal(player, 5.0, ts + chrono::Duration::seconds(1))], None);
+    assert_eq!(tracker.active_effects().next().unwrap().expires_at.unwrap(), original);
+
+    // 3s after application: allowed
+    tracker.handle_signals(&[resource_spent_signal(player, 5.0, ts + chrono::Duration::seconds(3))], None);
+    let extended = tracker.active_effects().next().unwrap().expires_at.unwrap();
+    assert_eq!((extended - original).num_milliseconds(), 2000);
+}
+
+#[test]
+fn test_modifier_revives_interpolation_expired_effect() {
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::ResourceSpent { per_amount: 0.0 },
+        adjust_duration_secs: 5.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: None,
+        icd_from_application: false,
+        icd_affected_by_alacrity: false,
+        max_duration_secs: None,
+        cancel: false,
+    });
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    let original = tracker.active_effects().next().unwrap().expires_at.unwrap();
+
+    // Simulate tick() having expired the effect on interpolated time while
+    // the log (e.g. a delayed flush) hadn't caught up yet.
+    tracker.active_effects_mut().next().unwrap().timer_expired = true;
+
+    // A log event from BEFORE expires_at proves the effect was still alive.
+    tracker.handle_signals(&[resource_spent_signal(player, 5.0, ts + chrono::Duration::seconds(8))], None);
+    let e = tracker.active_effects().next().unwrap();
+    assert!(!e.timer_expired, "modifier should revive an interpolation-expired effect");
+    assert_eq!((e.expires_at.unwrap() - original).num_milliseconds(), 5000);
+
+    // A log event from AFTER expires_at must not resurrect a genuinely expired effect.
+    tracker.active_effects_mut().next().unwrap().timer_expired = true;
+    let late = tracker.active_effects().next().unwrap().expires_at.unwrap() + chrono::Duration::seconds(1);
+    tracker.handle_signals(&[resource_spent_signal(player, 5.0, late)], None);
+    assert!(tracker.active_effects().next().unwrap().timer_expired);
+}
+
+#[test]
+fn test_icd_affected_by_alacrity_shortens_cooldown() {
+    // 25% alacrity: 10s ICD → 8s
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::ResourceSpent { per_amount: 0.0 },
+        adjust_duration_secs: 1.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: Some(10.0),
+        icd_from_application: true,
+        icd_affected_by_alacrity: true,
+        max_duration_secs: Some(60.0),
+        cancel: false,
+    });
+    tracker.set_alacrity(25.0);
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    let original = tracker.active_effects().next().unwrap().expires_at.unwrap();
+
+    // 7s: inside the 8s scaled ICD
+    tracker.handle_signals(&[resource_spent_signal(player, 1.0, ts + chrono::Duration::seconds(7))], None);
+    assert_eq!(tracker.active_effects().next().unwrap().expires_at.unwrap(), original);
+
+    // 8s: scaled ICD elapsed (would still be blocked by the raw 10s)
+    tracker.handle_signals(&[resource_spent_signal(player, 1.0, ts + chrono::Duration::seconds(8))], None);
+    let extended = tracker.active_effects().next().unwrap().expires_at.unwrap();
+    assert_eq!((extended - original).num_milliseconds(), 1000);
 }

@@ -8435,3 +8435,69 @@ a.contributor-name:hover {
   color: var(--text-muted);
   opacity: 0.6;
 }
+
+/* ─── Modifier Editor ────────────────────────────────────────────────────────── */
+.modifier-entry {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+  background: var(--bg-secondary);
+}
+
+.modifier-entry-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.modifier-entry-header > select {
+  flex: 1;
+}
+
+.modifier-section {
+  padding: var(--space-sm) 0 0 var(--space-sm);
+  margin-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+}
+
+.modifier-section-title {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.modifier-section .form-row-hz {
+  margin-bottom: var(--space-xs);
+}
+
+.modifier-section .form-row-hz:last-child {
+  margin-bottom: 0;
+}
+
+.modifier-section .form-row-hz > label {
+  min-width: 140px;
+}
+
+.modifier-anyof {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.modifier-anyof-child {
+  border-left: 2px solid var(--border-light);
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+}
+
+.modifier-anyof-child .modifier-entry-header {
+  margin-bottom: var(--space-xs);
+}
+
+.modifier-anyof > .btn-sm {
+  align-self: flex-start;
+}

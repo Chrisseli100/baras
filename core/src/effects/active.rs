@@ -232,6 +232,20 @@ impl ActiveEffect {
         }
     }
 
+    /// Check whether modifier `mod_idx` is off cooldown at `now`.
+    ///
+    /// With `from_application`, the initial application counts as a proc so the
+    /// modifier is gated until `icd` seconds after `applied_at`.
+    pub fn modifier_icd_ready(&self, mod_idx: usize, icd: Option<f32>, from_application: bool, now: NaiveDateTime) -> bool {
+        let Some(icd) = icd else { return true };
+        let last = self.modifier_last_proc[mod_idx]
+            .or(if from_application { Some(self.applied_at) } else { None });
+        match last {
+            Some(last) => (now - last).num_milliseconds() as f32 / 1000.0 >= icd,
+            None => true,
+        }
+    }
+
     /// Refresh the effect (reapplication extends duration)
     pub fn refresh(&mut self, event_timestamp: NaiveDateTime, duration: Option<Duration>) {
         self.last_refreshed_at = event_timestamp;

@@ -890,6 +890,15 @@ pub struct EffectModifier {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icd_secs: Option<f32>,
 
+    /// Treat the effect's initial application as an ICD proc, so the modifier
+    /// cannot fire until `icd_secs` have elapsed since `applied_at`
+    #[serde(default, skip_serializing_if = "is_false_ref")]
+    pub icd_from_application: bool,
+
+    /// Scale `icd_secs` by the holder's alacrity (same formula as effect duration)
+    #[serde(default, skip_serializing_if = "is_false_ref")]
+    pub icd_affected_by_alacrity: bool,
+
     /// Maximum duration this effect can reach (ceiling)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_duration_secs: Option<f32>,
@@ -1332,11 +1341,7 @@ pub enum Trigger {
     },
 
     /// The effect holder lands a killing blow (is the source of a Death event). [M only]
-    KillingBlow {
-        /// Optional filter on the victim. Empty = any entity.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        selector: Vec<EntitySelector>,
-    },
+    KillingBlow,
 
     /// The effect holder spends a resource (energy/Force/heat/…). [M only]
     /// Resource type is ignored — only the magnitude matters.
@@ -1513,7 +1518,7 @@ impl Trigger {
             Self::ChargesChanged { .. } => "Charges Changed",
             Self::SelfChargesChanged { .. } => "Self Charges Changed",
             Self::ResourceSpent { .. } => "Resource Spent",
-            Self::KillingBlow { .. } => "Killing Blow",
+            Self::KillingBlow => "Killing Blow",
             Self::ThreatModified { .. } => "Threat Modified",
             Self::BossHpBelow { .. } => "Boss HP Below",
             Self::BossHpAbove { .. } => "Boss HP Above",
@@ -1550,7 +1555,7 @@ impl Trigger {
             Self::ChargesChanged { .. } => "charges_changed",
             Self::SelfChargesChanged { .. } => "self_charges_changed",
             Self::ResourceSpent { .. } => "resource_spent",
-            Self::KillingBlow { .. } => "killing_blow",
+            Self::KillingBlow => "killing_blow",
             Self::ThreatModified { .. } => "threat_modified",
             Self::BossHpBelow { .. } => "boss_hp_below",
             Self::BossHpAbove { .. } => "boss_hp_above",

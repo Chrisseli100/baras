@@ -6,10 +6,10 @@
 use dioxus::prelude::*;
 
 use super::encounter_editor::triggers::{
-    AbilitySelectorEditor, EffectSelectorEditor, EntitySelectorEditor,
+    AbilitySelectorEditor, EffectSelectorEditor,
 };
 use crate::types::{
-    AbilitySelector, ChargeDirection, EffectModifier, EffectSelector, EntitySelector, MitigationType,
+    AbilitySelector, ChargeDirection, EffectModifier, EffectSelector, MitigationType,
     Trigger,
 };
 
@@ -31,6 +31,7 @@ enum ModifierTriggerType {
     SelfChargesChanged,
     ResourceSpent,
     KillingBlow,
+    AnyOf,
 }
 
 impl ModifierTriggerType {
@@ -47,7 +48,12 @@ impl ModifierTriggerType {
             Self::SelfChargesChanged => "Self Charges Changed",
             Self::ResourceSpent => "Resource Spent",
             Self::KillingBlow => "Killing Blow",
+            Self::AnyOf => "Any Of (OR)",
         }
+    }
+
+    fn from_label(label: &str) -> Option<Self> {
+        Self::all().iter().copied().find(|t| t.label() == label)
     }
 
     fn all() -> &'static [Self] {
@@ -63,7 +69,14 @@ impl ModifierTriggerType {
             Self::SelfChargesChanged,
             Self::ResourceSpent,
             Self::KillingBlow,
+            Self::AnyOf,
         ]
+    }
+
+    /// Trigger types allowed as `AnyOf` children (no nesting).
+    fn leaf() -> &'static [Self] {
+        let all = Self::all();
+        &all[..all.len() - 1]
     }
 
     fn from_trigger(trigger: &Trigger) -> Self {
@@ -78,7 +91,8 @@ impl ModifierTriggerType {
             Trigger::ChargesChanged { .. } => Self::ChargesChanged,
             Trigger::SelfChargesChanged { .. } => Self::SelfChargesChanged,
             Trigger::ResourceSpent { .. } => Self::ResourceSpent,
-            Trigger::KillingBlow { .. } => Self::KillingBlow,
+            Trigger::KillingBlow => Self::KillingBlow,
+            Trigger::AnyOf { .. } => Self::AnyOf,
             _ => Self::AbilityCast,
         }
     }
@@ -135,7 +149,50 @@ impl ModifierTriggerType {
             },
             Self::SelfChargesChanged => Trigger::SelfChargesChanged { direction: None },
             Self::ResourceSpent => Trigger::ResourceSpent { per_amount: 0.0 },
-            Self::KillingBlow => Trigger::KillingBlow { selector: vec![] },
+            Self::KillingBlow => Trigger::KillingBlow,
+            Self::AnyOf => Trigger::AnyOf { conditions: vec![] },
+        }
+    }
+}
+
+/// Does this trigger (or any `AnyOf` child) carry crit info?
+fn supports_crit(trigger: &Trigger) -> bool {
+    match trigger {
+        Trigger::DamageTaken { .. }
+        | Trigger::DamageDealt { .. }
+        | Trigger::HealingTaken { .. }
+        | Trigger::HealingDealt { .. } => true,
+        Trigger::AnyOf { conditions } => conditions.iter().any(supports_crit),
+        _ => false,
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trigger type select (shared by the modifier header and AnyOf children)
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Props, Clone, PartialEq)]
+struct TriggerTypeSelectProps {
+    current: ModifierTriggerType,
+    options: &'static [ModifierTriggerType],
+    on_change: EventHandler<Trigger>,
+}
+
+#[component]
+fn TriggerTypeSelect(props: TriggerTypeSelectProps) -> Element {
+    rsx! {
+        select {
+            class: "select-inline",
+            style: "flex: 1;",
+            value: "{props.current.label()}",
+            onchange: move |e: Event<FormData>| {
+                if let Some(t) = ModifierTriggerType::from_label(&e.value()) {
+                    props.on_change.call(t.default_trigger());
+                }
+            },
+            for tt in props.options {
+                option { value: "{tt.label()}", selected: *tt == props.current, "{tt.label()}" }
+            }
         }
     }
 }
@@ -180,6 +237,8 @@ pub fn ModifierListEditor(props: ModifierListEditorProps) -> Element {
                                 requires_crit: false,
                                 refill_duration: false,
                                 icd_secs: None,
+                                icd_from_application: false,
+                                icd_affected_by_alacrity: false,
                                 max_duration_secs: None,
                                 cancel: false,
                             });
@@ -249,41 +308,20 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
     let modifier = props.modifier.clone();
 
     rsx! {
-        div {
-            class: "modifier-entry",
-            style: "border: 1px solid var(--border-color, #333); border-radius: 4px; padding: 8px; margin-bottom: 6px;",
-
+        div { class: "modifier-entry",
             // Header row: trigger type + remove button
-            div { class: "flex items-center gap-sm", style: "margin-bottom: 6px;",
-                select {
-                    class: "select-inline",
-                    style: "flex: 1;",
-                    value: "{trigger_type.label()}",
-                    onchange: {
+            div { class: "modifier-entry-header",
+                TriggerTypeSelect {
+                    current: trigger_type,
+                    options: ModifierTriggerType::all(),
+                    on_change: {
                         let modifier = modifier.clone();
                         let on_update = props.on_update.clone();
-                        move |e: Event<FormData>| {
-                            let new_type = match e.value().as_str() {
-                                "Ability Cast" => ModifierTriggerType::AbilityCast,
-                                "Damage Taken" => ModifierTriggerType::DamageTaken,
-                                "Damage Dealt" => ModifierTriggerType::DamageDealt,
-                                "Healing Taken" => ModifierTriggerType::HealingTaken,
-                                "Healing Dealt" => ModifierTriggerType::HealingDealt,
-                                "Effect Applied" => ModifierTriggerType::EffectApplied,
-                                "Effect Removed" => ModifierTriggerType::EffectRemoved,
-                                "Charges Changed" => ModifierTriggerType::ChargesChanged,
-                                "Self Charges Changed" => ModifierTriggerType::SelfChargesChanged,
-                                "Resource Spent" => ModifierTriggerType::ResourceSpent,
-                                "Killing Blow" => ModifierTriggerType::KillingBlow,
-                                _ => return,
-                            };
+                        move |t: Trigger| {
                             let mut m = modifier.clone();
-                            m.trigger = new_type.default_trigger();
+                            m.trigger = t;
                             on_update.call(m);
                         }
-                    },
-                    for tt in ModifierTriggerType::all() {
-                        option { value: "{tt.label()}", selected: *tt == trigger_type, "{tt.label()}" }
                     }
                 }
                 button {
@@ -297,8 +335,24 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                 }
             }
 
-            // Trigger-specific fields
-            {render_trigger_fields(&modifier, &props.on_update)}
+            // ── Trigger conditions ──
+            div { class: "modifier-section",
+                div { class: "modifier-section-title", "Trigger" }
+                {render_trigger_fields(&modifier.trigger, EventHandler::new({
+                    let modifier = modifier.clone();
+                    let on_update = props.on_update.clone();
+                    move |t: Trigger| {
+                        let mut m = modifier.clone();
+                        m.trigger = t;
+                        on_update.call(m);
+                    }
+                }))}
+                {render_trigger_conditions(&modifier, &props.on_update)}
+            }
+
+            // ── Modifier effect ──
+            div { class: "modifier-section",
+            div { class: "modifier-section-title", "Modifier" }
 
             // Cancel (remove effect instead of adjusting duration)
             div { class: "form-row-hz",
@@ -342,31 +396,11 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                 }
             }
 
-            // Requires Crit (only for DamageTaken/HealingTaken)
-            if matches!(trigger_type, ModifierTriggerType::DamageTaken | ModifierTriggerType::DamageDealt | ModifierTriggerType::HealingTaken | ModifierTriggerType::HealingDealt) {
-                div { class: "form-row-hz",
-                    label { "Requires Critical Hit" }
-                    input {
-                        r#type: "checkbox",
-                        checked: modifier.requires_crit,
-                        onchange: {
-                            let modifier = modifier.clone();
-                            let on_update = props.on_update.clone();
-                            move |e: Event<FormData>| {
-                                let mut m = modifier.clone();
-                                m.requires_crit = e.checked();
-                                on_update.call(m);
-                            }
-                        }
-                    }
-                }
-            }
-
             // Refill Duration
             div { class: "form-row-hz",
                 label {
                     "Refill Duration"
-                    span { class: "help-icon", title: "Reset remaining time to the effect's base duration on each proc instead of adjusting by a fixed delta", "?" }
+                    span { class: "help-icon", title: "Refill the effect to its maximum duration, including adjustment (if applicable).", "?" }
                 }
                 input {
                     r#type: "checkbox",
@@ -383,34 +417,12 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                 }
             }
 
-            // ICD
-            div { class: "form-row-hz",
-                label {
-                    "ICD (s)"
-                    span { class: "help-icon", title: "Internal cooldown — minimum seconds between activations", "?" }
-                }
-                input {
-                    r#type: "number",
-                    class: "input-number",
-                    step: "0.1",
-                    min: "0",
-                    placeholder: "None",
-                    value: "{modifier.icd_secs.map(|v| v.to_string()).unwrap_or_default()}",
-                    onchange: {
-                        let modifier = modifier.clone();
-                        let on_update = props.on_update.clone();
-                        move |e: Event<FormData>| {
-                            let mut m = modifier.clone();
-                            m.icd_secs = e.value().parse::<f32>().ok().filter(|v| *v > 0.0);
-                            on_update.call(m);
-                        }
-                    }
-                }
-            }
-
             // Max Duration
             div { class: "form-row-hz",
-                label { "Max Duration (s)" }
+                label {
+                    "Max Duration (s)"
+                    span { class: "help-icon", title: "The maximum duration this effect can obtain through this modifier.", "?" }
+                }
                 input {
                     r#type: "number",
                     class: "input-number",
@@ -430,7 +442,108 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                 }
             }
             }
+            }
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trigger conditions (gating shared across trigger types)
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn render_trigger_conditions(
+    modifier: &EffectModifier,
+    on_update: &EventHandler<EffectModifier>,
+) -> Element {
+    let modifier = modifier.clone();
+    let on_update = on_update.clone();
+    let has_crit = supports_crit(&modifier.trigger);
+    rsx! {
+            // Requires Crit (only for damage/healing triggers)
+            if has_crit {
+                div { class: "form-row-hz",
+                    label { "Requires Critical Hit" }
+                    input {
+                        r#type: "checkbox",
+                        checked: modifier.requires_crit,
+                        onchange: {
+                            let modifier = modifier.clone();
+                            let on_update = on_update.clone();
+                            move |e: Event<FormData>| {
+                                let mut m = modifier.clone();
+                                m.requires_crit = e.checked();
+                                on_update.call(m);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ICD
+            div { class: "form-row-hz",
+                label {
+                    "ICD (s)"
+                    span { class: "help-icon", title: "Internal Cooldown. Minimum time between trigger events that must elapse before this modifier can be applied again", "?" }
+                }
+                input {
+                    r#type: "number",
+                    class: "input-number",
+                    step: "0.1",
+                    min: "0",
+                    placeholder: "None",
+                    value: "{modifier.icd_secs.map(|v| v.to_string()).unwrap_or_default()}",
+                    onchange: {
+                        let modifier = modifier.clone();
+                        let on_update = on_update.clone();
+                        move |e: Event<FormData>| {
+                            let mut m = modifier.clone();
+                            m.icd_secs = e.value().parse::<f32>().ok().filter(|v| *v > 0.0);
+                            on_update.call(m);
+                        }
+                    }
+                }
+            }
+
+            div { class: "form-row-hz",
+                label {
+                    "ICD From Application"
+                    span { class: "help-icon", title: "Count the effect's initial application as an ICD proc, so the modifier cannot fire until the ICD has elapsed since the effect was applied", "?" }
+                }
+                input {
+                    r#type: "checkbox",
+                    checked: modifier.icd_from_application,
+                    disabled: modifier.icd_secs.is_none(),
+                    onchange: {
+                        let modifier = modifier.clone();
+                        let on_update = on_update.clone();
+                        move |e: Event<FormData>| {
+                            let mut m = modifier.clone();
+                            m.icd_from_application = e.checked();
+                            on_update.call(m);
+                        }
+                    }
+                }
+            }
+            div { class: "form-row-hz",
+                label {
+                    "ICD Affected by Alacrity"
+                    span { class: "help-icon", title: "Scale the ICD by the effect holder's alacrity, using the same formula as effect duration", "?" }
+                }
+                input {
+                    r#type: "checkbox",
+                    checked: modifier.icd_affected_by_alacrity,
+                    disabled: modifier.icd_secs.is_none(),
+                    onchange: {
+                        let modifier = modifier.clone();
+                        let on_update = on_update.clone();
+                        move |e: Event<FormData>| {
+                            let mut m = modifier.clone();
+                            m.icd_affected_by_alacrity = e.checked();
+                            on_update.call(m);
+                        }
+                    }
+                }
+            }
     }
 }
 
@@ -438,340 +551,201 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
 // Trigger-specific field rendering
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<EffectModifier>) -> Element {
-    match &modifier.trigger {
-        Trigger::AbilityCast { abilities, .. } => {
-            let abilities = abilities.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                AbilitySelectorEditor {
-                    label: "Abilities",
-                    selectors: abilities,
-                    on_change: move |new_abs: Vec<AbilitySelector>| {
-                        let mut m = modifier.clone();
-                        m.trigger = Trigger::AbilityCast {
-                            abilities: new_abs,
-                            source: Default::default(),
-                            target: Default::default(),
-                            position: vec![],
-                        };
-                        on_update.call(m);
-                    }
-                }
+fn render_trigger_fields(trigger: &Trigger, on_change: EventHandler<Trigger>) -> Element {
+    match trigger {
+        Trigger::AbilityCast { abilities, .. } => rsx! {
+            AbilitySelectorEditor {
+                label: "Abilities",
+                selectors: abilities.clone(),
+                on_change: move |abilities: Vec<AbilitySelector>| on_change.call(Trigger::AbilityCast {
+                    abilities,
+                    source: Default::default(),
+                    target: Default::default(),
+                    position: vec![],
+                })
             }
-        }
+        },
         Trigger::DamageTaken { abilities, mitigation, .. } => {
-            let abilities = abilities.clone();
-            let mitigation = mitigation.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
+            let (abs, mits) = (abilities.clone(), mitigation.clone());
+            let build = move |abilities: Vec<AbilitySelector>, mitigation: Vec<MitigationType>| Trigger::DamageTaken {
+                abilities,
+                source: Default::default(),
+                target: Default::default(),
+                mitigation,
+                position: vec![],
+            };
             rsx! {
                 AbilitySelectorEditor {
                     label: "Abilities",
-                    selectors: abilities.clone(),
+                    selectors: abs.clone(),
                     on_change: {
-                        let modifier = modifier.clone();
-                        let on_update = on_update.clone();
-                        let mitigation = mitigation.clone();
-                        move |new_abs: Vec<AbilitySelector>| {
-                            let mut m = modifier.clone();
-                            m.trigger = Trigger::DamageTaken {
-                                abilities: new_abs,
-                                source: Default::default(),
-                                target: Default::default(),
-                                mitigation: mitigation.clone(),
-                                position: vec![],
-                            };
-                            on_update.call(m);
-                        }
+                        let mits = mits.clone();
+                        move |a: Vec<AbilitySelector>| on_change.call(build(a, mits.clone()))
                     }
                 }
-                div { class: "form-row-hz",
-                    label { "Mitigation Filter" }
-                    div { class: "flex flex-wrap gap-xs",
-                        for mit_type in MitigationType::ALL {
-                            label { class: "flex items-center gap-xs text-sm",
-                                input {
-                                    r#type: "checkbox",
-                                    checked: mitigation.contains(mit_type),
-                                    onchange: {
-                                        let modifier = modifier.clone();
-                                        let on_update = on_update.clone();
-                                        let mit = *mit_type;
-                                        let abilities = abilities.clone();
-                                        let mitigation = mitigation.clone();
-                                        move |e: Event<FormData>| {
-                                            let mut mits = mitigation.clone();
-                                            if e.checked() {
-                                                if !mits.contains(&mit) { mits.push(mit); }
-                                            } else {
-                                                mits.retain(|m| *m != mit);
-                                            }
-                                            let mut m = modifier.clone();
-                                            m.trigger = Trigger::DamageTaken {
-                                                abilities: abilities.clone(),
-                                                source: Default::default(),
-                                                target: Default::default(),
-                                                mitigation: mits,
-                                                position: vec![],
-                                            };
-                                            on_update.call(m);
-                                        }
-                                    }
-                                }
-                                span { "{mit_type.display_name()}" }
-                            }
-                        }
-                    }
-                }
+                {render_mitigation(&mits, EventHandler::new(move |m: Vec<MitigationType>| on_change.call(build(abs.clone(), m))))}
             }
         }
         Trigger::DamageDealt { abilities, mitigation, .. } => {
-            let abilities = abilities.clone();
-            let mitigation = mitigation.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
+            let (abs, mits) = (abilities.clone(), mitigation.clone());
+            let build = move |abilities: Vec<AbilitySelector>, mitigation: Vec<MitigationType>| Trigger::DamageDealt {
+                abilities,
+                source: Default::default(),
+                target: Default::default(),
+                mitigation,
+                position: vec![],
+            };
             rsx! {
                 AbilitySelectorEditor {
                     label: "Abilities",
-                    selectors: abilities.clone(),
+                    selectors: abs.clone(),
                     on_change: {
-                        let modifier = modifier.clone();
-                        let on_update = on_update.clone();
-                        let mitigation = mitigation.clone();
-                        move |new_abs: Vec<AbilitySelector>| {
-                            let mut m = modifier.clone();
-                            m.trigger = Trigger::DamageDealt {
-                                abilities: new_abs,
-                                source: Default::default(),
-                                target: Default::default(),
-                                mitigation: mitigation.clone(),
-                                position: vec![],
-                            };
-                            on_update.call(m);
-                        }
+                        let mits = mits.clone();
+                        move |a: Vec<AbilitySelector>| on_change.call(build(a, mits.clone()))
                     }
                 }
-                div { class: "form-row-hz",
-                    label { "Mitigation Filter" }
-                    div { class: "flex flex-wrap gap-xs",
-                        for mit_type in MitigationType::ALL {
-                            label { class: "flex items-center gap-xs text-sm",
-                                input {
-                                    r#type: "checkbox",
-                                    checked: mitigation.contains(mit_type),
-                                    onchange: {
-                                        let modifier = modifier.clone();
-                                        let on_update = on_update.clone();
-                                        let mit = *mit_type;
-                                        let abilities = abilities.clone();
-                                        let mitigation = mitigation.clone();
-                                        move |e: Event<FormData>| {
-                                            let mut mits = mitigation.clone();
-                                            if e.checked() {
-                                                if !mits.contains(&mit) { mits.push(mit); }
-                                            } else {
-                                                mits.retain(|m| *m != mit);
-                                            }
-                                            let mut m = modifier.clone();
-                                            m.trigger = Trigger::DamageDealt {
-                                                abilities: abilities.clone(),
-                                                source: Default::default(),
-                                                target: Default::default(),
-                                                mitigation: mits,
-                                                position: vec![],
-                                            };
-                                            on_update.call(m);
-                                        }
-                                    }
-                                }
-                                span { "{mit_type.display_name()}" }
-                            }
-                        }
-                    }
-                }
+                {render_mitigation(&mits, EventHandler::new(move |m: Vec<MitigationType>| on_change.call(build(abs.clone(), m))))}
             }
         }
-        Trigger::HealingTaken { abilities, .. } => {
-            let abilities = abilities.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                AbilitySelectorEditor {
-                    label: "Abilities",
-                    selectors: abilities,
-                    on_change: move |new_abs: Vec<AbilitySelector>| {
-                        let mut m = modifier.clone();
-                        m.trigger = Trigger::HealingTaken {
-                            abilities: new_abs,
-                            source: Default::default(),
-                            target: Default::default(),
-                            position: vec![],
-                        };
-                        on_update.call(m);
-                    }
-                }
+        Trigger::HealingTaken { abilities, .. } => rsx! {
+            AbilitySelectorEditor {
+                label: "Abilities",
+                selectors: abilities.clone(),
+                on_change: move |abilities: Vec<AbilitySelector>| on_change.call(Trigger::HealingTaken {
+                    abilities,
+                    source: Default::default(),
+                    target: Default::default(),
+                    position: vec![],
+                })
             }
-        }
-        Trigger::HealingDealt { abilities, .. } => {
-            let abilities = abilities.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                AbilitySelectorEditor {
-                    label: "Abilities",
-                    selectors: abilities,
-                    on_change: move |new_abs: Vec<AbilitySelector>| {
-                        let mut m = modifier.clone();
-                        m.trigger = Trigger::HealingDealt {
-                            abilities: new_abs,
-                            source: Default::default(),
-                            target: Default::default(),
-                            position: vec![],
-                        };
-                        on_update.call(m);
-                    }
-                }
+        },
+        Trigger::HealingDealt { abilities, .. } => rsx! {
+            AbilitySelectorEditor {
+                label: "Abilities",
+                selectors: abilities.clone(),
+                on_change: move |abilities: Vec<AbilitySelector>| on_change.call(Trigger::HealingDealt {
+                    abilities,
+                    source: Default::default(),
+                    target: Default::default(),
+                    position: vec![],
+                })
             }
-        }
-        Trigger::EffectApplied { effects, .. } => {
-            let effects = effects.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                EffectSelectorEditor {
-                    label: "Effects",
-                    selectors: effects,
-                    on_change: move |new_eff: Vec<EffectSelector>| {
-                        let mut m = modifier.clone();
-                        m.trigger = Trigger::EffectApplied {
-                            effects: new_eff,
-                            source: Default::default(),
-                            target: Default::default(),
-                            position: vec![],
-                        };
-                        on_update.call(m);
-                    }
-                }
+        },
+        Trigger::EffectApplied { effects, .. } => rsx! {
+            EffectSelectorEditor {
+                label: "Effects",
+                selectors: effects.clone(),
+                on_change: move |effects: Vec<EffectSelector>| on_change.call(Trigger::EffectApplied {
+                    effects,
+                    source: Default::default(),
+                    target: Default::default(),
+                    position: vec![],
+                })
             }
-        }
-        Trigger::EffectRemoved { effects, .. } => {
-            let effects = effects.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                EffectSelectorEditor {
-                    label: "Effects",
-                    selectors: effects,
-                    on_change: move |new_eff: Vec<EffectSelector>| {
-                        let mut m = modifier.clone();
-                        m.trigger = Trigger::EffectRemoved {
-                            effects: new_eff,
-                            source: Default::default(),
-                            target: Default::default(),
-                            position: vec![],
-                        };
-                        on_update.call(m);
-                    }
-                }
+        },
+        Trigger::EffectRemoved { effects, .. } => rsx! {
+            EffectSelectorEditor {
+                label: "Effects",
+                selectors: effects.clone(),
+                on_change: move |effects: Vec<EffectSelector>| on_change.call(Trigger::EffectRemoved {
+                    effects,
+                    source: Default::default(),
+                    target: Default::default(),
+                    position: vec![],
+                })
             }
-        }
+        },
         Trigger::ChargesChanged { effects, direction } => {
-            let effects = effects.clone();
-            let direction = *direction;
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
+            let (effs, dir) = (effects.clone(), *direction);
             rsx! {
                 EffectSelectorEditor {
                     label: "Effects",
-                    selectors: effects.clone(),
-                    on_change: {
-                        let modifier = modifier.clone();
-                        let on_update = on_update.clone();
-                        let direction = direction;
-                        move |new_eff: Vec<EffectSelector>| {
-                            let mut m = modifier.clone();
-                            m.trigger = Trigger::ChargesChanged {
-                                effects: new_eff,
-                                direction,
-                            };
-                            on_update.call(m);
-                        }
-                    }
+                    selectors: effs.clone(),
+                    on_change: move |effects: Vec<EffectSelector>| on_change.call(Trigger::ChargesChanged { effects, direction: dir })
                 }
-                {render_direction_select(direction, &modifier, &on_update, effects)}
+                {render_direction_select(dir, EventHandler::new(move |direction| on_change.call(Trigger::ChargesChanged {
+                    effects: effs.clone(),
+                    direction,
+                })))}
             }
         }
         Trigger::SelfChargesChanged { direction } => {
-            let direction = *direction;
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                div { class: "form-row-hz",
-                    label { "Direction" }
-                    select {
-                        class: "select-inline",
-                        value: "{direction_label(direction)}",
-                        onchange: move |e: Event<FormData>| {
-                            let dir = match e.value().as_str() {
-                                "Increased" => Some(ChargeDirection::Increased),
-                                "Decreased" => Some(ChargeDirection::Decreased),
-                                "Neutral" => Some(ChargeDirection::Neutral),
-                                _ => None,
-                            };
-                            let mut m = modifier.clone();
-                            m.trigger = Trigger::SelfChargesChanged { direction: dir };
-                            on_update.call(m);
-                        },
-                        option { value: "Any", selected: direction.is_none(), "Any" }
-                        option { value: "Increased", selected: direction == Some(ChargeDirection::Increased), "Increased" }
-                        option { value: "Decreased", selected: direction == Some(ChargeDirection::Decreased), "Decreased" }
-                        option { value: "Neutral", selected: direction == Some(ChargeDirection::Neutral), "Neutral" }
-                    }
+            render_direction_select(*direction, EventHandler::new(move |direction| on_change.call(Trigger::SelfChargesChanged { direction })))
+        }
+        Trigger::ResourceSpent { per_amount } => rsx! {
+            div { class: "form-row-hz",
+                label {
+                    "Per Amount"
+                    span { class: "help-icon", title: "Scale the duration adjust by (amount spent / this value). 0 = flat adjust per spend event", "?" }
+                }
+                input {
+                    r#type: "number",
+                    class: "input-number",
+                    step: "1",
+                    min: "0",
+                    placeholder: "0 (flat)",
+                    value: "{per_amount}",
+                    onchange: move |e: Event<FormData>| on_change.call(Trigger::ResourceSpent {
+                        per_amount: e.value().parse::<f32>().unwrap_or(0.0).max(0.0),
+                    }),
                 }
             }
-        }
-        Trigger::ResourceSpent { per_amount } => {
-            let per_amount = *per_amount;
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
+        },
+        Trigger::AnyOf { conditions } => {
+            let conds = conditions.clone();
             rsx! {
-                div { class: "form-row-hz",
-                    label {
-                        "Per Amount"
-                        span { class: "help-icon", title: "Scale the duration adjust by (amount spent / this value). 0 = flat adjust per spend event", "?" }
-                    }
-                    input {
-                        r#type: "number",
-                        class: "input-number",
-                        step: "1",
-                        min: "0",
-                        placeholder: "0 (flat)",
-                        value: "{per_amount}",
-                        onchange: move |e: Event<FormData>| {
-                            let mut m = modifier.clone();
-                            m.trigger = Trigger::ResourceSpent {
-                                per_amount: e.value().parse::<f32>().unwrap_or(0.0).max(0.0),
-                            };
-                            on_update.call(m);
+                div { class: "modifier-anyof",
+                    for (i, child) in conds.iter().enumerate() {
+                        div { class: "modifier-anyof-child", key: "{i}",
+                            div { class: "modifier-entry-header",
+                                TriggerTypeSelect {
+                                    current: ModifierTriggerType::from_trigger(child),
+                                    options: ModifierTriggerType::leaf(),
+                                    on_change: {
+                                        let conds = conds.clone();
+                                        move |t: Trigger| {
+                                            let mut c = conds.clone();
+                                            c[i] = t;
+                                            on_change.call(Trigger::AnyOf { conditions: c });
+                                        }
+                                    }
+                                }
+                                button {
+                                    class: "btn-icon-sm btn-danger",
+                                    title: "Remove condition",
+                                    onclick: {
+                                        let conds = conds.clone();
+                                        move |_| {
+                                            let mut c = conds.clone();
+                                            c.remove(i);
+                                            on_change.call(Trigger::AnyOf { conditions: c });
+                                        }
+                                    },
+                                    i { class: "fa-solid fa-xmark" }
+                                }
+                            }
+                            {render_trigger_fields(child, EventHandler::new({
+                                let conds = conds.clone();
+                                move |t: Trigger| {
+                                    let mut c = conds.clone();
+                                    c[i] = t;
+                                    on_change.call(Trigger::AnyOf { conditions: c });
+                                }
+                            }))}
                         }
                     }
-                }
-            }
-        }
-        Trigger::KillingBlow { selector } => {
-            let selector = selector.clone();
-            let modifier = modifier.clone();
-            let on_update = on_update.clone();
-            rsx! {
-                EntitySelectorEditor {
-                    label: "Victim (optional)",
-                    selectors: selector,
-                    on_change: move |sel: Vec<EntitySelector>| {
-                        let mut m = modifier.clone();
-                        m.trigger = Trigger::KillingBlow { selector: sel };
-                        on_update.call(m);
+                    button {
+                        class: "btn-sm",
+                        onclick: {
+                            let conds = conds.clone();
+                            move |_| {
+                                let mut c = conds.clone();
+                                c.push(ModifierTriggerType::default().default_trigger());
+                                on_change.call(Trigger::AnyOf { conditions: c });
+                            }
+                        },
+                        i { class: "fa-solid fa-plus" }
+                        " Add Condition"
                     }
                 }
             }
@@ -780,14 +754,40 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
     }
 }
 
-fn render_direction_select(
-    direction: Option<ChargeDirection>,
-    modifier: &EffectModifier,
-    on_update: &EventHandler<EffectModifier>,
-    effects: Vec<EffectSelector>,
-) -> Element {
-    let modifier = modifier.clone();
-    let on_update = on_update.clone();
+fn render_mitigation(mitigation: &[MitigationType], on_change: EventHandler<Vec<MitigationType>>) -> Element {
+    let mits = mitigation.to_vec();
+    rsx! {
+        div { class: "form-row-hz",
+            label { "Mitigation Filter" }
+            div { class: "flex flex-wrap gap-xs",
+                for mit_type in MitigationType::ALL {
+                    label { class: "flex items-center gap-xs text-sm",
+                        input {
+                            r#type: "checkbox",
+                            checked: mits.contains(mit_type),
+                            onchange: {
+                                let mits = mits.clone();
+                                let mit = *mit_type;
+                                move |e: Event<FormData>| {
+                                    let mut m = mits.clone();
+                                    if e.checked() {
+                                        if !m.contains(&mit) { m.push(mit); }
+                                    } else {
+                                        m.retain(|x| *x != mit);
+                                    }
+                                    on_change.call(m);
+                                }
+                            }
+                        }
+                        span { "{mit_type.display_name()}" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn render_direction_select(direction: Option<ChargeDirection>, on_change: EventHandler<Option<ChargeDirection>>) -> Element {
     rsx! {
         div { class: "form-row-hz",
             label { "Direction" }
@@ -795,18 +795,12 @@ fn render_direction_select(
                 class: "select-inline",
                 value: "{direction_label(direction)}",
                 onchange: move |e: Event<FormData>| {
-                    let dir = match e.value().as_str() {
+                    on_change.call(match e.value().as_str() {
                         "Increased" => Some(ChargeDirection::Increased),
                         "Decreased" => Some(ChargeDirection::Decreased),
                         "Neutral" => Some(ChargeDirection::Neutral),
                         _ => None,
-                    };
-                    let mut m = modifier.clone();
-                    m.trigger = Trigger::ChargesChanged {
-                        effects: effects.clone(),
-                        direction: dir,
-                    };
-                    on_update.call(m);
+                    });
                 },
                 option { value: "Any", selected: direction.is_none(), "Any" }
                 option { value: "Increased", selected: direction == Some(ChargeDirection::Increased), "Increased" }

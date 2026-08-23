@@ -396,7 +396,7 @@ pub fn check_signal_trigger(
         Trigger::ChargesChanged { .. }
         | Trigger::SelfChargesChanged { .. }
         | Trigger::ResourceSpent { .. }
-        | Trigger::KillingBlow { .. } => false,
+        | Trigger::KillingBlow => false,
 
         // ─── Not signal-based ──────────────────────────────────────────────
         Trigger::TimeElapsed { .. }

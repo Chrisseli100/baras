@@ -28,6 +28,7 @@
 mod active;
 mod alacrity;
 mod definition;
+mod modifier_match;
 pub mod tracker;
 
 #[cfg(test)]

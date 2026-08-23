@@ -194,10 +194,7 @@ pub enum Trigger {
     },
 
     /// The effect holder lands a killing blow. [M only]
-    KillingBlow {
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        selector: Vec<EntitySelector>,
-    },
+    KillingBlow,
 
     /// The effect holder spends a resource. [M only]
     ResourceSpent {
@@ -343,7 +340,7 @@ impl Trigger {
             Self::ChargesChanged { .. } => out.push(TriggerKind::ChargesChanged),
             Self::SelfChargesChanged { .. } => out.push(TriggerKind::SelfChargesChanged),
             Self::ResourceSpent { .. } => out.push(TriggerKind::ResourceSpent),
-            Self::KillingBlow { .. } => out.push(TriggerKind::KillingBlow),
+            Self::KillingBlow => out.push(TriggerKind::KillingBlow),
             Self::TimerExpires { .. } => out.push(TriggerKind::TimerExpires),
             Self::TimerStarted { .. } => out.push(TriggerKind::TimerStarted),
             Self::TimerCanceled { .. } => out.push(TriggerKind::TimerCanceled),
@@ -957,7 +954,7 @@ impl Trigger {
             Self::ChargesChanged { .. } => Some("charges_changed"),
             Self::SelfChargesChanged { .. } => Some("self_charges_changed"),
             Self::ResourceSpent { .. } => Some("resource_spent"),
-            Self::KillingBlow { .. } => Some("killing_blow"),
+            Self::KillingBlow => Some("killing_blow"),
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .find_map(|c| c.contains_unsupported_for_shields()),
@@ -976,7 +973,7 @@ impl Trigger {
             Self::ChargesChanged { .. } => Some("charges_changed"),
             Self::SelfChargesChanged { .. } => Some("self_charges_changed"),
             Self::ResourceSpent { .. } => Some("resource_spent"),
-            Self::KillingBlow { .. } => Some("killing_blow"),
+            Self::KillingBlow => Some("killing_blow"),
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .find_map(|c| c.contains_unsupported_for_counters_phases()),
@@ -994,7 +991,7 @@ impl Trigger {
             Self::ChargesChanged { .. } => Some("charges_changed"),
             Self::SelfChargesChanged { .. } => Some("self_charges_changed"),
             Self::ResourceSpent { .. } => Some("resource_spent"),
-            Self::KillingBlow { .. } => Some("killing_blow"),
+            Self::KillingBlow => Some("killing_blow"),
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .find_map(|c| c.contains_unsupported_for_victory()),
