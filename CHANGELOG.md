@@ -3,7 +3,7 @@
 ## PvP
 
 - New **Enemy Frames** overlay showing the enemy team's HP, disciplines, and current targets. Enemy players are picked up as they appear in the logs and replaced oldest-first when the roster fills
-- Added **Incoming Damage** overlay showing your DTPS by source in the past 20 seconds.
+- Added **Incoming Damage** overlay showing your DTPS by source for the past 20 seconds.
 - Raid frames will now clear automatically when entering a new PvP instance
 - Improved encounter start/end detection for Arenas and Warzones
 - Metrics overlays now split teams into separate sections
@@ -12,7 +12,6 @@
 
 - Added a **Clear All** button to the overlay `Rearrange` mode
 - Added an **Effect Horizontal Offset** setting to nudge effect icons left or right
-- Renamed "Prioritize Stacked Effects" to "Emphasize Effect Charges"
 - Improved auto-assignment text-matching algorithm
 - Reverted raid frame entry text back to white
 
@@ -24,8 +23,9 @@
 
 ## Other
 
-- Operations timer now auto-starts in Dxun, Gods from the Machine, and R-4 Anomaly when log events are recorded past the banners
+- Operations timer now auto-starts in Dxun, Gods from the Machine, and R-4 Anomaly relevant difficulties when log events are recorded past the banners
 - Combat log tooltips in the data explorer now show HP
+- Renamed "Prioritize Stacked Effects" to "Emphasize Effect Charges"
 - Improved death recap formatting
 - Icons are now slightly smaller relative to bar height in effect overlays
 
