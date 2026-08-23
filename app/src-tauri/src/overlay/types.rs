@@ -23,6 +23,9 @@ pub enum MetricType {
     Tps,
     Apm,
     Interrupts,
+    /// Serialized form must match `config_key()` — the frontend compares
+    /// status lists against config keys
+    #[serde(rename = "incoming_damage")]
     IncomingDamage,
 }
 

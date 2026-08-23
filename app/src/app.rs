@@ -1714,7 +1714,7 @@ pub fn App() -> Element {
                                             rsx! {
                                                 button {
                                                     class: if is_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
-                                                    title: "Your damage taken per attacker (who is tunneling you)",
+                                                    title: "Show your DTPS over the past 20 seconds by source. Optionally enable total DTPS by source for the entire fight",
                                                     onclick: move |_| { spawn(async move {
                                                         if api::toggle_overlay(OverlayType::Metric(ot), is_on).await {
                                                             let mut map = metric_overlays_enabled();

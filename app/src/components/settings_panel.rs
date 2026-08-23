@@ -545,7 +545,6 @@ pub fn SettingsPanel(
                     div { class: "tab-group-buttons",
                         TabButton { label: "Personal Stats", tab_key: "personal", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Raid Frames", tab_key: "raid", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
-                        TabButton { label: "Enemy Frames", tab_key: "enemy_frames", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Alerts", tab_key: "alerts", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Combat Time", tab_key: "combat_time", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Op Timer", tab_key: "operation_timer", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
@@ -571,9 +570,24 @@ pub fn SettingsPanel(
                     }
                 }
                 div { class: "tab-group",
+                    span { class: "tab-group-label", "PvP" }
+                    div { class: "tab-group-buttons",
+                        TabButton { label: "Enemy Frames", tab_key: "enemy_frames", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
+                        for overlay_type in MetricType::pvp() {
+                            TabButton {
+                                key: "{overlay_type.config_key()}",
+                                label: overlay_type.label(),
+                                tab_key: overlay_type.config_key(),
+                                selected_tab: selected_tab,
+                                metrics_global_open: metrics_global_open,
+                            }
+                        }
+                    }
+                }
+                div { class: "tab-group",
                     span { class: "tab-group-label", "Metrics" }
                     div { class: "tab-group-buttons",
-                        for overlay_type in MetricType::all() {
+                        for overlay_type in MetricType::all().iter().filter(|t| !MetricType::pvp().contains(t)) {
                             TabButton {
                                 key: "{overlay_type.config_key()}",
                                 label: overlay_type.label(),
