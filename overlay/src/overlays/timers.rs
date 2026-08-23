@@ -10,7 +10,7 @@ use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::{color_from_rgba, shared_scaled_icons};
-use crate::widgets::{colors, ProgressBar};
+use crate::widgets::{colors, ProgressBar, BAR_ICON_RATIO};
 
 /// A single timer entry for display
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ impl TimerOverlay {
     /// Update the data and pre-cache icons at current display size
     pub fn set_data(&mut self, data: TimerData) {
         let bar_height = self.frame.scaled(BASE_BAR_HEIGHT);
-        let icon_size = (bar_height - 4.0 * self.frame.scale_factor()).round() as u32;
+        let icon_size = (bar_height * BAR_ICON_RATIO).round() as u32;
 
         let cache = shared_scaled_icons();
         for entry in &data.entries {
@@ -303,9 +303,9 @@ impl TimerOverlay {
         let bar_radius = 2.0 * self.frame.scale_factor();
 
         // Icon rendering setup (scale with bar, not text)
-        let icon_size = bar_height - 4.0 * self.frame.scale_factor(); // Slightly smaller than bar
-        let icon_padding = 2.0 * self.frame.scale_factor();
-        let icon_size_u32 = icon_size.round() as u32;
+        let icon_size = (bar_height * BAR_ICON_RATIO).round();
+        let icon_padding = ((bar_height - icon_size) / 2.0).round(); // Centered vertically
+        let icon_size_u32 = icon_size as u32;
 
         let mut y = bars_start_y;
 

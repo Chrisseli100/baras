@@ -307,11 +307,10 @@ pub struct DeathRecapKillingBlow {
     pub damage_type: String,
 }
 
-/// Damage taken from one source+ability, aggregated over the recap window.
+/// Damage taken from one ability, aggregated over the recap window.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeathRecapDamageRow {
     pub ability_name: String,
-    pub source_name: String,
     pub hits: u32,
     pub crits: u32,
     /// Total effective damage
@@ -322,12 +321,38 @@ pub struct DeathRecapDamageRow {
     pub absorbed: i64,
 }
 
-/// Healing received from one healer, aggregated over the recap window.
+/// Damage taken from one source entity (per NPC spawn instance), with a
+/// per-ability breakdown.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapDamageSource {
+    pub source_name: String,
+    pub source_id: i64,
+    pub hits: u32,
+    pub crits: u32,
+    pub total: i64,
+    pub max_hit: i32,
+    pub absorbed: i64,
+    /// Sorted by total damage descending
+    pub abilities: Vec<DeathRecapDamageRow>,
+}
+
+/// Healing received from one ability, aggregated over the recap window.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeathRecapHealRow {
-    pub source_name: String,
+    pub ability_name: String,
     pub casts: u32,
     pub effective: i64,
+}
+
+/// Healing received from one healer, with a per-ability breakdown.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeathRecapHealSource {
+    pub source_name: String,
+    pub source_id: i64,
+    pub casts: u32,
+    pub effective: i64,
+    /// Sorted by effective healing descending
+    pub abilities: Vec<DeathRecapHealRow>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -379,10 +404,10 @@ pub struct DeathRecap {
     /// Total effective healing received in the window
     pub healing_total: i64,
     pub hp_timeline: Vec<DeathRecapHpPoint>,
-    /// Sorted by total damage descending
-    pub damage_rows: Vec<DeathRecapDamageRow>,
-    /// Sorted by effective healing descending
-    pub healing_rows: Vec<DeathRecapHealRow>,
+    /// Per-source damage taken, sorted by total descending
+    pub damage_rows: Vec<DeathRecapDamageSource>,
+    /// Per-source healing received, sorted by effective descending
+    pub healing_rows: Vec<DeathRecapHealSource>,
     /// Chronological ledger of meaningful events in the final seconds
     pub events: Vec<DeathRecapEvent>,
 }

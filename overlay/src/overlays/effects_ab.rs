@@ -10,7 +10,7 @@ use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::{color_from_rgba, shared_scaled_icons};
-use crate::widgets::{colors, ProgressBar};
+use crate::widgets::{colors, ProgressBar, BAR_ICON_RATIO};
 use crate::widgets::Header;
 
 /// Layout direction for effects display
@@ -197,10 +197,21 @@ impl EffectsABOverlay {
         self.frame.set_background_alpha(alpha);
     }
 
+    /// Icon pixel size to cache: the drawn size in bar layout, else the configured icon size
+    fn bar_or_icon_size(&self, bar_layout: bool) -> u32 {
+        let icon = self.frame.scaled(self.config.icon_size as f32).round();
+        if bar_layout {
+            let bar_height = icon + 4.0 * self.frame.scale_factor();
+            (bar_height * BAR_ICON_RATIO).round() as u32
+        } else {
+            icon as u32
+        }
+    }
+
     /// Update the data and pre-cache any new icons
     pub fn set_data(&mut self, data: EffectsABData) {
         // Pre-cache icons at current display size
-        let icon_size = self.frame.scaled(self.config.icon_size as f32) as u32;
+        let icon_size = self.bar_or_icon_size(matches!(self.config.layout, EffectsLayout::Bar));
 
         let cache = shared_scaled_icons();
         for effect in &data.effects {
@@ -633,8 +644,9 @@ impl EffectsABOverlay {
         let scale = self.frame.scale_factor();
 
         // Bar height wraps the icon (icon_size = geometry); font_scale = text only
-        let icon_size = self.frame.scaled(self.config.icon_size as f32).round();
-        let bar_height = icon_size + 4.0 * scale;
+        let bar_height = self.frame.scaled(self.config.icon_size as f32).round() + 4.0 * scale;
+        let icon_size = (bar_height * BAR_ICON_RATIO).round();
+        let icon_padding = ((bar_height - icon_size) / 2.0).round(); // Centered vertically
         let font_size = self.frame.scaled(BASE_BAR_FONT_SIZE * font_scale);
         let entry_spacing = self.frame.scaled(BASE_SPACING);
         let padding = self.frame.scaled(BASE_PADDING);
@@ -642,7 +654,6 @@ impl EffectsABOverlay {
         let content_width = self.frame.width() as f32 - 2.0 * padding;
         let font_color = colors::white();
         let header_font_size = font_size * 1.4;
-        let icon_padding = 2.0 * scale;
         let icon_size_u32 = icon_size as u32;
 
         let header_space = if self.config.show_header {
@@ -790,7 +801,8 @@ impl EffectsABOverlay {
                     // Stack count in the bottom-right corner of the icon
                     if effect.stacks >= 1 {
                         let stack_text = format!("{}", effect.stacks);
-                        let stack_font_size = icon_size * 0.5;
+                        // Sized against the bar, not the icon, so it stays in scale with the label text
+                        let stack_font_size = (bar_height - 4.0 * scale) * 0.5;
                         let stack_x = icon_x + icon_size
                             - self.frame.measure_text(&stack_text, stack_font_size).0
                             - 2.0 * scale;
