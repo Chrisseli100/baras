@@ -6,10 +6,11 @@
 use dioxus::prelude::*;
 
 use super::encounter_editor::triggers::{
-    AbilitySelectorEditor, EffectSelectorEditor,
+    AbilitySelectorEditor, EffectSelectorEditor, EntitySelectorEditor,
 };
 use crate::types::{
-    AbilitySelector, ChargeDirection, EffectModifier, EffectSelector, MitigationType, Trigger,
+    AbilitySelector, ChargeDirection, EffectModifier, EffectSelector, EntitySelector, MitigationType,
+    Trigger,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +29,8 @@ enum ModifierTriggerType {
     EffectRemoved,
     ChargesChanged,
     SelfChargesChanged,
+    ResourceSpent,
+    KillingBlow,
 }
 
 impl ModifierTriggerType {
@@ -42,6 +45,8 @@ impl ModifierTriggerType {
             Self::EffectRemoved => "Effect Removed",
             Self::ChargesChanged => "Charges Changed",
             Self::SelfChargesChanged => "Self Charges Changed",
+            Self::ResourceSpent => "Resource Spent",
+            Self::KillingBlow => "Killing Blow",
         }
     }
 
@@ -56,6 +61,8 @@ impl ModifierTriggerType {
             Self::EffectRemoved,
             Self::ChargesChanged,
             Self::SelfChargesChanged,
+            Self::ResourceSpent,
+            Self::KillingBlow,
         ]
     }
 
@@ -70,6 +77,8 @@ impl ModifierTriggerType {
             Trigger::EffectRemoved { .. } => Self::EffectRemoved,
             Trigger::ChargesChanged { .. } => Self::ChargesChanged,
             Trigger::SelfChargesChanged { .. } => Self::SelfChargesChanged,
+            Trigger::ResourceSpent { .. } => Self::ResourceSpent,
+            Trigger::KillingBlow { .. } => Self::KillingBlow,
             _ => Self::AbilityCast,
         }
     }
@@ -125,6 +134,8 @@ impl ModifierTriggerType {
                 direction: None,
             },
             Self::SelfChargesChanged => Trigger::SelfChargesChanged { direction: None },
+            Self::ResourceSpent => Trigger::ResourceSpent { per_amount: 0.0 },
+            Self::KillingBlow => Trigger::KillingBlow { selector: vec![] },
         }
     }
 }
@@ -165,11 +176,12 @@ pub fn ModifierListEditor(props: ModifierListEditorProps) -> Element {
                                     mitigation: vec![],
                                     position: vec![],
                                 },
-                                adjust_duration_secs: -1.0,
+                                adjust_duration_secs: 0.0,
                                 requires_crit: false,
                                 refill_duration: false,
                                 icd_secs: None,
                                 max_duration_secs: None,
+                                cancel: false,
                             });
                             on_change.call(mods);
                         }
@@ -261,6 +273,8 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                                 "Effect Removed" => ModifierTriggerType::EffectRemoved,
                                 "Charges Changed" => ModifierTriggerType::ChargesChanged,
                                 "Self Charges Changed" => ModifierTriggerType::SelfChargesChanged,
+                                "Resource Spent" => ModifierTriggerType::ResourceSpent,
+                                "Killing Blow" => ModifierTriggerType::KillingBlow,
                                 _ => return,
                             };
                             let mut m = modifier.clone();
@@ -286,7 +300,29 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
             // Trigger-specific fields
             {render_trigger_fields(&modifier, &props.on_update)}
 
+            // Cancel (remove effect instead of adjusting duration)
+            div { class: "form-row-hz",
+                label {
+                    "Cancel Effect"
+                    span { class: "help-icon", title: "Remove the effect when this modifier fires instead of adjusting its duration", "?" }
+                }
+                input {
+                    r#type: "checkbox",
+                    checked: modifier.cancel,
+                    onchange: {
+                        let modifier = modifier.clone();
+                        let on_update = props.on_update.clone();
+                        move |e: Event<FormData>| {
+                            let mut m = modifier.clone();
+                            m.cancel = e.checked();
+                            on_update.call(m);
+                        }
+                    }
+                }
+            }
+
             // Common modifier fields
+            if !modifier.cancel {
             div { class: "form-row-hz",
                 label { "Duration Adjust (s)" }
                 input {
@@ -392,6 +428,7 @@ fn SingleModifierEditor(props: SingleModifierEditorProps) -> Element {
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -691,6 +728,50 @@ fn render_trigger_fields(modifier: &EffectModifier, on_update: &EventHandler<Eff
                         option { value: "Increased", selected: direction == Some(ChargeDirection::Increased), "Increased" }
                         option { value: "Decreased", selected: direction == Some(ChargeDirection::Decreased), "Decreased" }
                         option { value: "Neutral", selected: direction == Some(ChargeDirection::Neutral), "Neutral" }
+                    }
+                }
+            }
+        }
+        Trigger::ResourceSpent { per_amount } => {
+            let per_amount = *per_amount;
+            let modifier = modifier.clone();
+            let on_update = on_update.clone();
+            rsx! {
+                div { class: "form-row-hz",
+                    label {
+                        "Per Amount"
+                        span { class: "help-icon", title: "Scale the duration adjust by (amount spent / this value). 0 = flat adjust per spend event", "?" }
+                    }
+                    input {
+                        r#type: "number",
+                        class: "input-number",
+                        step: "1",
+                        min: "0",
+                        placeholder: "0 (flat)",
+                        value: "{per_amount}",
+                        onchange: move |e: Event<FormData>| {
+                            let mut m = modifier.clone();
+                            m.trigger = Trigger::ResourceSpent {
+                                per_amount: e.value().parse::<f32>().unwrap_or(0.0).max(0.0),
+                            };
+                            on_update.call(m);
+                        }
+                    }
+                }
+            }
+        }
+        Trigger::KillingBlow { selector } => {
+            let selector = selector.clone();
+            let modifier = modifier.clone();
+            let on_update = on_update.clone();
+            rsx! {
+                EntitySelectorEditor {
+                    label: "Victim (optional)",
+                    selectors: selector,
+                    on_change: move |sel: Vec<EntitySelector>| {
+                        let mut m = modifier.clone();
+                        m.trigger = Trigger::KillingBlow { selector: sel };
+                        on_update.call(m);
                     }
                 }
             }

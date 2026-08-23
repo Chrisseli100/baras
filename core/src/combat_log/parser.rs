@@ -412,6 +412,17 @@ impl LogParser {
                     && memchr(b'(', segment.as_bytes()).is_some()
                 {
                     LogParser::parse_charges(segment)
+                } else if effect_type_id == effect_type_id::SPEND {
+                    // Spend lines carry the amount as "(10.0)"
+                    let bytes = segment.as_bytes();
+                    let spend = memchr(b'(', bytes)
+                        .zip(memchr(b')', bytes))
+                        .and_then(|(s, e)| segment.get(s + 1..e)?.trim().parse::<f32>().ok())
+                        .unwrap_or_default();
+                    Some(Details {
+                        spend,
+                        ..Default::default()
+                    })
                 } else {
                     Some(Details {
                         ..Default::default()

@@ -27,6 +27,9 @@ pub enum GameSignal {
         /// NPC class/template ID (0 for players)
         npc_id: i64,
         entity_name: String,
+        /// Log id of the entity credited with the kill (source of the Death event).
+        /// 0 when the death was inferred from HP reaching 0 rather than a Death event.
+        killer_id: i64,
         timestamp: NaiveDateTime,
     },
     EntityRevived {
@@ -105,6 +108,14 @@ pub enum GameSignal {
     },
 
     // Ability activation (for timer triggers and raid frame registration)
+    /// Entity spent a resource (energy/Force/heat/ammo…). Resource type is not tracked.
+    ResourceSpent {
+        source_id: i64,
+        source_entity_type: EntityType,
+        amount: f32,
+        timestamp: NaiveDateTime,
+    },
+
     AbilityActivated {
         ability_id: i64,
         ability_name: IStr,
@@ -322,6 +333,7 @@ impl GameSignal {
             | Self::EffectRemoved { timestamp, .. }
             | Self::EffectChargesChanged { timestamp, .. }
             | Self::AbilityActivated { timestamp, .. }
+            | Self::ResourceSpent { timestamp, .. }
             | Self::DamageTaken { timestamp, .. }
             | Self::HealingDone { timestamp, .. }
             | Self::TargetChanged { timestamp, .. }

@@ -335,3 +335,12 @@ fn test_parse_details_default() {
     assert_eq!(details.heal_amount, 0);
     assert_eq!(details.charges, 0);
 }
+
+#[test]
+fn test_parse_spend_amount() {
+    let parser = test_parser();
+    let line = "[14:46:11.444] [@Wolfilla#690062569980503|(472.82,2438.79,301.46,-4.31)|(442134/442134)] [=] [] [Spend {836045448945473}: Force {836045448938502}] (44.0)";
+    let event = parser.parse_line(1, line).expect("spend line should parse");
+    assert_eq!(event.effect.type_id, effect_type_id::SPEND);
+    assert_eq!(event.details.spend, 44.0);
+}

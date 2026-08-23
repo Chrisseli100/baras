@@ -393,7 +393,10 @@ pub fn check_signal_trigger(
         | Trigger::TargetSet { .. } => false,
 
         // ─── Modifier-only triggers (handled by EffectTracker) ────────────
-        Trigger::ChargesChanged { .. } | Trigger::SelfChargesChanged { .. } => false,
+        Trigger::ChargesChanged { .. }
+        | Trigger::SelfChargesChanged { .. }
+        | Trigger::ResourceSpent { .. }
+        | Trigger::KillingBlow { .. } => false,
 
         // ─── Not signal-based ──────────────────────────────────────────────
         Trigger::TimeElapsed { .. }

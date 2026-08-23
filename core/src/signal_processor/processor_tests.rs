@@ -96,6 +96,7 @@ fn signal_type_name(signal: &GameSignal) -> &'static str {
         GameSignal::EffectRemoved { .. } => "EffectRemoved",
         GameSignal::EffectChargesChanged { .. } => "EffectChargesChanged",
         GameSignal::AbilityActivated { .. } => "AbilityActivated",
+        GameSignal::ResourceSpent { .. } => "ResourceSpent",
         GameSignal::DamageTaken { .. } => "DamageTaken",
         GameSignal::HealingDone { .. } => "HealingDone",
         GameSignal::TargetChanged { .. } => "TargetChanged",

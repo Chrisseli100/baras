@@ -2160,6 +2160,10 @@ impl EffectTracker {
             .into_iter()
             .collect();
 
+        // Effects removed by `cancel` modifiers (ticking_count is adjusted after the
+        // loop since `effect` holds a mutable borrow of active_effects).
+        let mut cancelled = 0usize;
+
         for def in matching_defs {
             let key = EffectKey::for_scope(&def.id, def.refresh_scope, source_id, target_id);
 
@@ -2208,6 +2212,13 @@ impl EffectTracker {
                         }
                         effect.modifier_last_proc[mod_idx] = Some(timestamp);
 
+                        if modifier.cancel {
+                            if effect.mark_removed() && !effect.timer_expired {
+                                cancelled += 1;
+                            }
+                            break;
+                        }
+
                         // Apply duration adjustment
                         if let Some(expires) = effect.expires_at {
                             let mut new_expires = if modifier.refill_duration {
@@ -2249,6 +2260,7 @@ impl EffectTracker {
                 }
             }
         }
+        self.ticking_count = self.ticking_count.saturating_sub(cancelled);
     }
 
     /// Handle entity death - clear effects unless persist_past_death
@@ -2385,6 +2397,7 @@ impl EffectTracker {
     // ═══════════════════════════════════════════════════════════════════════════
 
     fn evaluate_modifiers(&mut self, signals: &[GameSignal]) {
+        use crate::dsl::triggers::EntitySelectorExt;
         use baras_types::Trigger;
 
         let Some(game_time) = self.current_game_time else {
@@ -2428,8 +2441,33 @@ impl EffectTracker {
             }
 
             for (mod_idx, modifier) in def.modifiers.iter().enumerate() {
+                // Per-proc scale factor for duration adjustment (ResourceSpent only)
+                let mut scales: Vec<f32> = Vec::new();
                 let hit_count: usize = match &modifier.trigger {
                     Trigger::SelfChargesChanged { .. } => continue,
+                    Trigger::ResourceSpent { per_amount } => {
+                        let eid = effect.target_entity_id;
+                        for s in signals {
+                            if let GameSignal::ResourceSpent { source_id, amount, .. } = s
+                                && *source_id == eid
+                            {
+                                scales.push(if *per_amount > 0.0 { amount / per_amount } else { 1.0 });
+                            }
+                        }
+                        scales.len()
+                    }
+                    Trigger::KillingBlow { selector } => {
+                        let eid = effect.target_entity_id;
+                        signals.iter().filter(|s| {
+                            if let GameSignal::EntityDeath { killer_id, npc_id, entity_name, .. } = s {
+                                *killer_id == eid
+                                    && (selector.is_empty()
+                                        || selector.iter().any(|sel| sel.matches_npc_id(*npc_id) || sel.matches_name_only(entity_name)))
+                            } else {
+                                false
+                            }
+                        }).count()
+                    }
                     Trigger::AbilityCast { abilities, .. } => {
                         let eid = effect.target_entity_id;
                         signals.iter().filter(|s| {
@@ -2554,13 +2592,15 @@ impl EffectTracker {
                     _ => continue,
                 };
 
-                for _ in 0..hit_count {
+                for i in 0..hit_count {
+                    let scale = scales.get(i).copied().unwrap_or(1.0);
                     adjustments.push((key.clone(), ModifierAdjustment {
                         mod_idx,
-                        adjust_duration_secs: modifier.adjust_duration_secs,
+                        adjust_duration_secs: modifier.adjust_duration_secs * scale,
                         refill_duration: modifier.refill_duration,
                         icd_secs: modifier.icd_secs,
                         max_duration_secs: modifier.max_duration_secs,
+                        cancel: modifier.cancel,
                     }));
                 }
             }
@@ -2594,6 +2634,14 @@ impl EffectTracker {
 
             // Record proc time
             effect.modifier_last_proc[adj.mod_idx] = Some(game_time);
+
+            // Cancel: remove the effect outright
+            if adj.cancel {
+                if effect.mark_removed() && !effect.timer_expired {
+                    self.ticking_count = self.ticking_count.saturating_sub(1);
+                }
+                continue;
+            }
 
             // Apply duration adjustment
             if effect.expires_at.is_some() {
@@ -2652,6 +2700,7 @@ struct ModifierAdjustment {
     refill_duration: bool,
     icd_secs: Option<f32>,
     max_duration_secs: Option<f32>,
+    cancel: bool,
 }
 
 impl SignalHandler for EffectTracker {

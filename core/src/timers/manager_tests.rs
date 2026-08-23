@@ -397,6 +397,7 @@ fn test_entity_death_position_constraint() {
         entity_type: EntityType::Npc,
         npc_id: 999,
         entity_name: "Add".to_string(),
+        killer_id: 0,
         timestamp: now(),
     };
 

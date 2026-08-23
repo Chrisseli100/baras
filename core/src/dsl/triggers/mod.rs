@@ -18,6 +18,7 @@ pub use baras_types::{ChargeDirection, EntityFilter, MitigationType};
 use std::collections::HashSet;
 
 use crate::dsl::EntityDefinition;
+use crate::serde_defaults::is_zero_f32;
 use serde::{Deserialize, Serialize};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +52,8 @@ pub enum TriggerKind {
     CounterChanges,
     ChargesChanged,
     SelfChargesChanged,
+    ResourceSpent,
+    KillingBlow,
     TimerExpires,
     TimerStarted,
     TimerCanceled,
@@ -190,6 +193,18 @@ pub enum Trigger {
         direction: Option<ChargeDirection>,
     },
 
+    /// The effect holder lands a killing blow. [M only]
+    KillingBlow {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        selector: Vec<EntitySelector>,
+    },
+
+    /// The effect holder spends a resource. [M only]
+    ResourceSpent {
+        #[serde(default, skip_serializing_if = "is_zero_f32")]
+        per_amount: f32,
+    },
+
     /// Threat is modified by an ability (MODIFYTHREAT or TAUNT effects).
     ThreatModified {
         /// Ability selectors (ID or name). Empty matches any ability.
@@ -327,6 +342,8 @@ impl Trigger {
             Self::CounterChanges { .. } => out.push(TriggerKind::CounterChanges),
             Self::ChargesChanged { .. } => out.push(TriggerKind::ChargesChanged),
             Self::SelfChargesChanged { .. } => out.push(TriggerKind::SelfChargesChanged),
+            Self::ResourceSpent { .. } => out.push(TriggerKind::ResourceSpent),
+            Self::KillingBlow { .. } => out.push(TriggerKind::KillingBlow),
             Self::TimerExpires { .. } => out.push(TriggerKind::TimerExpires),
             Self::TimerStarted { .. } => out.push(TriggerKind::TimerStarted),
             Self::TimerCanceled { .. } => out.push(TriggerKind::TimerCanceled),
@@ -939,6 +956,8 @@ impl Trigger {
             Self::TimeElapsed { .. } => Some("time_elapsed"),
             Self::ChargesChanged { .. } => Some("charges_changed"),
             Self::SelfChargesChanged { .. } => Some("self_charges_changed"),
+            Self::ResourceSpent { .. } => Some("resource_spent"),
+            Self::KillingBlow { .. } => Some("killing_blow"),
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .find_map(|c| c.contains_unsupported_for_shields()),
@@ -956,6 +975,8 @@ impl Trigger {
             Self::TimeElapsed { .. } => Some("time_elapsed"),
             Self::ChargesChanged { .. } => Some("charges_changed"),
             Self::SelfChargesChanged { .. } => Some("self_charges_changed"),
+            Self::ResourceSpent { .. } => Some("resource_spent"),
+            Self::KillingBlow { .. } => Some("killing_blow"),
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .find_map(|c| c.contains_unsupported_for_counters_phases()),
@@ -972,6 +993,8 @@ impl Trigger {
             Self::TimerCanceled { .. } => Some("timer_canceled"),
             Self::ChargesChanged { .. } => Some("charges_changed"),
             Self::SelfChargesChanged { .. } => Some("self_charges_changed"),
+            Self::ResourceSpent { .. } => Some("resource_spent"),
+            Self::KillingBlow { .. } => Some("killing_blow"),
             Self::AnyOf { conditions } => conditions
                 .iter()
                 .find_map(|c| c.contains_unsupported_for_victory()),

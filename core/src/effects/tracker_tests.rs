@@ -870,6 +870,7 @@ fn test_charges_modifier_refills_duration_without_refresh_on_modify() {
         refill_duration: true,
         icd_secs: None,
         max_duration_secs: None,
+        cancel: false,
     }];
 
     let mut tracker = make_tracker(vec![def]);
@@ -991,4 +992,128 @@ fn test_local_player_cast_does_not_create_phantom_others_via_refresh() {
         effect.last_refreshed_at, ts2,
         "kolto_shell should be refreshed"
     );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ResourceSpent modifier + cancel
+// ─────────────────────────────────────────────────────────────────────────
+
+fn resource_spent_signal(source_id: i64, amount: f32, timestamp: chrono::NaiveDateTime) -> GameSignal {
+    GameSignal::ResourceSpent {
+        source_id,
+        source_entity_type: EntityType::Player,
+        amount,
+        timestamp,
+    }
+}
+
+fn spend_modifier_def(modifier: baras_types::EffectModifier) -> (u64, i64, EffectTracker) {
+    let effect_id: u64 = 4242;
+    let local_player_id: i64 = 1;
+    let mut def = make_effect(
+        "spend_defensive",
+        "Spend Defensive",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(effect_id)],
+            source: EntityFilter::LocalPlayer,
+            target: EntityFilter::LocalPlayer,
+            position: vec![],
+        },
+        Some(10.0),
+    );
+    def.modifiers = vec![modifier];
+    let mut tracker = make_tracker(vec![def]);
+    tracker.set_player_context(local_player_id, 0);
+    (effect_id, local_player_id, tracker)
+}
+
+#[test]
+fn test_resource_spent_modifier_scales_by_amount() {
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::ResourceSpent { per_amount: 10.0 },
+        adjust_duration_secs: 1.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: None,
+        max_duration_secs: None,
+        cancel: false,
+    });
+
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    let original = tracker.active_effects().next().unwrap().expires_at.unwrap();
+
+    // 44 spent at 1s/10 → +4.4s
+    let ts2 = ts + chrono::Duration::seconds(1);
+    tracker.handle_signals(&[resource_spent_signal(player, 44.0, ts2)], None);
+    let extended = tracker.active_effects().next().unwrap().expires_at.unwrap();
+    assert_eq!((extended - original).num_milliseconds(), 4400);
+
+    // Spend by a different entity must not proc
+    tracker.handle_signals(&[resource_spent_signal(99, 100.0, ts2)], None);
+    assert_eq!(tracker.active_effects().next().unwrap().expires_at.unwrap(), extended);
+}
+
+#[test]
+fn test_resource_spent_modifier_cancels_effect() {
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::ResourceSpent { per_amount: 0.0 },
+        adjust_duration_secs: 0.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: None,
+        max_duration_secs: None,
+        cancel: true,
+    });
+
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    assert!(tracker.active_effects().next().unwrap().removed_at.is_none());
+
+    tracker.handle_signals(&[resource_spent_signal(player, 5.0, ts + chrono::Duration::seconds(1))], None);
+    assert!(
+        tracker.active_effects().next().unwrap().removed_at.is_some(),
+        "cancel modifier should mark the effect removed"
+    );
+}
+
+#[test]
+fn test_killing_blow_modifier_extends_effect() {
+    let (effect_id, player, mut tracker) = spend_modifier_def(baras_types::EffectModifier {
+        trigger: baras_types::Trigger::KillingBlow { selector: vec![] },
+        adjust_duration_secs: 3.0,
+        requires_crit: false,
+        refill_duration: false,
+        icd_secs: None,
+        max_duration_secs: None,
+        cancel: false,
+    });
+    let ts = now();
+    tracker.handle_signals(
+        &[effect_applied_signal_with_source(effect_id as i64, player, player, ts)],
+        None,
+    );
+    let original = tracker.active_effects().next().unwrap().expires_at.unwrap();
+
+    let death = |killer_id: i64, t| GameSignal::EntityDeath {
+        entity_id: 500,
+        entity_type: EntityType::Npc,
+        npc_id: 123,
+        entity_name: "Add".to_string(),
+        killer_id,
+        timestamp: t,
+    };
+    // Kill by someone else: no proc
+    tracker.handle_signals(&[death(99, ts + chrono::Duration::seconds(1))], None);
+    assert_eq!(tracker.active_effects().next().unwrap().expires_at.unwrap(), original);
+    // Kill by the holder: +3s
+    tracker.handle_signals(&[death(player, ts + chrono::Duration::seconds(2))], None);
+    let extended = tracker.active_effects().next().unwrap().expires_at.unwrap();
+    assert_eq!((extended - original).num_milliseconds(), 3000);
 }

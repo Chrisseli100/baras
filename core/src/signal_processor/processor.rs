@@ -474,6 +474,7 @@ impl EventProcessor {
                     entity_type: event.target_entity.entity_type,
                     npc_id: event.target_entity.class_id,
                     entity_name: resolve(event.target_entity.name).to_string(),
+                    killer_id: event.source_entity.log_id,
                     timestamp: event.timestamp,
                 });
             }
@@ -613,6 +614,7 @@ impl EventProcessor {
                         entity_type: entity.entity_type,
                         npc_id,
                         entity_name,
+                        killer_id: 0,
                         timestamp: event.timestamp,
                     });
                 }
@@ -639,6 +641,7 @@ impl EventProcessor {
                         entity_type: entity.entity_type,
                         npc_id: 0,
                         entity_name,
+                        killer_id: 0,
                         timestamp: event.timestamp,
                     });
                 }
@@ -1456,6 +1459,14 @@ impl EventProcessor {
                     charges: event.details.charges as u8,
                 });
             }
+            effect_type_id::SPEND => {
+                out.push(GameSignal::ResourceSpent {
+                    source_id: event.source_entity.log_id,
+                    source_entity_type: event.source_entity.entity_type,
+                    amount: event.details.spend,
+                    timestamp: event.timestamp,
+                });
+            }
             _ => {}
         }
     }
@@ -1962,6 +1973,9 @@ fn shield_signal_matches(
         Trigger::CombatStart | Trigger::TimeElapsed { .. } => false,
         Trigger::CombatEnd => matches!(signal, GameSignal::CombatEnded { .. }),
         Trigger::Manual | Trigger::Never => false,
-        Trigger::ChargesChanged { .. } | Trigger::SelfChargesChanged { .. } => false,
+        Trigger::ChargesChanged { .. }
+        | Trigger::SelfChargesChanged { .. }
+        | Trigger::ResourceSpent { .. }
+        | Trigger::KillingBlow { .. } => false,
     }
 }

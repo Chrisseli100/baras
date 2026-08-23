@@ -884,6 +884,10 @@ pub struct EffectModifier {
     /// Maximum duration this effect can reach (ceiling)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_duration_secs: Option<f32>,
+
+    /// Remove the effect when this modifier fires (instead of adjusting duration)
+    #[serde(default, skip_serializing_if = "is_false_ref")]
+    pub cancel: bool,
 }
 
 fn is_zero_f32_ref(v: &f32) -> bool {
@@ -1318,6 +1322,22 @@ pub enum Trigger {
         direction: Option<ChargeDirection>,
     },
 
+    /// The effect holder lands a killing blow (is the source of a Death event). [M only]
+    KillingBlow {
+        /// Optional filter on the victim. Empty = any entity.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        selector: Vec<EntitySelector>,
+    },
+
+    /// The effect holder spends a resource (energy/Force/heat/…). [M only]
+    /// Resource type is ignored — only the magnitude matters.
+    ResourceSpent {
+        /// If > 0, the modifier's duration adjustment is scaled by
+        /// `amount_spent / per_amount` (e.g. +1s per 10 energy). 0 = flat per event.
+        #[serde(default, skip_serializing_if = "is_zero_f32_ref")]
+        per_amount: f32,
+    },
+
     /// Threat is modified by an ability (MODIFYTHREAT or TAUNT). [TPC]
     ThreatModified {
         /// Ability selectors. Empty matches any ability.
@@ -1483,6 +1503,8 @@ impl Trigger {
             Self::HealingDealt { .. } => "Healing Dealt",
             Self::ChargesChanged { .. } => "Charges Changed",
             Self::SelfChargesChanged { .. } => "Self Charges Changed",
+            Self::ResourceSpent { .. } => "Resource Spent",
+            Self::KillingBlow { .. } => "Killing Blow",
             Self::ThreatModified { .. } => "Threat Modified",
             Self::BossHpBelow { .. } => "Boss HP Below",
             Self::BossHpAbove { .. } => "Boss HP Above",
@@ -1518,6 +1540,8 @@ impl Trigger {
             Self::HealingDealt { .. } => "healing_dealt",
             Self::ChargesChanged { .. } => "charges_changed",
             Self::SelfChargesChanged { .. } => "self_charges_changed",
+            Self::ResourceSpent { .. } => "resource_spent",
+            Self::KillingBlow { .. } => "killing_blow",
             Self::ThreatModified { .. } => "threat_modified",
             Self::BossHpBelow { .. } => "boss_hp_below",
             Self::BossHpAbove { .. } => "boss_hp_above",
