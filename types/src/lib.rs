@@ -447,6 +447,15 @@ pub struct CombatLogRow {
     pub source_class_id: i64,
     /// Target entity class_id for Show IDs feature (consistent across encounters)
     pub target_class_id: i64,
+    /// Entity HP as reported on this line (0 when the entity has no HP data)
+    #[serde(default)]
+    pub source_hp: i32,
+    #[serde(default)]
+    pub source_max_hp: i32,
+    #[serde(default)]
+    pub target_hp: i32,
+    #[serde(default)]
+    pub target_max_hp: i32,
     /// Source world position (None for empty entities or pre-coordinate parquet files)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_x: Option<f32>,

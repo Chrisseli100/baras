@@ -170,7 +170,8 @@ impl EncounterQuery<'_> {
                 effect_id,
                 effect_type_id,
                 source_class_id,
-                target_class_id{coord_select}
+                target_class_id,
+                source_hp, source_max_hp, target_hp, target_max_hp{coord_select}
             FROM events
             WHERE {where_clause}
             ORDER BY {order_col} {order_dir}, combat_time_secs {order_dir}, line_number {order_dir}
@@ -205,6 +206,10 @@ impl EncounterQuery<'_> {
             let effect_type_ids = col_i64(batch, 19)?;
             let source_class_ids = col_i64(batch, 20)?;
             let target_class_ids = col_i64(batch, 21)?;
+            let source_hps = col_i32(batch, 22)?;
+            let source_max_hps = col_i32(batch, 23)?;
+            let target_hps = col_i32(batch, 24)?;
+            let target_max_hps = col_i32(batch, 25)?;
 
             let no_coords = vec![None; num_rows];
             let coord_col = |idx: usize| -> Result<Vec<Option<f32>>, String> {
@@ -214,14 +219,14 @@ impl EncounterQuery<'_> {
                     Ok(no_coords.clone())
                 }
             };
-            let source_xs = coord_col(22)?;
-            let source_ys = coord_col(23)?;
-            let source_zs = coord_col(24)?;
-            let source_facings = coord_col(25)?;
-            let target_xs = coord_col(26)?;
-            let target_ys = coord_col(27)?;
-            let target_zs = coord_col(28)?;
-            let target_facings = coord_col(29)?;
+            let source_xs = coord_col(26)?;
+            let source_ys = coord_col(27)?;
+            let source_zs = coord_col(28)?;
+            let source_facings = coord_col(29)?;
+            let target_xs = coord_col(30)?;
+            let target_ys = coord_col(31)?;
+            let target_zs = coord_col(32)?;
+            let target_facings = coord_col(33)?;
 
             for i in 0..num_rows {
                 results.push(CombatLogRow {
@@ -247,6 +252,10 @@ impl EncounterQuery<'_> {
                     effect_type_id: effect_type_ids[i],
                     source_class_id: source_class_ids[i],
                     target_class_id: target_class_ids[i],
+                    source_hp: source_hps[i],
+                    source_max_hp: source_max_hps[i],
+                    target_hp: target_hps[i],
+                    target_max_hp: target_max_hps[i],
                     source_x: source_xs[i],
                     source_y: source_ys[i],
                     source_z: source_zs[i],
