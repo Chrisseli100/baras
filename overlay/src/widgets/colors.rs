@@ -261,10 +261,11 @@ pub fn raid_name_provisional() -> Color {
     Color::from_rgba8(255, 180, 100, 255)
 }
 
-/// Name backed by a log player. Shares [`health_high`]'s green.
+/// Name backed by a log player. Plain white — the default state carries no
+/// colour signal; only provisional names are tinted.
 #[inline]
 pub fn raid_name_confirmed() -> Color {
-    Color::from_rgba8(80, 200, 80, 255)
+    Color::from_rgba8(255, 255, 255, 255)
 }
 
 // ─────────────────────────────────────────────────────────────────────────

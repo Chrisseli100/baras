@@ -737,12 +737,13 @@ impl RaidOverlay {
     /// Top-left corner: the far side of the overlay from the detect button,
     /// so a miss on one cannot land on the other.
     /// A labelled vertical pill rather than an "×": it must not be mistaken
-    /// for the per-frame clear button. Sits on the right edge a quarter of
-    /// the way down, well clear of the detect button in the corner.
+    /// for the per-frame clear button. Vertically centered on the top row
+    /// of frames, clear of the detect button in the corner.
     fn clear_all_button_bounds(&self) -> (f32, f32, f32, f32) {
         let (x, _, size, _) = self.detect_button_bounds();
         let h = size * 3.4;
-        let y = (self.frame.height() as f32 * 0.25)
+        let row_mid = self.padding() + self.frame_height() * 0.5;
+        let y = (row_mid - h * 0.5)
             .min(self.frame.height() as f32 - h - 2.0)
             .max(2.0);
         (x, y, size, h)
@@ -1628,7 +1629,7 @@ impl RaidOverlay {
         // Note: draw_text y is baseline
         let text_y = y + h - 4.0;
 
-        // Orange until a name is tied to a log player, green once it is.
+        // Orange until a name is tied to a log player, white once it is.
         let text_color = if raid_frame.is_empty() {
             colors::raid_slot_number()
         } else if raid_frame.player_id.is_some() {
