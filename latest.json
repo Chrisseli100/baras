@@ -1,19 +1,19 @@
 {
-  "version": "2026.8.14",
-  "notes": "Improved PvP Support",
-  "pub_date": "2026-08-14T19:29:34Z",
+  "version": "2026.8.23",
+  "notes": "PvP",
+  "pub_date": "2026-08-23T06:36:52Z",
   "platforms": {
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTY0pJZnZRK3YyNHQ2UzRZay9JUzJGNXgvRWFYWW5ieTRsK3dVcmNjMDdiazRBWE1RcFJKQmFUK28yc1BQK2FqVUl1aHhhdklsemhNZnp3enV6bWw5a0p1d3ovTW1uZHc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzM1NDkwCWZpbGU6QkFSQVNfMjAyNi44LjE0X2FtZDY0LkFwcEltYWdlCkFvYThraVBkbkVjM0padTI3TnpBaFJnUXM3RUFxbGU2Smt3Y1ZvbUV5NDdzNmlGUnRIOTYrZGJxN2lmQnAvaWVPT0h6SXJBdCt6dzFXOWZwWk5WS0F3PT0K",
-      "url": "https://github.com/baras-app/baras/releases/download/v2026.8.14/BARAS_2026.8.14_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTY0pJZnZRK3YyNG82aC82ZU4vTHk3MjNSaFpBOVZseWNRR2haWjRaaTNEUkdJWVJ6NFo1NXFqeGRVMGpqS056enZxR2J1Y0xSVVdoRjc1dVVzN1QvdmlMa3cvdWR6aGdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NDY0ODk5CWZpbGU6QkFSQVNfMjAyNi44LjIzX2FtZDY0LkFwcEltYWdlCnlXV0ViVVh6NlBDVEUvR0JWRlliUFAyWkRkbVpBbzVlM2p6Q3k0ZUlLU3ZkbkNreFZnTzZuT1pHWkRuV0J4WHFBZllHMmZBNTU0R0p0cnEwREZRSUNBPT0K",
+      "url": "https://github.com/baras-app/baras/releases/download/v2026.8.23/BARAS_2026.8.23_amd64.AppImage"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTY0pJZnZRK3YyNHMxRWlUdm8yd1kzN0xjOXhJQm1BZFZoc0FVZ0oxN0dEd0grb3lDSWxnYkZLRFpZai9WN0dpMFVzWk1XNzg0U0hwM3NpL3VZSUszdFQyekl2dWJVcHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzM1NzQ0CWZpbGU6QkFSQVNfMjAyNi44LjE0X3g2NC1zZXR1cC5leGUKamMxQS81eFl1alBQdVpsckpnOWdOUURZVTQxdUkyL0pLWFNNK2ZBQlVMcTUvdkhSTzFwdTRob0NYN2x2YzRBM2NiSzVEYmZ2MUVWdWIzOUUvcnkyQ1E9PQo=",
-      "url": "https://github.com/baras-app/baras/releases/download/v2026.8.14/BARAS_2026.8.14_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTY0pJZnZRK3YyNHNjbDJqM0NtS2VVMXhTUHNVYjF4T3lWRDZiZjlYY01LajBPbkc0THppM0hCblhRSSt6SGVhMGtSTlVtYlBDbndaejlYbmFzQmxFSmkzMDhpVm5UREE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NDY2ODU4CWZpbGU6QkFSQVNfMjAyNi44LjIzX3g2NC1zZXR1cC5leGUKLzBVVTlQazZoUmFqZVpPL09lWVZGNXk0U3VrUC8vUk1GTmh4NFhYY1JrMnozY1E1N2tkZm5rVEs5aEdEUnBOZFVLMlJxb005RnNXYUJ4ZXVRbnYxRHc9PQo=",
+      "url": "https://github.com/baras-app/baras/releases/download/v2026.8.23/BARAS_2026.8.23_x64-setup.exe"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTY0pJZnZRK3YyNGp5dExxL1RVek1MdmtTRGxWMlRDYXYyL3hOSXJmMW5GaHRWZWVwRXRTRGFmdnkvT09CQ1RFWmExRmViMzNKbjRqMGJ6Y2JWME1tbzJGYmRLM2ZVdFF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzM1Njk3CWZpbGU6QkFSQVMuYXBwLnRhci5negphYTRneXd6dHhSdEV4aENVU2lDNHNPZFowM1FvUmlCQ3VFa09RNmMyWEU2N09ueEFQRkRVU0VKbjNtT3Fqem5za0ZzdHAzSG1IMDAwNjNRSmtQb0ZDZz09Cg==",
-      "url": "https://github.com/baras-app/baras/releases/download/v2026.8.14/BARAS_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTY0pJZnZRK3YyNGxqRGU0VnNXenNuazViTHVjOFJubGp3Y21DNjVoeDNRcUVFTnZwY0ZVK0N3bnNWS1dreUkzK2hOZ09WenFzYXFheHNocTdaVm9PTmNhUlFSRVZyZVFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NDY1MTA3CWZpbGU6QkFSQVMuYXBwLnRhci5negpudkRLeFplbjd1dU8wN0V6ejU5TldFYUlza1J2M0p5bk8rRnNkWjkxS0xUM0V6QWFEWGxPRkEyQW05TmtjQk1DK0R5UHhCV1RXNkdkaGVmUGNaM3VDZz09Cg==",
+      "url": "https://github.com/baras-app/baras/releases/download/v2026.8.23/BARAS_aarch64.app.tar.gz"
     }
   }
 }
