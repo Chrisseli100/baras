@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use super::*;
 use crate::encounter::{PvpFaction, PvpFactionTracker};
-use crate::game_data::{INTERRUPT_ABILITIES, effect_id};
+use crate::game_data::{INTERRUPT_ABILITIES, effect_id, effect_type_id};
 
 impl EncounterQuery<'_> {
     /// Query shield attribution - maps shield source IDs to total shielding given.
@@ -395,6 +395,9 @@ impl EncounterQuery<'_> {
 
     /// Query final health state of all NPC instances in the encounter.
     /// Partitions by target_id (unique instance), sorted by max_hp DESC, limited to 36.
+    /// Only rows with a combat time are considered (matches the combat log view).
+    /// TargetSet/TargetCleared/RemoveEffect rows are ignored: they can't change HP,
+    /// and a boss reset emits them at full HP right as the encounter ends.
     ///
     /// Uses FIRST appearance for max_hp (avoids SWTOR combat log bug where AoE events
     /// can report incorrect max_hp from other entities).
@@ -424,26 +427,29 @@ impl EncounterQuery<'_> {
                        ROW_NUMBER() OVER (PARTITION BY target_id ORDER BY line_number ASC) as rn
                 FROM events
                 WHERE target_entity_type = 'Npc' AND target_max_hp > 0
-                  AND effect_id != {targetset} {time_filter}
+                  AND combat_time_secs IS NOT NULL
+                  AND effect_id NOT IN ({targetset}, {targetcleared}) AND effect_type_id != {removeeffect} {time_filter}
             ),
             last_hp AS (
                 SELECT target_id, target_hp,
                        ROW_NUMBER() OVER (PARTITION BY target_id ORDER BY line_number DESC) as rn
                 FROM events
                 WHERE target_entity_type = 'Npc' AND target_max_hp > 0
-                  AND effect_id != {targetset} {death_time_filter}
+                  AND combat_time_secs IS NOT NULL
+                  AND effect_id NOT IN ({targetset}, {targetcleared}) AND effect_type_id != {removeeffect} {death_time_filter}
             ),
             first_seen AS (
                 SELECT target_id, MIN(combat_time_secs) as first_seen_secs
                 FROM events
-                WHERE target_entity_type = 'Npc'
-                  AND effect_id != {targetset} {time_filter}
+                WHERE target_entity_type = 'Npc' AND combat_time_secs IS NOT NULL
+                  AND effect_id NOT IN ({targetset}, {targetcleared}) AND effect_type_id != {removeeffect} {time_filter}
                 GROUP BY target_id
             ),
             deaths AS (
                 SELECT target_id, MIN(combat_time_secs) as death_time_secs
                 FROM events
-                WHERE target_entity_type = 'Npc' AND effect_id = {death_id} {death_time_filter}
+                WHERE target_entity_type = 'Npc' AND effect_id = {death_id}
+                  AND combat_time_secs IS NOT NULL {death_time_filter}
                 GROUP BY target_id
             )
             SELECT fh.target_name,
@@ -459,6 +465,8 @@ impl EncounterQuery<'_> {
             ORDER BY fh.target_max_hp DESC, fh.target_name ASC
             "#,
                 targetset = effect_id::TARGETSET,
+                targetcleared = effect_id::TARGETCLEARED,
+                removeeffect = effect_type_id::REMOVEEFFECT,
                 death_id = effect_id::DEATH,
             ))
             .await?;
