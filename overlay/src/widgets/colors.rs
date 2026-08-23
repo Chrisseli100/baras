@@ -71,6 +71,12 @@ pub fn enemy_cell_bg() -> Color {
     Color::from_rgba8(25, 25, 28, 190)
 }
 
+/// Veil over an enemy frame whose player has dropped out of the log
+#[inline]
+pub fn enemy_stale_dim() -> Color {
+    Color::from_rgba8(0, 0, 0, 150)
+}
+
 /// HP bar fill when an enemy's class is not yet detected
 #[inline]
 pub fn enemy_unknown_class() -> Color {

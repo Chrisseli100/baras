@@ -59,6 +59,9 @@ pub struct EnemyFrame {
     pub is_dead: bool,
     /// Blue accent border (guard highlight — data wiring lands later)
     pub guarded: bool,
+    /// Seconds since this enemy last appeared in the log, once that is long
+    /// enough to suggest they left; the frame dims and shows the count.
+    pub stale_secs: Option<u32>,
 }
 
 /// Data update for the enemy frames overlay
@@ -227,6 +230,20 @@ fn render_cell(
     let name = truncate_name(&ef.name, MAX_NAME_CHARS);
     frame.draw_text_styled(&name, cursor_x, name_baseline, name_font, name_color, false, false);
 
+    if let Some(secs) = ef.stale_secs {
+        let text = format!("{secs}s");
+        let (text_w, _) = frame.measure_text(&text, name_font);
+        frame.draw_text_styled(
+            &text,
+            x + w - inset - text_w,
+            name_baseline,
+            name_font,
+            colors::label_dim(),
+            false,
+            false,
+        );
+    }
+
     // ─── Line 2: HP bar (value left, percent right — boss HP overlay style) ──
     let bar_y = y + name_h;
     let bar_w = w - inset * 2.0;
@@ -294,6 +311,11 @@ fn render_cell(
             );
         }
     }
+
+    // Gone from the log: dim the whole cell so the live enemies stand out
+    if ef.stale_secs.is_some() {
+        frame.fill_rounded_rect(x, y, w, h, radius, colors::enemy_stale_dim());
+    }
 }
 
 /// Dummy frames rendered in move mode so the overlay can be positioned
@@ -310,6 +332,7 @@ fn placeholder_frames() -> Vec<EnemyFrame> {
             targeting_you: i == 2,
             is_dead: false,
             guarded: false,
+            stale_secs: None,
         })
         .collect()
 }

@@ -2926,6 +2926,9 @@ impl CombatService {
 }
 
 /// Calculate unified combat data for all overlays
+/// An enemy absent from the log this long is dimmed with a counter.
+const ENEMY_STALE_SECS: i64 = 20;
+
 async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> {
     let session_guard = shared.session.read().await;
     let session = session_guard.as_ref()?;
@@ -3046,7 +3049,22 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
                         == Some(baras_core::encounter::PvpFaction::Enemy)
                 })
                 .collect();
+            // The grid holds one team; anyone beyond that was replaced mid-match
+            // and the enemies we have not seen for longest are the ones who left.
+            let team_size = match encounter.pvp_kind() {
+                Some(baras_core::game_data::PvpAreaKind::Arena) => 4,
+                _ => 8,
+            };
+            if enemies.len() > team_size {
+                enemies.sort_by_key(|p| std::cmp::Reverse((p.last_seen_at, p.id)));
+                enemies.truncate(team_size);
+            }
             enemies.sort_by_key(|p| (p.first_seen_at, p.id));
+            let now = session.interpolated_game_time().or(session.last_event_time);
+            let stale_secs = |seen: Option<chrono::NaiveDateTime>| {
+                let gone = (now? - seen?).num_seconds();
+                (gone >= ENEMY_STALE_SECS).then_some(gone as u32)
+            };
             enemies
                 .into_iter()
                 .map(|p| {
@@ -3072,8 +3090,11 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
                         max_hp: p.max_hp as i64,
                         target_name,
                         targeting_you: target_id == player_entity_id,
-                        is_dead: p.is_dead,
+                        // Last observed HP only: no revive tracking in PvP, a
+                        // respawn simply shows up alive in the next event.
+                        is_dead: p.current_hp == 0 && p.max_hp > 0,
                         guarded: false,
+                        stale_secs: stale_secs(p.last_seen_at),
                     }
                 })
                 .collect()
@@ -3511,8 +3532,6 @@ async fn build_raid_frame_data(
     // The registry handles duplicate rejection via try_register
     let new_targets = tracker.take_new_targets();
     if !new_targets.is_empty() {
-        let pvp_backfill =
-            baras_core::game_data::is_pvp_area(shared.current_area_id.load(Ordering::SeqCst));
         // Remember these players past a frame clear: a re-run OCR pass can
         // only rebind names it still has candidates for, and out-of-combat
         // targets never reach the discipline roster.
@@ -3527,24 +3546,7 @@ async fn build_raid_frame_data(
             }
             // A new player is the only thing that can settle a provisional slot, so
             // it is what schedules the match rather than a timer.
-            if registry.try_register(target.entity_id, name.clone()).is_some() {
-                shared.roster_changed.store(true, Ordering::Relaxed);
-                continue;
-            }
-            // A full PvP grid means someone left and was backfilled: the
-            // player we have not seen for longest gives up their slot.
-            if pvp_backfill
-                && registry.is_full()
-                && !registry.is_registered(target.entity_id)
-                && let Some(cache) = session.session_cache.as_ref()
-                && let Some(encounter) = cache.current_encounter()
-                && registry
-                    .evict_lowest(local_player_id, |id| {
-                        encounter.players.get(&id).and_then(|p| p.last_seen_at)
-                    })
-                    .is_some()
-                && registry.try_register(target.entity_id, name).is_some()
-            {
+            if registry.try_register(target.entity_id, name).is_some() {
                 shared.roster_changed.store(true, Ordering::Relaxed);
             }
         }

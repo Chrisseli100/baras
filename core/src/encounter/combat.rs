@@ -1347,8 +1347,16 @@ impl CombatEncounter {
 
     #[inline]
     fn try_track_entity(&mut self, entity: &Entity, timestamp: NaiveDateTime) {
-        // Dont register zero health entities
+        // Dont register zero health entities. A known player at 0 HP is still
+        // an observation (the killing blow): record it so their last-seen HP
+        // reads dead until they are next seen alive.
         if entity.health.0.is_zero() {
+            if entity.entity_type == EntityType::Player
+                && let Some(p) = self.players.get_mut(&entity.log_id)
+            {
+                p.last_seen_at = Some(timestamp);
+                p.current_hp = 0;
+            }
             return;
         }
 

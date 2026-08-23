@@ -323,23 +323,6 @@ impl RaidSlotRegistry {
         self.pending_disciplines.clear();
     }
 
-    /// Every slot holds a player or a provisional name.
-    pub fn is_full(&self) -> bool {
-        self.slots.iter().all(|entry| entry.occupant.is_some())
-    }
-
-    /// Free the slot of the registered player ranked lowest by `rank`,
-    /// skipping `keep` (the local player). Returns the freed slot.
-    pub fn evict_lowest<K: Ord>(&mut self, keep: i64, rank: impl Fn(i64) -> K) -> Option<u8> {
-        let slot = self
-            .players()
-            .filter(|(_, player)| player.entity_id != keep)
-            .min_by_key(|(_, player)| rank(player.entity_id))
-            .map(|(slot, _)| slot)?;
-        self.remove_slot(slot);
-        Some(slot)
-    }
-
     /// Check if registry is empty
     pub fn is_empty(&self) -> bool {
         self.slots.iter().all(|entry| entry.occupant.is_none())

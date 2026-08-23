@@ -532,6 +532,9 @@ impl EventProcessor {
             && event.source_entity.health.0 == event.source_entity.health.1
             && cache
                 .current_encounter()
+                // A medcenter respawn is routine in PvP (a warzone is one
+                // encounter); the permanent-death latch is a PvE wipe rule.
+                .filter(|enc| !enc.is_pvp())
                 .and_then(|enc| enc.players.get(&event.source_entity.log_id))
                 .is_some_and(|p| p.is_dead)
         {
