@@ -1248,6 +1248,31 @@
   font-size: 10px;
 }
 
+.recap-row-source {
+  cursor: pointer;
+}
+
+.recap-row-source:hover td {
+  background: var(--bg-hover);
+}
+
+.recap-caret {
+  width: 10px;
+  margin-right: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.recap-row-ability td {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.recap-row-ability .col-left {
+  padding-left: 20px;
+}
+
 .recap-overheal { color: var(--text-tertiary); }
 
 .recap-empty {

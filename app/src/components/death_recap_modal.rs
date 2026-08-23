@@ -4,7 +4,7 @@
 //! `query_death_recap` and renders a header verdict, HP sparkline, damage
 //! taken / healing received tables, and a condensed event ledger.
 
-use baras_types::{DeathRecapEvent, formatting};
+use baras_types::{DeathRecapDamageSource, DeathRecapEvent, DeathRecapHealSource, formatting};
 use dioxus::prelude::*;
 use wasm_bindgen_futures::spawn_local as spawn;
 
@@ -155,61 +155,8 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
 
             // Damage taken / healing received tables
             div { class: "recap-tables",
-                div { class: "recap-table-wrap",
-                    h5 { "Damage Taken" }
-                    table { class: "recap-table",
-                        thead {
-                            tr {
-                                th { class: "col-left", "Ability" }
-                                th { "Hits" }
-                                th { "Total" }
-                                th { "Max" }
-                                th { "Absorbed" }
-                            }
-                        }
-                        tbody {
-                            for row in r.damage_rows.iter().take(8).cloned() {
-                                tr {
-                                    td { class: "col-left",
-                                        div { class: "recap-ability", "{row.ability_name}" }
-                                        div { class: "recap-source", "{row.source_name}" }
-                                    }
-                                    td { "{row.hits}" }
-                                    td { class: "stat-damage", "{fmt(row.total)}" }
-                                    td { "{fmt(row.max_hit as i64)}" }
-                                    td { class: "stat-absorb", "{fmt(row.absorbed)}" }
-                                }
-                            }
-                        }
-                    }
-                }
-                div { class: "recap-table-wrap",
-                    h5 { "Healing Received" }
-                    if r.healing_rows.is_empty() {
-                        div { class: "recap-empty", "No healing received in window" }
-                    } else {
-                        table { class: "recap-table",
-                            thead {
-                                tr {
-                                    th { class: "col-left", "Source" }
-                                    th { "Ticks" }
-                                    th { "Effective" }
-                                }
-                            }
-                            tbody {
-                                for row in r.healing_rows.iter().take(8).cloned() {
-                                    tr {
-                                        td { class: "col-left",
-                                            div { class: "recap-ability", "{row.source_name}" }
-                                        }
-                                        td { "{row.casts}" }
-                                        td { class: "stat-heal", "{fmt(row.effective)}" }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                DamageTakenTable { rows: r.damage_rows.clone(), european: eu }
+                HealingReceivedTable { rows: r.healing_rows.clone(), european: eu }
             }
 
             // Event ledger — final events with running HP%
@@ -228,6 +175,124 @@ fn RecapBody(recap: DeathRecap, european: bool, on_open_combat_log: EventHandler
                     onclick: move |_| on_open_combat_log.call(window_start),
                     i { class: "fa-solid fa-list" }
                     " Open in Combat Log"
+                }
+            }
+        }
+    }
+}
+
+/// Per-source damage taken; click a source row to expand its ability breakdown.
+#[component]
+fn DamageTakenTable(rows: Vec<DeathRecapDamageSource>, european: bool) -> Element {
+    let mut expanded = use_signal(|| None::<i64>);
+    let fmt = move |n: i64| formatting::format_compact(n, european);
+
+    rsx! {
+        div { class: "recap-table-wrap",
+            h5 { "Damage Taken" }
+            if rows.is_empty() {
+                div { class: "recap-empty", "No damage taken in window" }
+            } else {
+                table { class: "recap-table",
+                    thead {
+                        tr {
+                            th { class: "col-left", "Source" }
+                            th { "Hits" }
+                            th { "Total" }
+                            th { "Max" }
+                            th { "Absorbed" }
+                        }
+                    }
+                    tbody {
+                        for src in rows.iter().take(8).cloned() {
+                            {
+                                let id = src.source_id;
+                                let is_open = *expanded.read() == Some(id);
+                                let caret = if is_open { "fa-caret-down" } else { "fa-caret-right" };
+                                rsx! {
+                                    tr {
+                                        class: "recap-row-source",
+                                        onclick: move |_| expanded.set((!is_open).then_some(id)),
+                                        td { class: "col-left",
+                                            i { class: "recap-caret fa-solid {caret}" }
+                                            span { class: "recap-ability", "{src.source_name}" }
+                                        }
+                                        td { "{src.hits}" }
+                                        td { class: "stat-damage", "{fmt(src.total)}" }
+                                        td { "{fmt(src.max_hit as i64)}" }
+                                        td { class: "stat-absorb", "{fmt(src.absorbed)}" }
+                                    }
+                                    if is_open {
+                                        for ab in src.abilities.iter().cloned() {
+                                            tr { class: "recap-row-ability",
+                                                td { class: "col-left", "{ab.ability_name}" }
+                                                td { "{ab.hits}" }
+                                                td { class: "stat-damage", "{fmt(ab.total)}" }
+                                                td { "{fmt(ab.max_hit as i64)}" }
+                                                td { class: "stat-absorb", "{fmt(ab.absorbed)}" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Per-healer healing received; click a source row to expand its ability breakdown.
+#[component]
+fn HealingReceivedTable(rows: Vec<DeathRecapHealSource>, european: bool) -> Element {
+    let mut expanded = use_signal(|| None::<i64>);
+    let fmt = move |n: i64| formatting::format_compact(n, european);
+
+    rsx! {
+        div { class: "recap-table-wrap",
+            h5 { "Healing Received" }
+            if rows.is_empty() {
+                div { class: "recap-empty", "No healing received in window" }
+            } else {
+                table { class: "recap-table",
+                    thead {
+                        tr {
+                            th { class: "col-left", "Source" }
+                            th { "Ticks" }
+                            th { "Effective" }
+                        }
+                    }
+                    tbody {
+                        for src in rows.iter().take(8).cloned() {
+                            {
+                                let id = src.source_id;
+                                let is_open = *expanded.read() == Some(id);
+                                let caret = if is_open { "fa-caret-down" } else { "fa-caret-right" };
+                                rsx! {
+                                    tr {
+                                        class: "recap-row-source",
+                                        onclick: move |_| expanded.set((!is_open).then_some(id)),
+                                        td { class: "col-left",
+                                            i { class: "recap-caret fa-solid {caret}" }
+                                            span { class: "recap-ability", "{src.source_name}" }
+                                        }
+                                        td { "{src.casts}" }
+                                        td { class: "stat-heal", "{fmt(src.effective)}" }
+                                    }
+                                    if is_open {
+                                        for ab in src.abilities.iter().cloned() {
+                                            tr { class: "recap-row-ability",
+                                                td { class: "col-left", "{ab.ability_name}" }
+                                                td { "{ab.casts}" }
+                                                td { class: "stat-heal", "{fmt(ab.effective)}" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

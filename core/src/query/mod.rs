@@ -33,7 +33,8 @@ use column_helpers::*;
 pub use baras_types::{
     AbilityBreakdown, BreakdownMode, CombatLogFilters, CombatLogFindMatch, CombatLogRow,
     CombatLogSortColumn, DamageTakenSummary, DataTab, DeathRecap, DeathRecapDamageRow,
-    DeathRecapEvent, DeathRecapEventKind, DeathRecapHealRow, DeathRecapHpPoint,
+    DeathRecapDamageSource, DeathRecapEvent, DeathRecapEventKind, DeathRecapHealRow,
+    DeathRecapHealSource, DeathRecapHpPoint,
     DeathRecapKillingBlow, EffectChartData, EffectWindow, EncounterTimeline, EntityBreakdown,
     GcdSlot, GroupedEntityNames, HpPoint, NpcHealthRow, PhaseSegment, PlayerDeath,
     AbilityUsageRow, RaidOverviewRow, RotationAnalysis, RotationCycle, RotationEvent,

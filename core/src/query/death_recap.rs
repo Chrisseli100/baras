@@ -18,6 +18,7 @@ const MAX_HP_POINTS: usize = 200;
 struct RecapRow {
     time_secs: f32,
     source_name: String,
+    source_id: i64,
     ability_name: String,
     effect_id: i64,
     dmg_effective: i32,
@@ -68,6 +69,7 @@ impl EncounterQuery<'_> {
             SELECT
                 combat_time_secs,
                 source_name,
+                source_id,
                 ability_name,
                 effect_id,
                 dmg_effective,
@@ -100,22 +102,24 @@ impl EncounterQuery<'_> {
         for batch in &batches {
             let times = col_f32(batch, 0)?;
             let sources = col_strings(batch, 1)?;
-            let abilities = col_strings(batch, 2)?;
-            let effect_ids = col_i64(batch, 3)?;
-            let dmg_eff = col_i32(batch, 4)?;
-            let dmg_abs = col_i32(batch, 5)?;
-            let crits = col_bool(batch, 6)?;
-            let dmg_types = col_strings(batch, 7)?;
-            let def_types = col_i64(batch, 8)?;
-            let heal_eff = col_i32(batch, 9)?;
-            let hps = col_i32(batch, 10)?;
-            let max_hps = col_i32(batch, 11)?;
-            let phases = col_strings(batch, 12)?;
+            let source_ids = col_i64(batch, 2)?;
+            let abilities = col_strings(batch, 3)?;
+            let effect_ids = col_i64(batch, 4)?;
+            let dmg_eff = col_i32(batch, 5)?;
+            let dmg_abs = col_i32(batch, 6)?;
+            let crits = col_bool(batch, 7)?;
+            let dmg_types = col_strings(batch, 8)?;
+            let def_types = col_i64(batch, 9)?;
+            let heal_eff = col_i32(batch, 10)?;
+            let hps = col_i32(batch, 11)?;
+            let max_hps = col_i32(batch, 12)?;
+            let phases = col_strings(batch, 13)?;
 
             for i in 0..batch.num_rows() {
                 rows.push(RecapRow {
                     time_secs: times[i],
                     source_name: sources[i].clone(),
+                    source_id: source_ids[i],
                     ability_name: abilities[i].clone(),
                     effect_id: effect_ids[i],
                     dmg_effective: dmg_eff[i],
@@ -154,8 +158,9 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
     let window_start = (death_time - WINDOW_SECS).max(0.0);
     let window_end = death_time + TRAILING_SECS;
 
-    let mut damage_map: HashMap<(String, String), DeathRecapDamageRow> = HashMap::new();
-    let mut heal_map: HashMap<String, DeathRecapHealRow> = HashMap::new();
+    // Keyed by source instance id so same-named NPC spawns stay separate
+    let mut damage_map: HashMap<i64, DeathRecapDamageSource> = HashMap::new();
+    let mut heal_map: HashMap<i64, DeathRecapHealSource> = HashMap::new();
     let mut damage_total = 0i64;
     let mut absorbed_total = 0i64;
     let mut healing_total = 0i64;
@@ -174,17 +179,35 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
         }
 
         let (kind, value, absorbed) = if r.effect_id == effect_id::DAMAGE {
-            let row = damage_map
-                .entry((r.ability_name.clone(), r.source_name.clone()))
-                .or_insert_with(|| DeathRecapDamageRow {
-                    ability_name: r.ability_name.clone(),
+            let src = damage_map
+                .entry(r.source_id)
+                .or_insert_with(|| DeathRecapDamageSource {
                     source_name: r.source_name.clone(),
+                    source_id: r.source_id,
                     hits: 0,
                     crits: 0,
                     total: 0,
                     max_hit: 0,
                     absorbed: 0,
+                    abilities: Vec::new(),
                 });
+            src.hits += 1;
+            src.crits += r.is_crit as u32;
+            src.total += r.dmg_effective as i64;
+            src.max_hit = src.max_hit.max(r.dmg_effective);
+            src.absorbed += r.dmg_absorbed as i64;
+            let row = find_or_push(
+                &mut src.abilities,
+                |a| a.ability_name == r.ability_name,
+                || DeathRecapDamageRow {
+                    ability_name: r.ability_name.clone(),
+                    hits: 0,
+                    crits: 0,
+                    total: 0,
+                    max_hit: 0,
+                    absorbed: 0,
+                },
+            );
             row.hits += 1;
             row.crits += r.is_crit as u32;
             row.total += r.dmg_effective as i64;
@@ -222,13 +245,26 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
             }
             (DeathRecapEventKind::Damage, r.dmg_effective, r.dmg_absorbed)
         } else if r.effect_id == effect_id::HEAL {
-            let row = heal_map
-                .entry(r.source_name.clone())
-                .or_insert_with(|| DeathRecapHealRow {
+            let src = heal_map
+                .entry(r.source_id)
+                .or_insert_with(|| DeathRecapHealSource {
                     source_name: r.source_name.clone(),
+                    source_id: r.source_id,
                     casts: 0,
                     effective: 0,
+                    abilities: Vec::new(),
                 });
+            src.casts += 1;
+            src.effective += r.heal_effective as i64;
+            let row = find_or_push(
+                &mut src.abilities,
+                |a| a.ability_name == r.ability_name,
+                || DeathRecapHealRow {
+                    ability_name: r.ability_name.clone(),
+                    casts: 0,
+                    effective: 0,
+                },
+            );
             row.casts += 1;
             row.effective += r.heal_effective as i64;
             healing_total += r.heal_effective as i64;
@@ -273,8 +309,14 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
 
     let mut damage_rows: Vec<_> = damage_map.into_values().collect();
     damage_rows.sort_by(|a, b| b.total.cmp(&a.total));
+    for src in &mut damage_rows {
+        src.abilities.sort_by(|a, b| b.total.cmp(&a.total));
+    }
     let mut healing_rows: Vec<_> = heal_map.into_values().collect();
     healing_rows.sort_by(|a, b| b.effective.cmp(&a.effective));
+    for src in &mut healing_rows {
+        src.abilities.sort_by(|a, b| b.effective.cmp(&a.effective));
+    }
 
     if events.len() > MAX_LEDGER_EVENTS {
         events.drain(..events.len() - MAX_LEDGER_EVENTS);
@@ -294,6 +336,16 @@ fn build_recap(player_name: &str, requested_death_time: f32, rows: Vec<RecapRow>
         healing_rows,
         events,
     }
+}
+
+/// Find the first element matching `pred`, pushing a new one if absent.
+/// Linear scan — ability lists per source are tiny in a 15s window.
+fn find_or_push<T>(items: &mut Vec<T>, pred: impl Fn(&T) -> bool, make: impl FnOnce() -> T) -> &mut T {
+    let idx = items.iter().position(pred).unwrap_or_else(|| {
+        items.push(make());
+        items.len() - 1
+    });
+    &mut items[idx]
 }
 
 /// Cap sparkline points by striding, always keeping first and last.
