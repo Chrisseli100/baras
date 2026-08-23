@@ -1339,7 +1339,7 @@ pub fn SettingsPanel(
                     }
 
                     div { class: "setting-row",
-                        label { "Prioritize Stacked Effects" }
+                        label { "Emphasize Effect Charges" }
                         input {
                             r#type: "checkbox",
                             checked: current_settings.effects_a.stack_priority,
@@ -1561,7 +1561,7 @@ pub fn SettingsPanel(
                     }
 
                     div { class: "setting-row",
-                        label { "Prioritize Stacked Effects" }
+                        label { "Emphasize Effect Charges" }
                         input {
                             r#type: "checkbox",
                             checked: current_settings.effects_b.stack_priority,
