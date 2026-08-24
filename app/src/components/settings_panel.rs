@@ -1256,11 +1256,11 @@ pub fn SettingsPanel(
                         label: "Icon/Bar Size",
                         value: current_settings.effects_a.icon_size as f64,
                         min: 16.0,
-                        max: 64.0,
+                        max: 128.0,
                         suffix: "px",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.effects_a.icon_size = (v as u8).clamp(16, 64);
+                            new_settings.effects_a.icon_size = (v as u8).clamp(16, 128);
                             update_draft(new_settings);
                         },
                     }
@@ -1478,11 +1478,11 @@ pub fn SettingsPanel(
                         label: "Icon/Bar Size",
                         value: current_settings.effects_b.icon_size as f64,
                         min: 16.0,
-                        max: 64.0,
+                        max: 128.0,
                         suffix: "px",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.effects_b.icon_size = (v as u8).clamp(16, 64);
+                            new_settings.effects_b.icon_size = (v as u8).clamp(16, 128);
                             update_draft(new_settings);
                         },
                     }
@@ -1700,11 +1700,11 @@ pub fn SettingsPanel(
                         label: "Icon/Bar Size",
                         value: current_settings.cooldown_tracker.icon_size as f64,
                         min: 16.0,
-                        max: 64.0,
+                        max: 128.0,
                         suffix: "px",
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.cooldown_tracker.icon_size = (v as u8).clamp(16, 64);
+                            new_settings.cooldown_tracker.icon_size = (v as u8).clamp(16, 128);
                             update_draft(new_settings);
                         },
                     }

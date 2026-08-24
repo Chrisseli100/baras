@@ -939,6 +939,15 @@ pub struct EffectListItem {
     /// Display source entity name on personal overlays
     #[serde(default)]
     pub display_source: bool,
+    /// Pin on overlay for matching disciplines; desaturated while inactive
+    #[serde(default)]
+    pub track_uptime: bool,
+    /// Emphasize stacks for this effect (ORed with overlay setting)
+    #[serde(default)]
+    pub stack_priority: bool,
+    /// Always show a stack count, floored at 1
+    #[serde(default)]
+    pub show_single_stack: bool,
 
     // Duration modifiers
     #[serde(default)]

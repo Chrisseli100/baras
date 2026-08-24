@@ -171,6 +171,26 @@ pub struct EffectDefinition {
     #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub display_source: bool,
 
+    /// Uptime tracking: pin this effect's icon on its overlay whenever the
+    /// local player's discipline matches, rendered desaturated while the
+    /// effect is not active (e.g. tank guard, sniper cover). Requires a
+    /// known discipline — nothing shows before discipline detection.
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
+    pub track_uptime: bool,
+
+    /// Emphasize stacks for this effect on Effects A/B: stack count drawn
+    /// large and centered, countdown in the corner. ORed with the overlay's
+    /// own stack_priority setting.
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
+    pub stack_priority: bool,
+
+    /// Always display a stack count for this effect, floored at 1: an active
+    /// non-stacking (or single-stack) instance shows "1", real counts show
+    /// through as they climb. Applies to Effects A/B and raid frames (which
+    /// otherwise hide counts below 2).
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
+    pub show_single_stack: bool,
+
     // ─── Discipline Scoping ────────────────────────────────────────────────
     /// Disciplines this effect is restricted to. Empty = all disciplines.
     /// When set, the effect only activates if the local player's discipline
@@ -399,6 +419,32 @@ impl EffectDefinition {
         discipline
             .map(|d| self.disciplines.contains(d))
             .unwrap_or(true)
+    }
+
+    /// Icon ability ID for uptime placeholders: explicit icon_ability_id,
+    /// falling back to the first ID selector in the trigger.
+    pub fn uptime_icon_id(&self) -> u64 {
+        if let Some(id) = self.icon_ability_id {
+            return id;
+        }
+        match &self.trigger {
+            Trigger::EffectApplied { effects, .. } | Trigger::EffectRemoved { effects, .. } => {
+                effects.iter().find_map(|s| match s {
+                    EffectSelector::Id(id) => Some(*id),
+                    EffectSelector::Name(_) => None,
+                })
+            }
+            Trigger::AbilityCast { abilities, .. }
+            | Trigger::DamageTaken { abilities, .. }
+            | Trigger::HealingTaken { abilities, .. } => {
+                abilities.iter().find_map(|s| match s {
+                    AbilitySelector::Id(id) => Some(*id),
+                    AbilitySelector::Name(_) => None,
+                })
+            }
+            _ => None,
+        }
+        .unwrap_or(0)
     }
 
     /// Get the source filter from the trigger

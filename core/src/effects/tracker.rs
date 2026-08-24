@@ -476,6 +476,17 @@ pub struct EffectTracker {
     /// Last-seen charge counts for external effects: (effect_id, target_entity_id) -> charges.
     /// Used by ChargesChanged modifiers to determine direction (increased/decreased/refreshed).
     last_seen_charges: HashMap<(i64, i64), u8>,
+
+    /// Last icon each uptime-tracked definition activated with (definition id
+    /// -> icon ability id). Retained after the effect ends so multi-effect
+    /// definitions keep their placeholder on the variant the player last used.
+    uptime_last_icons: HashMap<String, u64>,
+
+    /// Area of the last AreaEntered signal. Instanced areas log AreaEntered
+    /// twice (plain, then difficulty-qualified) with the game's effect
+    /// restatement in between — wiping on the duplicate would discard the
+    /// just-restated effects, so same-area re-entries skip the wipe.
+    last_area_id: Option<i64>,
 }
 
 impl Default for EffectTracker {
@@ -506,6 +517,8 @@ impl EffectTracker {
             ticking_count: 0,
             current_targets: HashMap::new(),
             last_seen_charges: HashMap::new(),
+            uptime_last_icons: HashMap::new(),
+            last_area_id: None,
         }
     }
 
@@ -764,6 +777,67 @@ impl EffectTracker {
         self.active_effects
             .values()
             .filter(|e| e.display_targets.contains(&DisplayTarget::EffectsB) && e.removed_at.is_none() && !e.timer_expired)
+    }
+
+    /// Definitions flagged for uptime tracking on the given overlay target.
+    /// Fail-closed: empty until the local player's discipline is known, so
+    /// placeholders never show for the wrong class before detection.
+    pub fn uptime_definitions(&self, target: DisplayTarget) -> Vec<&super::EffectDefinition> {
+        let Some(discipline) = self.local_player_discipline.as_ref() else {
+            return Vec::new();
+        };
+        let mut defs: Vec<_> = self
+            .definitions
+            .effects
+            .values()
+            .filter(|def| {
+                def.enabled
+                    && def.track_uptime
+                    && def.displays_on(target)
+                    && (def.disciplines.is_empty() || def.disciplines.contains(discipline))
+            })
+            .collect();
+        // Stable pin order regardless of HashMap iteration
+        defs.sort_by(|a, b| a.id.cmp(&b.id));
+        defs
+    }
+
+    /// Snapshot the icons of currently-active uptime effects. Entries are
+    /// retained after the effect ends, so multi-effect definitions keep
+    /// their placeholder on the last-used variant.
+    pub fn remember_uptime_icons(&mut self) {
+        for effect in self.active_effects.values() {
+            if effect.removed_at.is_some()
+                || !self
+                    .definitions
+                    .effects
+                    .get(&effect.definition_id)
+                    .is_some_and(|d| d.track_uptime)
+            {
+                continue;
+            }
+            match self.uptime_last_icons.get_mut(&effect.definition_id) {
+                Some(icon) => *icon = effect.icon_ability_id,
+                None => {
+                    self.uptime_last_icons
+                        .insert(effect.definition_id.clone(), effect.icon_ability_id);
+                }
+            }
+        }
+    }
+
+    /// Look up a definition by ID (e.g. from an active effect's definition_id)
+    pub fn definition(&self, id: &str) -> Option<&super::EffectDefinition> {
+        self.definitions.effects.get(id)
+    }
+
+    /// Icon for an uptime placeholder: last-activated icon if seen this
+    /// session, else the definition's static fallback.
+    pub fn uptime_placeholder_icon(&self, def: &super::EffectDefinition) -> u64 {
+        self.uptime_last_icons
+            .get(&def.id)
+            .copied()
+            .unwrap_or_else(|| def.uptime_icon_id())
     }
 
     /// Get effects destined for cooldown tracker
@@ -2687,8 +2761,14 @@ impl SignalHandler for EffectTracker {
             GameSignal::CombatEnded { .. } => {
                 self.handle_combat_ended();
             }
-            GameSignal::AreaEntered { .. } => {
-                self.handle_area_change();
+            GameSignal::AreaEntered { area_id, .. } => {
+                // Instanced areas fire AreaEntered twice (plain + difficulty)
+                // around the game's effect restatement — only wipe on an
+                // actual area change.
+                if self.last_area_id != Some(*area_id) {
+                    self.last_area_id = Some(*area_id);
+                    self.handle_area_change();
+                }
             }
             GameSignal::DisciplineChanged {
                 entity_id,

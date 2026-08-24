@@ -58,6 +58,11 @@ pub struct EffectABEntry {
     pub max_total_secs: Option<f32>,
     /// Remaining seconds until the absolute max cap expires.
     pub max_remaining_secs: Option<f32>,
+    /// Uptime placeholder: effect is not currently active — render desaturated,
+    /// no countdown or clock wipe.
+    pub inactive: bool,
+    /// Per-effect stack emphasis (ORed with the overlay's stack_priority config)
+    pub stack_priority: bool,
 }
 
 impl EffectABEntry {
@@ -144,6 +149,9 @@ const BASE_HEIGHT: f32 = 300.0;
 const BASE_PADDING: f32 = 4.0;
 const BASE_SPACING: f32 = 4.0;
 const BASE_FONT_SIZE: f32 = 10.0;
+/// Icon-layout fonts track the configured icon size so countdown/stack text
+/// stays proportional; at the default 32px icon this equals BASE_FONT_SIZE.
+const ICON_FONT_RATIO: f32 = BASE_FONT_SIZE / 32.0;
 /// Bar mode dimensions (matches timer overlay style)
 const BASE_BAR_FONT_SIZE: f32 = 17.0;
 
@@ -153,10 +161,10 @@ pub struct EffectsABOverlay {
     config: EffectsABConfig,
     background_alpha: u8,
     data: EffectsABData,
-    /// Last rendered state for dirty checking: (effect_id, time_string, stacks)
-    last_rendered: Vec<(u64, String, u8)>,
-    /// Last rendered state for bar mode dirty checking: (effect_id, time_string, stacks, remaining_bits)
-    last_rendered_bar: Vec<(u64, String, u8, u32)>,
+    /// Last rendered state for dirty checking: (effect_id, time_string, stacks, inactive, stack_priority)
+    last_rendered: Vec<(u64, String, u8, bool, bool)>,
+    /// Last rendered state for bar mode dirty checking: (effect_id, time_string, stacks, remaining_bits, inactive)
+    last_rendered_bar: Vec<(u64, String, u8, u32, bool)>,
     /// Label for this overlay instance
     _label: String,
     european_number_format: bool,
@@ -217,12 +225,13 @@ impl EffectsABOverlay {
         for effect in &data.effects {
             if let Some(ref icon_arc) = effect.icon {
                 let (src_w, src_h, ref src_data) = **icon_arc;
-                let _ = cache.get_or_scale(
+                let _ = cache.get_or_scale_variant(
                     effect.icon_ability_id,
                     icon_size,
                     src_data,
                     src_w,
                     src_h,
+                    effect.inactive,
                 );
             }
         }
@@ -250,7 +259,7 @@ impl EffectsABOverlay {
         let max_display = self.config.max_display as usize;
 
         // Build current visible state for dirty check
-        let current_state: Vec<(u64, String, u8)> = self
+        let current_state: Vec<(u64, String, u8, bool, bool)> = self
             .data
             .effects
             .iter()
@@ -260,6 +269,8 @@ impl EffectsABOverlay {
                     e.effect_id,
                     e.format_time(self.european_number_format),
                     e.stacks,
+                    e.inactive,
+                    e.stack_priority,
                 )
             })
             .collect();
@@ -273,7 +284,9 @@ impl EffectsABOverlay {
         let padding = self.frame.scaled(BASE_PADDING);
         let spacing = self.frame.scaled(BASE_SPACING);
         let font_scale = self.config.font_scale.clamp(0.3, 3.0);
-        let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
+        let font_size = self
+            .frame
+            .scaled(self.config.icon_size as f32 * ICON_FONT_RATIO * font_scale);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let scale = self.frame.scale_factor();
         let header_font_size = font_size * 1.4;
@@ -357,7 +370,7 @@ impl EffectsABOverlay {
 
         let mut x = padding;
         let y = icon_row_y;
-        let icon_size_u32 = icon_size as u32;
+        let icon_size_u32 = icon_size.round() as u32;
 
         // Clone effects to avoid borrow issues
         let effects: Vec<_> = self
@@ -373,8 +386,13 @@ impl EffectsABOverlay {
             self.draw_icon(effect, x, y, icon_size, icon_size_u32);
 
             // Border
+            let border = if effect.inactive {
+                color_from_rgba([160, 160, 160, 160])
+            } else {
+                colors::white()
+            };
             self.frame
-                .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, colors::white());
+                .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, border);
 
             // Clock wipe overlay
             let progress = effect.progress();
@@ -390,7 +408,7 @@ impl EffectsABOverlay {
             }
 
             // Stack priority vs normal mode
-            if self.config.stack_priority && effect.stacks >= 1 {
+            if (self.config.stack_priority || effect.stack_priority) && effect.stacks >= 1 {
                 self.draw_stack_priority(effect, x, y, icon_size, font_size);
             } else {
                 self.draw_normal_mode(effect, x, y, icon_size, font_size);
@@ -438,7 +456,7 @@ impl EffectsABOverlay {
         let max_display = self.config.max_display as usize;
 
         // Build current visible state for dirty check
-        let current_state: Vec<(u64, String, u8)> = self
+        let current_state: Vec<(u64, String, u8, bool, bool)> = self
             .data
             .effects
             .iter()
@@ -448,6 +466,8 @@ impl EffectsABOverlay {
                     e.effect_id,
                     e.format_time(self.european_number_format),
                     e.stacks,
+                    e.inactive,
+                    e.stack_priority,
                 )
             })
             .collect();
@@ -461,7 +481,9 @@ impl EffectsABOverlay {
         let padding = self.frame.scaled(BASE_PADDING);
         let row_spacing = self.frame.scaled(BASE_SPACING);
         let font_scale = self.config.font_scale.clamp(0.3, 3.0);
-        let font_size = self.frame.scaled(BASE_FONT_SIZE * font_scale);
+        let font_size = self
+            .frame
+            .scaled(self.config.icon_size as f32 * ICON_FONT_RATIO * font_scale);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let row_height = icon_size + row_spacing;
         let scale = self.frame.scale_factor();
@@ -538,7 +560,7 @@ impl EffectsABOverlay {
         }
 
         let mut y = rows_start_y;
-        let icon_size_u32 = icon_size as u32;
+        let icon_size_u32 = icon_size.round() as u32;
 
         // Clone effects to avoid borrow issues
         let effects: Vec<_> = self
@@ -569,11 +591,16 @@ impl EffectsABOverlay {
             }
 
             // Border
+            let border = if effect.inactive {
+                color_from_rgba([160, 160, 160, 160])
+            } else {
+                colors::white()
+            };
             self.frame
-                .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, colors::white());
+                .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, border);
 
             // Stack priority vs normal mode
-            if self.config.stack_priority && effect.stacks >= 1 {
+            if (self.config.stack_priority || effect.stack_priority) && effect.stacks >= 1 {
                 self.draw_stack_priority(effect, x, y, icon_size, font_size);
             } else {
                 self.draw_normal_mode(effect, x, y, icon_size, font_size);
@@ -630,9 +657,9 @@ impl EffectsABOverlay {
         let max_display = self.config.max_display as usize;
 
         // Dirty check — include remaining_secs bits so bar fill updates each frame
-        let current_state: Vec<(u64, String, u8, u32)> = self
+        let current_state: Vec<(u64, String, u8, u32, bool)> = self
             .data.effects.iter().take(max_display)
-            .map(|e| (e.effect_id, e.format_time(self.european_number_format), e.stacks, e.remaining_secs.to_bits()))
+            .map(|e| (e.effect_id, e.format_time(self.european_number_format), e.stacks, e.remaining_secs.to_bits(), e.inactive))
             .collect();
 
         if current_state == self.last_rendered_bar && !self.last_rendered_bar.is_empty() {
@@ -654,7 +681,7 @@ impl EffectsABOverlay {
         let content_width = self.frame.width() as f32 - 2.0 * padding;
         let font_color = colors::white();
         let header_font_size = font_size * 1.4;
-        let icon_size_u32 = icon_size as u32;
+        let icon_size_u32 = icon_size.round() as u32;
 
         let header_space = if self.config.show_header {
             header_font_size + entry_spacing + 2.0 + entry_spacing + 4.0 * scale
@@ -730,9 +757,15 @@ impl EffectsABOverlay {
                 label.push_str(&format!(" ({})", effect.source_name));
             }
 
-            let bar_color = color_from_rgba(effect.color);
+            // Inactive uptime entries render as an empty gray bar
+            let bar_color = if effect.inactive {
+                color_from_rgba([90, 90, 90, 200])
+            } else {
+                color_from_rgba(effect.color)
+            };
+            let progress = if effect.inactive { 0.0 } else { effect.progress() };
 
-            let mut bar = ProgressBar::new(&label, effect.progress())
+            let mut bar = ProgressBar::new(&label, progress)
                 .with_fill_color(bar_color)
                 .with_bg_color(colors::dps_bar_bg())
                 .with_text_color(font_color)
@@ -740,7 +773,7 @@ impl EffectsABOverlay {
                 .with_gradient(self.config.bar_gradient)
                 .with_text_glow();
 
-            if self.config.show_countdown {
+            if self.config.show_countdown && effect.total_secs > 0.0 {
                 let mut right = effect.format_time(self.european_number_format);
                 if let Some(budget) = effect.format_budget() {
                     right.push_str(&format!(" ({budget})"));
@@ -770,14 +803,23 @@ impl EffectsABOverlay {
             if has_icon {
                 let icon_x = padding + icon_padding;
                 let icon_y = y + icon_padding;
-                let icon_drawn = if let Some(scaled_icon) =
-                    shared_scaled_icons().get(effect.icon_ability_id, icon_size_u32)
-                {
+                let scaled_icon = shared_scaled_icons()
+                    .get_variant(effect.icon_ability_id, icon_size_u32, effect.inactive)
+                    .or_else(|| {
+                        effect.icon.as_ref().map(|icon_arc| {
+                            let (src_w, src_h, ref src_data) = **icon_arc;
+                            shared_scaled_icons().get_or_scale_variant(
+                                effect.icon_ability_id,
+                                icon_size_u32,
+                                src_data,
+                                src_w,
+                                src_h,
+                                effect.inactive,
+                            )
+                        })
+                    });
+                let icon_drawn = if let Some(scaled_icon) = scaled_icon {
                     self.frame.draw_image(&scaled_icon, icon_size_u32, icon_size_u32, icon_x, icon_y, icon_size, icon_size);
-                    true
-                } else if let Some(ref icon_arc) = effect.icon {
-                    let (img_w, img_h, ref rgba) = **icon_arc;
-                    self.frame.draw_image(rgba, img_w, img_h, icon_x, icon_y, icon_size, icon_size);
                     true
                 } else {
                     false
@@ -834,9 +876,24 @@ impl EffectsABOverlay {
         icon_size_u32: u32,
     ) {
         let has_icon = if effect.show_icon {
-            if let Some(scaled_icon) =
-                shared_scaled_icons().get(effect.icon_ability_id, icon_size_u32)
-            {
+            // On cache miss, scale (and desaturate if inactive) through the cache
+            // rather than drawing the raw color RGBA — keeps inactive entries gray.
+            let scaled_icon = shared_scaled_icons()
+                .get_variant(effect.icon_ability_id, icon_size_u32, effect.inactive)
+                .or_else(|| {
+                    effect.icon.as_ref().map(|icon_arc| {
+                        let (src_w, src_h, ref src_data) = **icon_arc;
+                        shared_scaled_icons().get_or_scale_variant(
+                            effect.icon_ability_id,
+                            icon_size_u32,
+                            src_data,
+                            src_w,
+                            src_h,
+                            effect.inactive,
+                        )
+                    })
+                });
+            if let Some(scaled_icon) = scaled_icon {
                 self.frame.draw_image(
                     &scaled_icon,
                     icon_size_u32,
@@ -847,11 +904,6 @@ impl EffectsABOverlay {
                     icon_size,
                 );
                 true
-            } else if let Some(ref icon_arc) = effect.icon {
-                let (img_w, img_h, ref rgba) = **icon_arc;
-                self.frame
-                    .draw_image(rgba, img_w, img_h, x, y, icon_size, icon_size);
-                true
             } else {
                 false
             }
@@ -860,8 +912,12 @@ impl EffectsABOverlay {
         };
 
         if !has_icon {
-            // Fallback: colored square
-            let bg_color = color_from_rgba(effect.color);
+            // Fallback: colored square (desaturated gray when inactive)
+            let bg_color = if effect.inactive {
+                color_from_rgba([90, 90, 90, 200])
+            } else {
+                color_from_rgba(effect.color)
+            };
             self.frame
                 .fill_rounded_rect(x, y, icon_size, icon_size, 3.0, bg_color);
         }
@@ -980,7 +1036,7 @@ impl EffectsABOverlay {
     fn render_preview_horizontal(&mut self) {
         let padding = self.frame.scaled(BASE_PADDING);
         let spacing = self.frame.scaled(BASE_SPACING);
-        let font_size = self.frame.scaled(BASE_FONT_SIZE);
+        let font_size = self.frame.scaled(self.config.icon_size as f32 * ICON_FONT_RATIO);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let scale = self.frame.scale_factor();
         let header_font_size = font_size * 1.4;
@@ -1079,7 +1135,7 @@ impl EffectsABOverlay {
     fn render_preview_vertical(&mut self) {
         let padding = self.frame.scaled(BASE_PADDING);
         let row_spacing = self.frame.scaled(BASE_SPACING);
-        let font_size = self.frame.scaled(BASE_FONT_SIZE);
+        let font_size = self.frame.scaled(self.config.icon_size as f32 * ICON_FONT_RATIO);
         let icon_size = self.frame.scaled(self.config.icon_size as f32);
         let row_height = icon_size + row_spacing;
         let scale = self.frame.scale_factor();

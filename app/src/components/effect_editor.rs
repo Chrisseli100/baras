@@ -233,6 +233,9 @@ fn default_effect(name: String) -> EffectListItem {
         icon_ability_id: None,
         show_icon: true,
         display_source: false,
+        track_uptime: false,
+        stack_priority: false,
+        show_single_stack: false,
         is_affected_by_alacrity: false,
         cooldown_ready_secs: 0.0,
         disciplines: vec![],
@@ -1297,6 +1300,75 @@ fn EffectEditForm(
                                                 onchange: move |e| {
                                                     let mut d = draft();
                                                     d.display_source = e.checked();
+                                                    draft.set(d);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Show Stack Count at 1 - Effects A/B and raid frames
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::RaidFrames)) {
+                                        div { class: "form-row-hz",
+                                            label { class: "flex items-center",
+                                                "Show stack count at 1"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Always display a stack count for this effect, starting at 1. Non-stacking effects show \"1\"; real counts show as they climb. Raid frames normally hide counts below 2.",
+                                                    "?"
+                                                }
+                                            }
+                                            input {
+                                                r#type: "checkbox",
+                                                checked: draft().show_single_stack,
+                                                onchange: move |e| {
+                                                    let mut d = draft();
+                                                    d.show_single_stack = e.checked();
+                                                    draft.set(d);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Emphasize Stacks - only for Effects A/B overlays
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB)) {
+                                        div { class: "form-row-hz",
+                                            label { class: "flex items-center",
+                                                "Emphasize Stacks"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Draw this effect's stack count large and centered with the countdown in the corner. Works even when the overlay's own 'Emphasize stacked effects' setting is off.",
+                                                    "?"
+                                                }
+                                            }
+                                            input {
+                                                r#type: "checkbox",
+                                                checked: draft().stack_priority,
+                                                onchange: move |e| {
+                                                    let mut d = draft();
+                                                    d.stack_priority = e.checked();
+                                                    draft.set(d);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Track Uptime - only for Effects A/B overlays
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB)) {
+                                        div { class: "form-row-hz",
+                                            label { class: "flex items-center",
+                                                "Show when absent"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Always show this effect's icon when playing a matching discipline: grayed out while the effect is inactive, colored while active (e.g. tank guard, sniper cover). Requires the discipline to be detected.",
+                                                    "?"
+                                                }
+                                            }
+                                            input {
+                                                r#type: "checkbox",
+                                                checked: draft().track_uptime,
+                                                onchange: move |e| {
+                                                    let mut d = draft();
+                                                    d.track_uptime = e.checked();
                                                     draft.set(d);
                                                 }
                                             }

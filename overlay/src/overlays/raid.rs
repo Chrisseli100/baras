@@ -71,6 +71,8 @@ pub struct RaidEffect {
     pub name: String,
     /// Number of stacks/charges (0 = no stacking display)
     pub charges: u8,
+    /// Show the charge count even at 1 (default hides counts below 2)
+    pub show_single_stack: bool,
     /// When this effect expires (None = permanent until removed)
     pub expires_at: Option<Instant>,
     /// Total duration of the effect (for fill percentage calculation)
@@ -92,6 +94,7 @@ impl RaidEffect {
             effect_id,
             name: name.into(),
             charges: 0,
+            show_single_stack: false,
             expires_at: None,
             duration: None,
             color: Color::from_rgba8(100, 180, 255, 255),
@@ -99,6 +102,11 @@ impl RaidEffect {
             icon: None,
             show_icon: true,
         }
+    }
+
+    pub fn with_show_single_stack(mut self, show: bool) -> Self {
+        self.show_single_stack = show;
+        self
     }
 
     pub fn with_charges(mut self, charges: u8) -> Self {
@@ -1530,7 +1538,7 @@ impl RaidOverlay {
             );
 
             // Stack count if applicable (centered in the effect square)
-            if effect.charges > 1 {
+            if effect.charges > 1 || (effect.show_single_stack && effect.charges >= 1) {
                 let count = format!("{}", effect.charges);
                 let stack_font = (effect_size * 0.7).max(8.0);
 

@@ -45,6 +45,9 @@ fn make_effect(
         icon_ability_id: None,
         show_icon: true,
         display_source: false,
+        track_uptime: false,
+        stack_priority: false,
+        show_single_stack: false,
         disciplines: vec![],
         source_disciplines: vec![],
         target_disciplines: vec![],
@@ -1279,4 +1282,60 @@ fn test_icd_affected_by_alacrity_shortens_cooldown() {
     tracker.handle_signals(&[resource_spent_signal(player, 1.0, ts + chrono::Duration::seconds(8))], None);
     let extended = tracker.active_effects().next().unwrap().expires_at.unwrap();
     assert_eq!((extended - original).num_milliseconds(), 1000);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Area change handling
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn area_entered_signal(area_id: i64, timestamp: chrono::NaiveDateTime) -> GameSignal {
+    GameSignal::AreaEntered {
+        area_id,
+        area_name: String::new(),
+        difficulty_id: 0,
+        difficulty_name: String::new(),
+        timestamp,
+    }
+}
+
+/// Instanced areas log AreaEntered twice (plain, then difficulty-qualified)
+/// with the game's effect restatement in between. The duplicate must not
+/// wipe the just-restated effects.
+#[test]
+fn test_duplicate_area_entered_keeps_restated_effects() {
+    let def = make_effect(
+        "stim",
+        "Stim",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(999)],
+            source: EntityFilter::Any,
+            target: EntityFilter::Any,
+            position: vec![],
+        },
+        None,
+    );
+    let mut tracker = make_tracker(vec![def]);
+    let ts = now();
+
+    tracker.handle_signal(&effect_applied_signal(999, ts), None);
+    assert_eq!(tracker.active_effects().filter(|e| e.removed_at.is_none()).count(), 1);
+
+    // Zone into an instance: wipe, restatement, then duplicate AreaEntered
+    tracker.handle_signal(&area_entered_signal(100, ts + chrono::Duration::milliseconds(10)), None);
+    tracker.handle_signal(&effect_applied_signal(999, ts + chrono::Duration::milliseconds(30)), None);
+    tracker.handle_signal(&area_entered_signal(100, ts + chrono::Duration::milliseconds(50)), None);
+
+    assert_eq!(
+        tracker.active_effects().filter(|e| e.removed_at.is_none()).count(),
+        1,
+        "duplicate AreaEntered for the same area must not wipe restated effects"
+    );
+
+    // A genuinely different area still wipes
+    tracker.handle_signal(&area_entered_signal(200, ts + chrono::Duration::seconds(5)), None);
+    assert_eq!(
+        tracker.active_effects().filter(|e| e.removed_at.is_none()).count(),
+        0,
+        "entering a different area must clear active effects"
+    );
 }

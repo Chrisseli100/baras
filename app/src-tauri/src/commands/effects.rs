@@ -59,6 +59,12 @@ pub struct EffectListItem {
     pub icon_ability_id: Option<u64>,
     pub show_icon: bool,
     pub display_source: bool,
+    #[serde(default)]
+    pub track_uptime: bool,
+    #[serde(default)]
+    pub stack_priority: bool,
+    #[serde(default)]
+    pub show_single_stack: bool,
 
     // Duration modifiers
     pub is_affected_by_alacrity: bool,
@@ -126,6 +132,9 @@ impl EffectListItem {
             icon_ability_id: def.icon_ability_id,
             show_icon: def.show_icon,
             display_source: def.display_source,
+            track_uptime: def.track_uptime,
+            stack_priority: def.stack_priority,
+            show_single_stack: def.show_single_stack,
             is_affected_by_alacrity: def.is_affected_by_alacrity,
             cooldown_ready_secs: def.cooldown_ready_secs,
             disciplines: def.disciplines.iter().map(|d| d.name().to_string()).collect(),
@@ -188,6 +197,9 @@ impl EffectListItem {
             cooldown_ready_secs: self.cooldown_ready_secs,
             show_icon: self.show_icon,
             display_source: self.display_source,
+            track_uptime: self.track_uptime,
+            stack_priority: self.stack_priority,
+            show_single_stack: self.show_single_stack,
             modifiers: self.modifiers.clone(),
         }
     }

@@ -2662,7 +2662,7 @@ impl CombatService {
                 }
                 // Effects A: only send if there are effects or effects just cleared
                 if effects_a_active {
-                    if let Some(data) = build_effects_a_data(&shared, icon_cache.as_ref()).await {
+                    if let Some(data) = build_effects_ab_data(&shared, icon_cache.as_ref(), DisplayTarget::EffectsA).await {
                         let count = data.effects.len();
                         if count > 0 || last_effects_a_count > 0 {
                             if overlay_tx.try_send(OverlayUpdate::EffectsAUpdated(data)).is_err() {
@@ -2682,7 +2682,7 @@ impl CombatService {
 
                 // Effects B: only send if there are effects or effects just cleared
                 if effects_b_active {
-                    if let Some(data) = build_effects_b_data(&shared, icon_cache.as_ref()).await {
+                    if let Some(data) = build_effects_ab_data(&shared, icon_cache.as_ref(), DisplayTarget::EffectsB).await {
                         let count = data.effects.len();
                         if count > 0 || last_effects_b_count > 0 {
                             if overlay_tx.try_send(OverlayUpdate::EffectsBUpdated(data)).is_err() {
@@ -3566,10 +3566,13 @@ async fn build_raid_frame_data(
 
         // Only group effects for already-registered players
         if registry.is_registered(target_id) {
+            let show_single_stack = tracker
+                .definition(&effect.definition_id)
+                .is_some_and(|d| d.show_single_stack);
             effects_by_target
                 .entry(target_id)
                 .or_default()
-                .push(convert_to_raid_effect(effect, icon_cache, interp_time));
+                .push(convert_to_raid_effect(effect, icon_cache, interp_time, show_single_stack));
         }
     }
 
@@ -4087,10 +4090,13 @@ fn convert_to_raid_effect(
     effect: &ActiveEffect,
     icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
     interp_time: Option<chrono::NaiveDateTime>,
+    show_single_stack: bool,
 ) -> RaidEffect {
+    let charges = if show_single_stack { effect.stacks.max(1) } else { effect.stacks };
     // Effects on raid frames are typically HoTs/shields (is_buff defaults to true in RaidEffect::new())
     let mut raid_effect = RaidEffect::new(effect.game_effect_id, effect.name.clone())
-        .with_charges(effect.stacks)
+        .with_charges(charges)
+        .with_show_single_stack(show_single_stack)
         .with_color_rgba(effect.color)
         .with_show_icon(effect.show_icon);
 
@@ -4156,148 +4162,159 @@ fn base_total_secs(effect: &ActiveEffect) -> Option<f32> {
         .map(|d| (d.as_secs_f32() - effect.cooldown_ready_secs).max(0.0))
 }
 
-/// Build effects A overlay data from active effects
-async fn build_effects_a_data(
-    shared: &Arc<SharedState>,
+/// Load an icon's RGBA data from the cache
+fn load_ab_icon(
     icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
-) -> Option<EffectsABData> {
-    use std::sync::Arc as StdArc;
-
-    let session_guard = shared.session.read().await;
-    let session = session_guard.as_ref()?;
-    let session = session.read().await;
-
-    let effect_tracker = session.effect_tracker()?;
-    let tracker = effect_tracker.lock().unwrap_or_else(|p| p.into_inner());
-
-    if !tracker.has_active_effects() {
-        return None;
-    }
-
-    let interp_time = tracker.interpolated_game_time();
-
-    let mut effects: Vec<_> = tracker.effects_a().collect();
-    effects.sort_by_key(|e| e.applied_at);
-
-    let entries: Vec<EffectABEntry> = effects
-        .into_iter()
-        .filter_map(|effect| {
-            let remaining_total = interp_time
-                .and_then(|t| effect.remaining_secs(t))
-                .unwrap_or(0.0);
-            // Skip effects hidden by show_at_secs threshold
-            if !effect.is_visible(remaining_total) {
-                return None;
-            }
-            let total_secs = base_total_secs(effect)?;
-            let remaining_secs = calculate_base_remaining_secs(effect, interp_time)?;
-
-            // Load icon from cache
-            let icon = icon_cache.and_then(|cache| {
-                cache
-                    .get_icon(effect.icon_ability_id)
-                    .map(|data| StdArc::new((data.width, data.height, data.rgba)))
-            });
-
-            let max_total_secs = effect.max_expires_at.map(|max_exp| {
-                (max_exp - effect.applied_at).num_milliseconds() as f32 / 1000.0
-            });
-            let max_remaining_secs = effect.max_expires_at.and_then(|max_exp| {
-                interp_time.map(|t| (max_exp - t).num_milliseconds() as f32 / 1000.0)
-            });
-
-            Some(EffectABEntry {
-                effect_id: effect.game_effect_id,
-                icon_ability_id: effect.icon_ability_id,
-                name: effect.name.clone(),
-                display_text: effect.display_text.clone(),
-                remaining_secs,
-                total_secs,
-                color: effect.color,
-                stacks: effect.stacks,
-                source_name: resolve(effect.source_name).to_string(),
-                target_name: resolve(effect.target_name).to_string(),
-                icon,
-                show_icon: effect.show_icon,
-                display_source: effect.display_source,
-                max_total_secs,
-                max_remaining_secs,
-            })
-        })
-        .collect();
-
-    Some(EffectsABData { effects: entries })
+    ability_id: u64,
+) -> Option<Arc<(u32, u32, Vec<u8>)>> {
+    icon_cache.and_then(|cache| {
+        cache
+            .get_icon(ability_id)
+            .map(|data| Arc::new((data.width, data.height, data.rgba)))
+    })
 }
 
-/// Build effects B overlay data from active effects
-async fn build_effects_b_data(
+/// Convert an active effect to an Effects A/B display entry.
+/// `pinned` (uptime) entries ignore the show_at_secs threshold and allow
+/// indefinite durations (rendered without a countdown).
+/// `def` supplies per-effect display flags (stack emphasis, single-stack).
+fn active_to_ab_entry(
+    effect: &ActiveEffect,
+    interp_time: Option<chrono::NaiveDateTime>,
+    icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
+    pinned: bool,
+    def: Option<&baras_core::EffectDefinition>,
+) -> Option<EffectABEntry> {
+    if !pinned {
+        let remaining_total = interp_time
+            .and_then(|t| effect.remaining_secs(t))
+            .unwrap_or(0.0);
+        // Skip effects hidden by show_at_secs threshold
+        if !effect.is_visible(remaining_total) {
+            return None;
+        }
+    }
+    let (total_secs, remaining_secs) = if pinned {
+        (
+            base_total_secs(effect).unwrap_or(0.0),
+            calculate_base_remaining_secs(effect, interp_time).unwrap_or(0.0),
+        )
+    } else {
+        (
+            base_total_secs(effect)?,
+            calculate_base_remaining_secs(effect, interp_time)?,
+        )
+    };
+
+    let max_total_secs = effect
+        .max_expires_at
+        .map(|max_exp| (max_exp - effect.applied_at).num_milliseconds() as f32 / 1000.0);
+    let max_remaining_secs = effect.max_expires_at.and_then(|max_exp| {
+        interp_time.map(|t| (max_exp - t).num_milliseconds() as f32 / 1000.0)
+    });
+
+    // show_single_stack: always display a count, floored at 1.
+    // Otherwise hide a lone "1" (matching raid frames) — real counts show from 2.
+    let stacks = if def.is_some_and(|d| d.show_single_stack) {
+        effect.stacks.max(1)
+    } else if effect.stacks > 1 {
+        effect.stacks
+    } else {
+        0
+    };
+
+    Some(EffectABEntry {
+        effect_id: effect.game_effect_id,
+        icon_ability_id: effect.icon_ability_id,
+        name: effect.name.clone(),
+        display_text: effect.display_text.clone(),
+        remaining_secs,
+        total_secs,
+        color: effect.color,
+        stacks,
+        source_name: resolve(effect.source_name).to_string(),
+        target_name: resolve(effect.target_name).to_string(),
+        icon: load_ab_icon(icon_cache, effect.icon_ability_id),
+        show_icon: effect.show_icon,
+        display_source: effect.display_source,
+        max_total_secs,
+        max_remaining_secs,
+        inactive: false,
+        stack_priority: def.is_some_and(|d| d.stack_priority),
+    })
+}
+
+/// Build Effects A/B overlay data: uptime entries pinned first (gray
+/// placeholders while inactive), then regular active effects by apply time.
+async fn build_effects_ab_data(
     shared: &Arc<SharedState>,
     icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
+    target: DisplayTarget,
 ) -> Option<EffectsABData> {
-    use std::sync::Arc as StdArc;
-
     let session_guard = shared.session.read().await;
     let session = session_guard.as_ref()?;
     let session = session.read().await;
 
     let effect_tracker = session.effect_tracker()?;
-    let tracker = effect_tracker.lock().unwrap_or_else(|p| p.into_inner());
+    let mut tracker = effect_tracker.lock().unwrap_or_else(|p| p.into_inner());
 
-    if !tracker.has_active_effects() {
+    tracker.remember_uptime_icons();
+    let tracker = &*tracker;
+    let uptime_defs = tracker.uptime_definitions(target);
+    if !tracker.has_active_effects() && uptime_defs.is_empty() {
         return None;
     }
 
     let interp_time = tracker.interpolated_game_time();
 
-    let mut effects: Vec<_> = tracker.effects_b().collect();
+    let mut effects: Vec<&ActiveEffect> = match target {
+        DisplayTarget::EffectsB => tracker.effects_b().collect(),
+        _ => tracker.effects_a().collect(),
+    };
     effects.sort_by_key(|e| e.applied_at);
 
-    let entries: Vec<EffectABEntry> = effects
-        .into_iter()
-        .filter_map(|effect| {
-            let remaining_total = interp_time
-                .and_then(|t| effect.remaining_secs(t))
-                .unwrap_or(0.0);
-            // Skip effects hidden by show_at_secs threshold
-            if !effect.is_visible(remaining_total) {
-                return None;
-            }
-            let total_secs = base_total_secs(effect)?;
-            let remaining_secs = calculate_base_remaining_secs(effect, interp_time)?;
+    let mut entries: Vec<EffectABEntry> = Vec::with_capacity(uptime_defs.len() + effects.len());
 
-            // Load icon from cache
-            let icon = icon_cache.and_then(|cache| {
-                cache
-                    .get_icon(effect.icon_ability_id)
-                    .map(|data| StdArc::new((data.width, data.height, data.rgba)))
+    for def in &uptime_defs {
+        let entry = effects
+            .iter()
+            .find(|e| e.definition_id == def.id)
+            .and_then(|e| active_to_ab_entry(e, interp_time, icon_cache, true, Some(def)))
+            .unwrap_or_else(|| {
+                let icon_id = tracker.uptime_placeholder_icon(def);
+                EffectABEntry {
+                    effect_id: icon_id,
+                    icon_ability_id: icon_id,
+                    name: def.name.clone(),
+                    display_text: def.display_text().to_string(),
+                    remaining_secs: 0.0,
+                    total_secs: 0.0,
+                    color: def.effective_color(),
+                    stacks: 0,
+                    source_name: String::new(),
+                    target_name: String::new(),
+                    icon: load_ab_icon(icon_cache, icon_id),
+                    show_icon: def.show_icon,
+                    display_source: false,
+                    max_total_secs: None,
+                    max_remaining_secs: None,
+                    inactive: true,
+                    stack_priority: def.stack_priority,
+                }
             });
+        entries.push(entry);
+    }
 
-            let max_total_secs = effect.max_expires_at.map(|max_exp| {
-                (max_exp - effect.applied_at).num_milliseconds() as f32 / 1000.0
-            });
-            let max_remaining_secs = effect.max_expires_at.and_then(|max_exp| {
-                interp_time.map(|t| (max_exp - t).num_milliseconds() as f32 / 1000.0)
-            });
-
-            Some(EffectABEntry {
-                effect_id: effect.game_effect_id,
-                icon_ability_id: effect.icon_ability_id,
-                name: effect.name.clone(),
-                display_text: effect.display_text.clone(),
-                remaining_secs,
-                total_secs,
-                color: effect.color,
-                stacks: effect.stacks,
-                source_name: resolve(effect.source_name).to_string(),
-                target_name: resolve(effect.target_name).to_string(),
-                icon,
-                show_icon: effect.show_icon,
-                display_source: effect.display_source,
-                max_total_secs,
-                max_remaining_secs,
-            })
-        })
-        .collect();
+    let uptime_ids: std::collections::HashSet<&str> =
+        uptime_defs.iter().map(|d| d.id.as_str()).collect();
+    entries.extend(
+        effects
+            .iter()
+            .filter(|e| !uptime_ids.contains(e.definition_id.as_str()))
+            .filter_map(|e| {
+                active_to_ab_entry(e, interp_time, icon_cache, false, tracker.definition(&e.definition_id))
+            }),
+    );
 
     Some(EffectsABData { effects: entries })
 }

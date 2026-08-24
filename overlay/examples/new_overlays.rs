@@ -283,6 +283,8 @@ fn make_effect(
         display_source: false,
         max_total_secs: None,
         max_remaining_secs: None,
+        inactive: false,
+        stack_priority: false,
     }
 }
 

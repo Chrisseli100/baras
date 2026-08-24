@@ -50,6 +50,10 @@ pub struct SharedScaledIconCache {
     inner: Mutex<HashMap<(u64, u32), Arc<Vec<u8>>>>,
 }
 
+/// High bit flag distinguishing grayscale icon variants in the cache key.
+/// Game ability GUIDs never use the top bit, so the flagged key can't collide.
+const GRAYSCALE_KEY_FLAG: u64 = 1 << 63;
+
 impl SharedScaledIconCache {
     /// Return the cached scaled icon, scaling and inserting on miss.
     /// The expensive `scale_icon` call happens OUTSIDE the lock so parallel
@@ -62,13 +66,31 @@ impl SharedScaledIconCache {
         src_w: u32,
         src_h: u32,
     ) -> Arc<Vec<u8>> {
-        let key = (ability_id, target_size);
+        self.get_or_scale_variant(ability_id, target_size, src, src_w, src_h, false)
+    }
+
+    /// Like [`get_or_scale`], with an optional desaturated (grayscale) variant
+    /// cached under a separate key.
+    pub fn get_or_scale_variant(
+        &self,
+        ability_id: u64,
+        target_size: u32,
+        src: &[u8],
+        src_w: u32,
+        src_h: u32,
+        grayscale: bool,
+    ) -> Arc<Vec<u8>> {
+        let key = (Self::variant_key(ability_id, grayscale), target_size);
         if let Ok(map) = self.inner.lock() {
             if let Some(arc) = map.get(&key) {
                 return arc.clone();
             }
         }
-        let scaled = Arc::new(scale_icon(src, src_w, src_h, target_size));
+        let mut scaled = scale_icon(src, src_w, src_h, target_size);
+        if grayscale {
+            desaturate_rgba(&mut scaled);
+        }
+        let scaled = Arc::new(scaled);
         if let Ok(mut map) = self.inner.lock() {
             // Another thread may have raced us — entry() keeps its version.
             return map.entry(key).or_insert_with(|| scaled.clone()).clone();
@@ -78,7 +100,37 @@ impl SharedScaledIconCache {
 
     /// Fetch without scaling (render hot path). Returns None if not yet cached.
     pub fn get(&self, ability_id: u64, target_size: u32) -> Option<Arc<Vec<u8>>> {
-        self.inner.lock().ok()?.get(&(ability_id, target_size)).cloned()
+        self.get_variant(ability_id, target_size, false)
+    }
+
+    /// Fetch a color or grayscale variant without scaling.
+    pub fn get_variant(
+        &self,
+        ability_id: u64,
+        target_size: u32,
+        grayscale: bool,
+    ) -> Option<Arc<Vec<u8>>> {
+        self.inner
+            .lock()
+            .ok()?
+            .get(&(Self::variant_key(ability_id, grayscale), target_size))
+            .cloned()
+    }
+
+    fn variant_key(ability_id: u64, grayscale: bool) -> u64 {
+        if grayscale { ability_id | GRAYSCALE_KEY_FLAG } else { ability_id }
+    }
+}
+
+/// Desaturate an RGBA buffer in place (luma-weighted, slightly dimmed).
+pub fn desaturate_rgba(rgba: &mut [u8]) {
+    for px in rgba.chunks_exact_mut(4) {
+        let luma =
+            (0.299 * px[0] as f32 + 0.587 * px[1] as f32 + 0.114 * px[2] as f32) * 0.7;
+        let v = luma as u8;
+        px[0] = v;
+        px[1] = v;
+        px[2] = v;
     }
 }
 
