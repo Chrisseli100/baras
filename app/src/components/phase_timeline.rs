@@ -215,23 +215,20 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                         (start_time, end_time)
                     };
 
-                    // If just a click (no drag), reset to full
-                    let real_drag = (end - start).abs() >= 1.0;
-                    let final_range = if real_drag {
-                        TimeRange::new(start, end)
-                    } else {
-                        TimeRange::full(duration)
-                    };
-
-                    // Mark as dragged so phase onclick doesn't clobber
-                    if real_drag {
+                    // Only commit real drags here. Plain clicks are handled by the
+                    // click handlers (phase segment selects itself, bare track resets),
+                    // avoiding a redundant range change that races the segment onclick.
+                    if (end - start).abs() >= 1.0 {
+                        // Mark as dragged so phase/track onclick doesn't clobber
                         let _ = was_dragged_up.try_write().map(|mut w| *w = true);
+                        let final_range = TimeRange::new(start, end);
+                        let _ = committed_range_up
+                            .try_write()
+                            .map(|mut w| *w = Some(final_range));
+                        on_range_change.call(final_range);
+                    } else {
+                        let _ = committed_range_up.try_write().map(|mut w| *w = None);
                     }
-
-                    let _ = committed_range_up
-                        .try_write()
-                        .map(|mut w| *w = Some(final_range));
-                    on_range_change.call(final_range);
                 }
                 let _ = drag_start_up.try_write().map(|mut w| {
                     *w = None;
@@ -286,6 +283,15 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                     id: "phase-timeline-track",
                     class: "phase-timeline-track",
                     onmousedown: on_track_mousedown,
+                    // Click on bare track (phase segments stop propagation) resets to full
+                    onclick: move |_| {
+                        if *was_dragged.peek() {
+                            was_dragged.set(false);
+                            return;
+                        }
+                        committed_range.set(None);
+                        props.on_range_change.call(TimeRange::full(duration));
+                    },
 
                     // Time markers inside the track
                     span { class: "track-marker start", "0:00" }
@@ -297,7 +303,10 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                         {
                             let left = time_to_pct(phase.start_secs);
                             let width = time_to_pct(phase.end_secs - phase.start_secs);
-                            let is_selected = (range.start - phase.start_secs).abs() < 0.1
+                            // A full range never counts as a phase selection, even if a
+                            // single phase happens to span the entire fight
+                            let is_selected = !range.is_full(duration)
+                                && (range.start - phase.start_secs).abs() < 0.1
                                 && (range.end - phase.end_secs).abs() < 0.1;
                             let phase_clone = phase.clone();
                             let bg_color = phase_color(&phase.phase_id);
@@ -484,7 +493,8 @@ pub fn PhaseTimelineFilter(props: PhaseTimelineProps) -> Element {
                     div { class: "phase-chips",
                         for phase in phases.iter() {
                             {
-                                let is_active = (range.start - phase.start_secs).abs() < 0.1
+                                let is_active = !range.is_full(duration)
+                                    && (range.start - phase.start_secs).abs() < 0.1
                                     && (range.end - phase.end_secs).abs() < 0.1;
                                 let phase_clone = phase.clone();
                                 let bg_color = phase_color(&phase.phase_id);
