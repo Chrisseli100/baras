@@ -320,13 +320,20 @@ impl MetricOverlay {
         let show_total = self.appearance.show_total && !self.hide_totals;
         let show_per_second = self.appearance.show_per_second;
 
-        // Filter and limit entries to max_entries
+        // Filter and limit entries to max_entries per team: in PvP the list is
+        // friendly-first then enemy, so a flat take() would let friendlies
+        // exhaust the cap before any enemy row appears
         let max_entries = self.appearance.max_entries as usize;
+        let (mut friendly_shown, mut enemy_shown) = (0usize, 0usize);
         let visible_entries: Vec<_> = self
             .entries
             .iter()
             .filter(|e| self.show_empty_bars || e.value != 0)
-            .take(max_entries)
+            .filter(|e| {
+                let shown = if e.is_enemy { &mut enemy_shown } else { &mut friendly_shown };
+                *shown += 1;
+                *shown <= max_entries
+            })
             .collect();
         let num_entries = visible_entries.len();
 
