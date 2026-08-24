@@ -168,6 +168,9 @@ pub struct AreaVisitInfo {
     pub area_name: String,
     /// Difficulty string (may be empty)
     pub difficulty: String,
+    /// Badge tier from the difficulty ID ("fp"/"nim"/"hm"/"sm"), language-independent
+    #[serde(default)]
+    pub difficulty_tier: Option<String>,
 }
 
 /// Log file metadata for file browser

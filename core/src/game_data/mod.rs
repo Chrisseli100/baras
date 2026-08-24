@@ -22,7 +22,8 @@ pub use boss_registry::{
     clear_boss_registry, is_registered_boss, lookup_registered_name, register_hp_overlay_entity,
 };
 pub use bosses::{
-    BossInfo, ContentType, Difficulty, get_boss_ids, is_boss, lookup_area_content_type, lookup_boss,
+    BossInfo, ContentType, Difficulty, difficulty_id, get_boss_ids, is_boss,
+    lookup_area_content_type, lookup_boss,
 };
 pub use discipline::{Class, Discipline, DisciplineFilter, Role};
 pub use discipline_abilities::DISCIPLINE_ABILITIES;

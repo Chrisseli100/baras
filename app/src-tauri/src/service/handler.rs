@@ -111,6 +111,7 @@ impl ServiceHandle {
                             display: a.display_name(),
                             area_name: a.area_name.clone(),
                             difficulty: a.difficulty_name.clone(),
+                            difficulty_tier: a.difficulty_tier(),
                         })
                         .collect()
                 });

@@ -12,6 +12,8 @@ use std::time::SystemTime;
 use encoding_rs::WINDOWS_1252;
 use serde::{Deserialize, Serialize};
 
+use crate::game_data::Difficulty;
+
 /// A single area visit entry extracted from a log file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileAreaEntry {
@@ -28,11 +30,25 @@ impl FileAreaEntry {
     /// - "16 Player Veteran" -> "Dxun HM 16"
     /// - "4 Player Veteran" -> "Hammer Station 4 Player Veteran" (kept as-is)
     pub fn display_name(&self) -> String {
+        // Language-independent path: derive shorthand from the difficulty ID
+        if let Some(diff) = Difficulty::from_difficulty_id(self.difficulty_id) {
+            let size = diff.group_size();
+            if size == 8 || size == 16 {
+                let short = match diff.config_key() {
+                    "master" => "NiM",
+                    "veteran" => "HM",
+                    _ => "SM",
+                };
+                return format!("{} {} {}", self.area_name, short, size);
+            }
+        }
+
         if self.difficulty_name.is_empty() {
             return self.area_name.clone();
         }
 
-        // Parse difficulty: "8 Player Master", "16 Player Veteran", etc.
+        // Fallback for unknown IDs: parse the (English) difficulty string
+        // "8 Player Master", "16 Player Veteran", etc.
         let parts: Vec<&str> = self.difficulty_name.split_whitespace().collect();
 
         // Expected format: ["8", "Player", "Master"] or ["16", "Player", "Veteran"]
@@ -55,6 +71,21 @@ impl FileAreaEntry {
 
         // Fallback: keep original format for 4-player or unrecognized
         format!("{} {}", self.area_name, self.difficulty_name)
+    }
+
+    /// Badge tier for the file browser, derived from the difficulty ID
+    /// (language-independent): "fp" for 4-player, "nim"/"hm"/"sm" for 8/16.
+    pub fn difficulty_tier(&self) -> Option<&'static str> {
+        let diff = Difficulty::from_difficulty_id(self.difficulty_id)?;
+        Some(if diff.group_size() == 4 {
+            "fp"
+        } else {
+            match diff.config_key() {
+                "master" => "nim",
+                "veteran" => "hm",
+                _ => "sm",
+            }
+        })
     }
 }
 
@@ -333,6 +364,39 @@ mod tests {
         let entry = parse_area_entered_line(line).expect("Should parse");
         assert_eq!(entry.area_name, "Imperiale Flotte");
         assert_eq!(entry.area_id, 137438989504);
+    }
+
+    #[test]
+    fn test_german_difficulty_uses_id() {
+        // German client: "8 Spieler, Meister" — string matching would fail,
+        // but the difficulty ID (MASTER_8) is language-independent
+        let line = r#"[19:58:12.345] [@Kemrydas#690129162696566|(1.0,2.0,3.0,0.0)|(400000/400000)] [] [] [GebietBetreten {836045448953664}: Tal der Maschinengötter {137438993410} 8 Spieler, Meister {836045448953655}] (he4001) <v7.0.0b>"#;
+
+        let entry = parse_area_entered_line(line).expect("Should parse");
+        assert_eq!(entry.difficulty_id, 836045448953655);
+        assert_eq!(entry.difficulty_tier(), Some("nim"));
+        assert_eq!(entry.display_name(), "Tal der Maschinengötter NiM 8");
+    }
+
+    #[test]
+    fn test_difficulty_tier() {
+        let mut entry = FileAreaEntry {
+            area_id: 1,
+            area_name: "Dxun".to_string(),
+            difficulty_id: crate::game_data::difficulty_id::VETERAN_16,
+            difficulty_name: String::new(),
+        };
+        assert_eq!(entry.difficulty_tier(), Some("hm"));
+
+        entry.difficulty_id = crate::game_data::difficulty_id::STORY_8;
+        assert_eq!(entry.difficulty_tier(), Some("sm"));
+
+        entry.difficulty_id = crate::game_data::difficulty_id::MASTER_4;
+        assert_eq!(entry.difficulty_tier(), Some("fp"));
+
+        // Unknown ID (open world / no difficulty)
+        entry.difficulty_id = 0;
+        assert_eq!(entry.difficulty_tier(), None);
     }
 
     #[test]

@@ -13,7 +13,7 @@ use crate::components::{
 };
 use crate::components::class_icons::{get_class_icon, get_role_icon};
 use crate::types::{
-    LogFileInfo, MainTab, MetricType, OverlaySettings, OverlayStatus, OverlayType,
+    AreaVisitInfo, LogFileInfo, MainTab, MetricType, OverlaySettings, OverlayStatus, OverlayType,
     SessionInfo, UiSessionState, UpdateInfo,
 };
 
@@ -2579,9 +2579,18 @@ pub fn App() -> Element {
                                                     // Show areas/operations visited in this file
                                                     // Only show areas with difficulty (actual instances, not open world)
                                                     {
-                                                        // Helper to get difficulty CSS class from difficulty string
-                                                        fn difficulty_class(difficulty: &str) -> &'static str {
-                                                            let lower = difficulty.to_lowercase();
+                                                        // Helper to get difficulty CSS class; prefers the
+                                                        // ID-derived tier (language-independent), falls back
+                                                        // to English string matching for unknown IDs
+                                                        fn difficulty_class(area: &AreaVisitInfo) -> &'static str {
+                                                            match area.difficulty_tier.as_deref() {
+                                                                Some("fp") => return "area-tag diff-fp",
+                                                                Some("nim") => return "area-tag diff-nim",
+                                                                Some("hm") => return "area-tag diff-hm",
+                                                                Some("sm") => return "area-tag diff-sm",
+                                                                _ => {}
+                                                            }
+                                                            let lower = area.difficulty.to_lowercase();
                                                             // 4-player content (flashpoints) gets blue
                                                             if lower.contains("4 player") {
                                                                 "area-tag diff-fp"
@@ -2607,7 +2616,7 @@ pub fn App() -> Element {
                                                                     summary {
                                                                         // Show first 3 badges in summary
                                                                         for area in instanced_areas.iter().take(3) {
-                                                                            span { class: "{difficulty_class(&area.difficulty)}", "{area.display}" }
+                                                                            span { class: "{difficulty_class(area)}", "{area.display}" }
                                                                         }
                                                                         // Show "+N more" if there are more than 3
                                                                         if area_count > 3 {
@@ -2618,7 +2627,7 @@ pub fn App() -> Element {
                                                                     if area_count > 3 {
                                                                         ul { class: "area-list",
                                                                             for area in instanced_areas.iter() {
-                                                                                li { class: "{difficulty_class(&area.difficulty)}", "{area.display}" }
+                                                                                li { class: "{difficulty_class(area)}", "{area.display}" }
                                                                             }
                                                                         }
                                                                     }

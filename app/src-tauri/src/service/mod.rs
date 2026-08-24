@@ -4492,6 +4492,9 @@ pub struct AreaVisitInfo {
     pub area_name: String,
     /// Difficulty string (may be empty)
     pub difficulty: String,
+    /// Badge tier derived from the difficulty ID ("fp"/"nim"/"hm"/"sm"),
+    /// language-independent; None if the ID is unknown
+    pub difficulty_tier: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
