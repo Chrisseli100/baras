@@ -237,6 +237,7 @@ fn default_effect(name: String) -> EffectListItem {
         display_source: false,
         track_uptime: false,
         stack_priority: false,
+        show_countdown: true,
         show_single_stack: false,
         is_affected_by_alacrity: false,
         cooldown_ready_secs: 0.0,
@@ -1325,6 +1326,29 @@ fn EffectEditForm(
                                                 onchange: move |e| {
                                                     let mut d = draft();
                                                     d.show_single_stack = e.checked();
+                                                    draft.set(d);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Show Countdown - only for Effects A/B overlays
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC)) {
+                                        div { class: "form-row-hz",
+                                            label { class: "flex items-center",
+                                                "Show countdown"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Show the remaining-time text on this effect's icon. Uncheck to hide the countdown for just this effect. The overlay's own 'Show countdown' setting must also be on.",
+                                                    "?"
+                                                }
+                                            }
+                                            input {
+                                                r#type: "checkbox",
+                                                checked: draft().show_countdown,
+                                                onchange: move |e| {
+                                                    let mut d = draft();
+                                                    d.show_countdown = e.checked();
                                                     draft.set(d);
                                                 }
                                             }

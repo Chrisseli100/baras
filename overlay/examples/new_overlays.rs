@@ -285,6 +285,7 @@ fn make_effect(
         max_remaining_secs: None,
         inactive: false,
         stack_priority: false,
+        show_countdown: true,
     }
 }
 

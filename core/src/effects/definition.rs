@@ -194,6 +194,14 @@ pub struct EffectDefinition {
     #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub stack_priority: bool,
 
+    /// Show the countdown text for this effect on Effects A/B. Only applies
+    /// while the overlay's own show_countdown setting is also on.
+    #[serde(
+        default = "crate::serde_defaults::default_true",
+        skip_serializing_if = "crate::serde_defaults::is_true"
+    )]
+    pub show_countdown: bool,
+
     /// Always display a stack count for this effect, floored at 1: an active
     /// non-stacking (or single-stack) instance shows "1", real counts show
     /// through as they climb. Applies to Effects A/B and raid frames (which

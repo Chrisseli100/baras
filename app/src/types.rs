@@ -967,6 +967,9 @@ pub struct EffectListItem {
     /// Emphasize stacks for this effect (ORed with overlay setting)
     #[serde(default)]
     pub stack_priority: bool,
+    /// Show countdown text for this effect (ANDed with overlay setting)
+    #[serde(default = "crate::utils::default_true")]
+    pub show_countdown: bool,
     /// Always show a stack count, floored at 1
     #[serde(default)]
     pub show_single_stack: bool,

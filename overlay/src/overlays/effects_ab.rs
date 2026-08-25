@@ -63,6 +63,8 @@ pub struct EffectABEntry {
     pub inactive: bool,
     /// Per-effect stack emphasis (ORed with the overlay's stack_priority config)
     pub stack_priority: bool,
+    /// Per-effect countdown visibility (ANDed with the overlay's show_countdown config)
+    pub show_countdown: bool,
 }
 
 impl EffectABEntry {
@@ -776,7 +778,7 @@ impl EffectsABOverlay {
                 .with_gradient(self.config.bar_gradient)
                 .with_text_glow();
 
-            if self.config.show_countdown && effect.total_secs > 0.0 {
+            if self.config.show_countdown && effect.show_countdown && effect.total_secs > 0.0 {
                 let mut right = effect.format_time(self.european_number_format);
                 if let Some(budget) = effect.format_budget() {
                     right.push_str(&format!(" ({budget})"));
@@ -950,7 +952,7 @@ impl EffectsABOverlay {
         );
 
         // Timer small in top-right corner
-        if self.config.show_countdown && effect.total_secs > 0.0 {
+        if self.config.show_countdown && effect.show_countdown && effect.total_secs > 0.0 {
             let time_text = effect.format_time(self.european_number_format);
             let time_font_size = font_size * 0.9;
             let time_x =
@@ -984,7 +986,7 @@ impl EffectsABOverlay {
         icon_size: f32,
         font_size: f32,
     ) {
-        if self.config.show_countdown && effect.total_secs > 0.0 {
+        if self.config.show_countdown && effect.show_countdown && effect.total_secs > 0.0 {
             let time_text = effect.format_time(self.european_number_format);
             let text_width = self.frame.measure_text(&time_text, font_size).0;
             let text_x = x + (icon_size - text_width) / 2.0;

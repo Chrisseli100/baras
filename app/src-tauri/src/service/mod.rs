@@ -4295,6 +4295,7 @@ fn active_to_ab_entry(
         max_remaining_secs,
         inactive: false,
         stack_priority: def.is_some_and(|d| d.stack_priority),
+        show_countdown: def.is_none_or(|d| d.show_countdown),
     })
 }
 
@@ -4355,6 +4356,7 @@ async fn build_effects_ab_data(
                     max_remaining_secs: None,
                     inactive: true,
                     stack_priority: def.stack_priority,
+                    show_countdown: def.show_countdown,
                 }
             });
         entries.push(entry);

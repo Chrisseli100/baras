@@ -48,6 +48,7 @@ fn make_effect(
         display_source: false,
         track_uptime: false,
         stack_priority: false,
+        show_countdown: true,
         show_single_stack: false,
         disciplines: vec![],
         source_disciplines: vec![],
