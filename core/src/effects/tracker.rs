@@ -779,6 +779,13 @@ impl EffectTracker {
             .filter(|e| e.display_targets.contains(&DisplayTarget::EffectsB) && e.removed_at.is_none() && !e.timer_expired)
     }
 
+    /// Get effects destined for Effects C overlay
+    pub fn effects_c(&self) -> impl Iterator<Item = &ActiveEffect> {
+        self.active_effects
+            .values()
+            .filter(|e| e.display_targets.contains(&DisplayTarget::EffectsC) && e.removed_at.is_none() && !e.timer_expired)
+    }
+
     /// Definitions flagged for uptime tracking on the given overlay target.
     /// Fail-closed: empty until the local player's discipline is known, so
     /// placeholders never show for the wrong class before detection.
@@ -845,6 +852,13 @@ impl EffectTracker {
         self.active_effects
             .values()
             .filter(|e| e.display_targets.contains(&DisplayTarget::Cooldowns) && e.removed_at.is_none() && !e.timer_expired)
+    }
+
+    /// Get effects destined for cooldown tracker B
+    pub fn cooldown_b_effects(&self) -> impl Iterator<Item = &ActiveEffect> {
+        self.active_effects
+            .values()
+            .filter(|e| e.display_targets.contains(&DisplayTarget::CooldownsB) && e.removed_at.is_none() && !e.timer_expired)
     }
 
     /// Get effects destined for DOT tracker, grouped by target entity
@@ -2136,7 +2150,8 @@ impl EffectTracker {
             if def.is_effect_applied_trigger() {
                 // Mark existing effect as removed (normal behavior)
                 // Skip if ignore_effect_removed OR cooldowns (cooldowns always use timer-based expiry)
-                let is_cooldown = def.display_targets.contains(&DisplayTarget::Cooldowns);
+                let is_cooldown = def.display_targets.contains(&DisplayTarget::Cooldowns)
+                    || def.display_targets.contains(&DisplayTarget::CooldownsB);
                 if !def.ignore_effect_removed
                     && !is_cooldown
                     && let Some(effect) = self.active_effects.get_mut(&key)

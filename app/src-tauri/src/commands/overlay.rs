@@ -35,8 +35,12 @@ pub struct OverlayStatusResponse {
     pub effects_a_enabled: bool,
     pub effects_b_running: bool,
     pub effects_b_enabled: bool,
+    pub effects_c_running: bool,
+    pub effects_c_enabled: bool,
     pub cooldowns_running: bool,
     pub cooldowns_enabled: bool,
+    pub cooldowns_b_running: bool,
+    pub cooldowns_b_enabled: bool,
     pub dot_tracker_running: bool,
     pub dot_tracker_enabled: bool,
     pub notes_running: bool,
@@ -195,7 +199,9 @@ pub async fn get_overlay_status(
         alerts_running,
         effects_a_running,
         effects_b_running,
+        effects_c_running,
         cooldowns_running,
+        cooldowns_b_running,
         dot_tracker_running,
         notes_running,
         combat_time_running,
@@ -217,7 +223,9 @@ pub async fn get_overlay_status(
             s.is_running(OverlayType::Alerts),
             s.is_running(OverlayType::EffectsA),
             s.is_running(OverlayType::EffectsB),
+            s.is_running(OverlayType::EffectsC),
             s.is_running(OverlayType::Cooldowns),
+            s.is_running(OverlayType::CooldownsB),
             s.is_running(OverlayType::DotTracker),
             s.is_running(OverlayType::Notes),
             s.is_combat_time_running(),
@@ -246,7 +254,9 @@ pub async fn get_overlay_status(
     let alerts_enabled = config.overlay_settings.is_enabled("alerts");
     let effects_a_enabled = config.overlay_settings.is_enabled("effects_a");
     let effects_b_enabled = config.overlay_settings.is_enabled("effects_b");
+    let effects_c_enabled = config.overlay_settings.is_enabled("effects_c");
     let cooldowns_enabled = config.overlay_settings.is_enabled("cooldowns");
+    let cooldowns_b_enabled = config.overlay_settings.is_enabled("cooldowns_b");
     let dot_tracker_enabled = config.overlay_settings.is_enabled("dot_tracker");
     let notes_enabled = config.overlay_settings.is_enabled("notes");
     let combat_time_enabled = config.overlay_settings.is_enabled("combat_time");
@@ -275,8 +285,12 @@ pub async fn get_overlay_status(
         effects_a_enabled,
         effects_b_running,
         effects_b_enabled,
+        effects_c_running,
+        effects_c_enabled,
         cooldowns_running,
         cooldowns_enabled,
+        cooldowns_b_running,
+        cooldowns_b_enabled,
         dot_tracker_running,
         dot_tracker_enabled,
         notes_running,

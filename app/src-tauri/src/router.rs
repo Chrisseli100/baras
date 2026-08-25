@@ -652,6 +652,23 @@ async fn process_overlay_update(
                     .await;
             }
         }
+        OverlayUpdate::EffectsCUpdated(effects_data) => {
+            let tx = {
+                let state = match overlay_state.lock() {
+                    Ok(s) => s,
+                    Err(_) => return,
+                };
+                state.get_tx(OverlayType::EffectsC).cloned()
+            };
+
+            if let Some(tx) = tx {
+                let _ = tx
+                    .send(OverlayCommand::UpdateData(OverlayData::EffectsC(
+                        effects_data,
+                    )))
+                    .await;
+            }
+        }
         OverlayUpdate::CooldownsUpdated(cooldowns_data) => {
             let tx = {
                 let state = match overlay_state.lock() {
@@ -664,6 +681,23 @@ async fn process_overlay_update(
             if let Some(tx) = tx {
                 let _ = tx
                     .send(OverlayCommand::UpdateData(OverlayData::Cooldowns(
+                        cooldowns_data,
+                    )))
+                    .await;
+            }
+        }
+        OverlayUpdate::CooldownsBUpdated(cooldowns_data) => {
+            let tx = {
+                let state = match overlay_state.lock() {
+                    Ok(s) => s,
+                    Err(_) => return,
+                };
+                state.get_tx(OverlayType::CooldownsB).cloned()
+            };
+
+            if let Some(tx) = tx {
+                let _ = tx
+                    .send(OverlayCommand::UpdateData(OverlayData::CooldownsB(
                         cooldowns_data,
                     )))
                     .await;
@@ -874,9 +908,19 @@ async fn process_overlay_update(
                     channels.push((tx.clone(), OverlayData::EffectsB(Default::default())));
                 }
 
+                // Effects C overlay
+                if let Some(tx) = state.get_tx(OverlayType::EffectsC) {
+                    channels.push((tx.clone(), OverlayData::EffectsC(Default::default())));
+                }
+
                 // Cooldowns overlay
                 if let Some(tx) = state.get_cooldowns_tx() {
                     channels.push((tx.clone(), OverlayData::Cooldowns(Default::default())));
+                }
+
+                // Cooldowns B overlay
+                if let Some(tx) = state.get_tx(OverlayType::CooldownsB) {
+                    channels.push((tx.clone(), OverlayData::CooldownsB(Default::default())));
                 }
 
                 // DOT tracker overlay

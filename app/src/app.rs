@@ -63,7 +63,9 @@ pub fn App() -> Element {
     let mut alerts_enabled = use_signal(|| false);
     let mut effects_a_enabled = use_signal(|| false);
     let mut effects_b_enabled = use_signal(|| false);
+    let mut effects_c_enabled = use_signal(|| false);
     let mut cooldowns_enabled = use_signal(|| false);
+    let mut cooldowns_b_enabled = use_signal(|| false);
     let mut dot_tracker_enabled = use_signal(|| false);
     let mut enemy_frames_enabled = use_signal(|| false);
     let mut notes_enabled = use_signal(|| false);
@@ -255,7 +257,9 @@ pub fn App() -> Element {
                 &mut alerts_enabled,
                 &mut effects_a_enabled,
                 &mut effects_b_enabled,
+                &mut effects_c_enabled,
                 &mut cooldowns_enabled,
+                &mut cooldowns_b_enabled,
                 &mut dot_tracker_enabled,
                 &mut notes_enabled,
                 &mut combat_time_enabled,
@@ -352,8 +356,8 @@ pub fn App() -> Element {
                     apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
                         &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
                         &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
-                        &mut effects_a_enabled, &mut effects_b_enabled,
-                        &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
+                        &mut effects_a_enabled, &mut effects_b_enabled, &mut effects_c_enabled,
+                        &mut cooldowns_enabled, &mut cooldowns_b_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
                         &mut combat_time_enabled, &mut operation_timer_enabled,
                         &mut ability_queue_enabled, &mut enemy_frames_enabled,
                         &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
@@ -584,7 +588,9 @@ pub fn App() -> Element {
     let alerts_on = alerts_enabled();
     let effects_a_on = effects_a_enabled();
     let effects_b_on = effects_b_enabled();
+    let effects_c_on = effects_c_enabled();
     let cooldowns_on = cooldowns_enabled();
+    let cooldowns_b_on = cooldowns_b_enabled();
     let dot_tracker_on = dot_tracker_enabled();
     let notes_on = notes_enabled();
     let combat_time_on = combat_time_enabled();
@@ -601,7 +607,9 @@ pub fn App() -> Element {
         || alerts_on
         || effects_a_on
         || effects_b_on
+        || effects_c_on
         || cooldowns_on
+        || cooldowns_b_on
         || dot_tracker_on
         || notes_on
         || combat_time_on
@@ -884,8 +892,8 @@ pub fn App() -> Element {
                                             apply_status(&status, &mut metric_overlays_enabled, &mut personal_enabled,
                                                 &mut raid_enabled, &mut boss_health_enabled, &mut timers_enabled,
                                                 &mut timers_b_enabled, &mut challenges_enabled, &mut alerts_enabled,
-                                                &mut effects_a_enabled, &mut effects_b_enabled,
-                                                &mut cooldowns_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
+                                                &mut effects_a_enabled, &mut effects_b_enabled, &mut effects_c_enabled,
+                                                &mut cooldowns_enabled, &mut cooldowns_b_enabled, &mut dot_tracker_enabled, &mut notes_enabled,
                                                 &mut combat_time_enabled, &mut operation_timer_enabled,
                                                 &mut ability_queue_enabled, &mut enemy_frames_enabled,
                                                 &mut overlays_visible, &mut move_mode, &mut rearrange_mode, &mut auto_hidden);
@@ -1635,6 +1643,18 @@ pub fn App() -> Element {
                                         "Effects B"
                                     }
                                     button {
+                                        class: if effects_c_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
+                                        title: "Displays tracked buffs and effects (Group C)",
+                                        onclick: move |_| { spawn(async move {
+                                            if api::toggle_overlay(OverlayType::EffectsC, effects_c_on).await {
+                                                effects_c_enabled.set(!effects_c_on);
+                                                profile_dirty.set(true);
+                                            }
+                                        }); },
+                                        i { class: "fa-solid fa-bolt overlay-btn-icon" }
+                                        "Effects C"
+                                    }
+                                    button {
                                         class: if cooldowns_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
                                         title: "Tracks ability cooldowns",
                                         onclick: move |_| { spawn(async move {
@@ -1645,6 +1665,18 @@ pub fn App() -> Element {
                                         }); },
                                         i { class: "fa-solid fa-rotate overlay-btn-icon" }
                                         "Cooldowns"
+                                    }
+                                    button {
+                                        class: if cooldowns_b_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
+                                        title: "Tracks ability cooldowns (Group B)",
+                                        onclick: move |_| { spawn(async move {
+                                            if api::toggle_overlay(OverlayType::CooldownsB, cooldowns_b_on).await {
+                                                cooldowns_b_enabled.set(!cooldowns_b_on);
+                                                profile_dirty.set(true);
+                                            }
+                                        }); },
+                                        i { class: "fa-solid fa-rotate overlay-btn-icon" }
+                                        "Cooldowns B"
                                     }
                                     button {
                                         class: if dot_tracker_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
@@ -2921,7 +2953,9 @@ fn apply_status(
     alerts_enabled: &mut Signal<bool>,
     effects_a_enabled: &mut Signal<bool>,
     effects_b_enabled: &mut Signal<bool>,
+    effects_c_enabled: &mut Signal<bool>,
     cooldowns_enabled: &mut Signal<bool>,
+    cooldowns_b_enabled: &mut Signal<bool>,
     dot_tracker_enabled: &mut Signal<bool>,
     notes_enabled: &mut Signal<bool>,
     combat_time_enabled: &mut Signal<bool>,
@@ -2947,7 +2981,9 @@ fn apply_status(
     alerts_enabled.set(status.alerts_enabled);
     effects_a_enabled.set(status.effects_a_enabled);
     effects_b_enabled.set(status.effects_b_enabled);
+    effects_c_enabled.set(status.effects_c_enabled);
     cooldowns_enabled.set(status.cooldowns_enabled);
+    cooldowns_b_enabled.set(status.cooldowns_b_enabled);
     dot_tracker_enabled.set(status.dot_tracker_enabled);
     notes_enabled.set(status.notes_enabled);
     combat_time_enabled.set(status.combat_time_enabled);

@@ -72,7 +72,7 @@ use baras_types::{
     AbilityQueueOverlayConfig as TypesAbilityQueueConfig, ClassIconMode,
     CombatTimeOverlayConfig as TypesCombatTimeConfig, CooldownTrackerConfig,
     DotTrackerConfig as TypesDotTrackerConfig, EffectsAConfig as TypesEffectsAConfig,
-    EffectsBConfig as TypesEffectsBConfig, NotesOverlayConfig as TypesNotesOverlayConfig,
+    NotesOverlayConfig as TypesNotesOverlayConfig,
     OperationTimerOverlayConfig as TypesOperationTimerConfig,
 };
 
@@ -803,54 +803,78 @@ pub fn create_alerts_overlay(
     })
 }
 
-/// Create and spawn the Effects A overlay
-pub fn create_effects_a_overlay(
+/// Convert the shared types effects config to the overlay-crate config
+pub fn effects_ab_config(cfg: &TypesEffectsAConfig, title: &str) -> EffectsABConfig {
+    use baras_overlay::EffectsLayout;
+
+    EffectsABConfig {
+        icon_size: cfg.icon_size,
+        max_display: cfg.max_display,
+        layout: if cfg.layout_bar {
+            EffectsLayout::Bar
+        } else if cfg.layout_vertical {
+            EffectsLayout::Vertical
+        } else {
+            EffectsLayout::Horizontal
+        },
+        show_effect_names: cfg.show_effect_names,
+        show_countdown: cfg.show_countdown,
+        stack_priority: cfg.stack_priority,
+        show_header: cfg.show_header,
+        header_title: title.to_string(),
+        font_scale: cfg.font_scale,
+        dynamic_background: cfg.dynamic_background,
+        stack_from_bottom: cfg.stack_from_bottom,
+        show_border: cfg.show_border,
+        border_color: cfg.border_color,
+        bar_gradient: cfg.bar_gradient,
+    }
+}
+
+/// Convert the shared types cooldown config to the overlay-crate config
+pub fn cooldown_config(cfg: &CooldownTrackerConfig) -> CooldownConfig {
+    CooldownConfig {
+        icon_size: cfg.icon_size,
+        max_display: cfg.max_display,
+        show_ability_names: cfg.show_ability_names,
+        sort_by_remaining: cfg.sort_by_remaining,
+        show_source_name: cfg.show_source_name,
+        show_target_name: cfg.show_target_name,
+        show_header: cfg.show_header,
+        font_scale: cfg.font_scale,
+        dynamic_background: cfg.dynamic_background,
+        layout_bar: cfg.layout_bar,
+        stack_from_bottom: cfg.stack_from_bottom,
+        show_border: cfg.show_border,
+        border_color: cfg.border_color,
+        bar_gradient: cfg.bar_gradient,
+    }
+}
+
+/// Create and spawn an Effects A/B/C overlay
+pub fn create_effects_overlay(
+    kind: OverlayType,
+    title: &'static str,
     position: OverlayPositionConfig,
     effects_config: TypesEffectsAConfig,
     background_alpha: u8,
 ) -> Result<OverlayHandle, String> {
-    use baras_overlay::EffectsLayout;
-
     let config = OverlayConfig {
         x: position.x,
         y: position.y,
         width: position.width,
         height: position.height,
-        namespace: "baras-effects-a".to_string(),
+        namespace: kind.namespace(),
         snap_to_grid: true,
         click_through: true,
         target_monitor_id: position.monitor_id.clone(),
     };
 
-    let kind = OverlayType::EffectsA;
-
-    // Convert types config to overlay config
-    let overlay_config = EffectsABConfig {
-        icon_size: effects_config.icon_size,
-        max_display: effects_config.max_display,
-        layout: if effects_config.layout_bar {
-            EffectsLayout::Bar
-        } else if effects_config.layout_vertical {
-            EffectsLayout::Vertical
-        } else {
-            EffectsLayout::Horizontal
-        },
-        show_effect_names: effects_config.show_effect_names,
-        show_countdown: effects_config.show_countdown,
-        stack_priority: effects_config.stack_priority,
-        show_header: effects_config.show_header,
-        header_title: "Effects A".to_string(),
-        font_scale: effects_config.font_scale,
-        dynamic_background: effects_config.dynamic_background,
-        stack_from_bottom: effects_config.stack_from_bottom,
-        show_border: effects_config.show_border,
-        border_color: effects_config.border_color,
-        bar_gradient: effects_config.bar_gradient,
-    };
+    let overlay_config = effects_ab_config(&effects_config, title);
 
     let factory = move || {
-        EffectsABOverlay::new(config, overlay_config, background_alpha, "Effects A")
-            .map_err(|e| format!("Failed to create Effects A overlay: {}", e))
+        EffectsABOverlay::new(config, overlay_config, background_alpha, title)
+            .map_err(|e| format!("Failed to create {} overlay: {}", title, e))
     };
 
     let (tx, handle) = spawn_overlay_with_factory(factory, kind, None)?;
@@ -863,68 +887,9 @@ pub fn create_effects_a_overlay(
     })
 }
 
-/// Create and spawn the Effects B overlay
-pub fn create_effects_b_overlay(
-    position: OverlayPositionConfig,
-    effects_config: TypesEffectsBConfig,
-    background_alpha: u8,
-) -> Result<OverlayHandle, String> {
-    use baras_overlay::EffectsLayout;
-
-    let config = OverlayConfig {
-        x: position.x,
-        y: position.y,
-        width: position.width,
-        height: position.height,
-        namespace: "baras-effects-b".to_string(),
-        snap_to_grid: true,
-        click_through: true,
-        target_monitor_id: position.monitor_id.clone(),
-    };
-
-    let kind = OverlayType::EffectsB;
-
-    // Convert types config to overlay config
-    let overlay_config = EffectsABConfig {
-        icon_size: effects_config.icon_size,
-        max_display: effects_config.max_display,
-        layout: if effects_config.layout_bar {
-            EffectsLayout::Bar
-        } else if effects_config.layout_vertical {
-            EffectsLayout::Vertical
-        } else {
-            EffectsLayout::Horizontal
-        },
-        show_effect_names: effects_config.show_effect_names,
-        show_countdown: effects_config.show_countdown,
-        stack_priority: effects_config.stack_priority,
-        show_header: effects_config.show_header,
-        header_title: "Effects B".to_string(),
-        font_scale: effects_config.font_scale,
-        dynamic_background: effects_config.dynamic_background,
-        stack_from_bottom: effects_config.stack_from_bottom,
-        show_border: effects_config.show_border,
-        border_color: effects_config.border_color,
-        bar_gradient: effects_config.bar_gradient,
-    };
-
-    let factory = move || {
-        EffectsABOverlay::new(config, overlay_config, background_alpha, "Effects B")
-            .map_err(|e| format!("Failed to create Effects B overlay: {}", e))
-    };
-
-    let (tx, handle) = spawn_overlay_with_factory(factory, kind, None)?;
-
-    Ok(OverlayHandle {
-        tx,
-        handle,
-        kind,
-        registry_action_rx: None,
-    })
-}
-
-/// Create and spawn the cooldowns tracker overlay
+/// Create and spawn a cooldowns tracker overlay (A or B)
 pub fn create_cooldowns_overlay(
+    kind: OverlayType,
     position: OverlayPositionConfig,
     cooldowns_config: CooldownTrackerConfig,
     background_alpha: u8,
@@ -934,31 +899,13 @@ pub fn create_cooldowns_overlay(
         y: position.y,
         width: position.width,
         height: position.height,
-        namespace: "baras-cooldowns".to_string(),
+        namespace: kind.namespace(),
         snap_to_grid: true,
         click_through: true,
         target_monitor_id: position.monitor_id.clone(),
     };
 
-    let kind = OverlayType::Cooldowns;
-
-    // Convert types config to overlay config
-    let overlay_config = CooldownConfig {
-        icon_size: cooldowns_config.icon_size,
-        max_display: cooldowns_config.max_display,
-        show_ability_names: cooldowns_config.show_ability_names,
-        sort_by_remaining: cooldowns_config.sort_by_remaining,
-        show_source_name: cooldowns_config.show_source_name,
-        show_target_name: cooldowns_config.show_target_name,
-        show_header: cooldowns_config.show_header,
-        font_scale: cooldowns_config.font_scale,
-        dynamic_background: cooldowns_config.dynamic_background,
-        layout_bar: cooldowns_config.layout_bar,
-        stack_from_bottom: cooldowns_config.stack_from_bottom,
-        show_border: cooldowns_config.show_border,
-        border_color: cooldowns_config.border_color,
-        bar_gradient: cooldowns_config.bar_gradient,
-    };
+    let overlay_config = cooldown_config(&cooldowns_config);
 
     let factory = move || {
         CooldownOverlay::new(config, overlay_config, background_alpha)

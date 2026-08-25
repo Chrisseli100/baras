@@ -5,20 +5,20 @@
 
 use baras_core::context::{OverlayPositionConfig, OverlaySettings};
 use baras_overlay::{
-    platform, CooldownConfig, DotTrackerConfig, EffectsABConfig, EffectsLayout, NotesConfig,
+    platform, DotTrackerConfig, NotesConfig,
     OverlayConfigUpdate, OverlayData, RaidGridLayout, RaidOverlayConfig,
 };
 use std::time::Duration;
 
 use super::metrics::create_entries_for_type;
 use super::spawn::{
-    create_ability_queue_overlay, create_alerts_overlay, create_boss_health_overlay,
-    create_challenges_overlay, create_combat_time_overlay, create_cooldowns_overlay,
-    create_dot_tracker_overlay, create_effects_a_overlay, create_effects_b_overlay,
+    cooldown_config, create_ability_queue_overlay, create_alerts_overlay,
+    create_boss_health_overlay, create_challenges_overlay, create_combat_time_overlay,
+    create_cooldowns_overlay, create_dot_tracker_overlay, create_effects_overlay,
     create_enemy_frames_overlay,
     create_metric_overlay, create_notes_overlay, create_operation_timer_overlay,
     create_personal_overlay, create_raid_overlay, create_timers_a_overlay,
-    create_timers_b_overlay,
+    create_timers_b_overlay, effects_ab_config,
 };
 use super::state::{OverlayCommand, OverlayHandle, PositionEvent};
 use super::types::{MetricType, OverlayType};
@@ -95,18 +95,32 @@ impl OverlayManager {
             }
             OverlayType::EffectsA => {
                 let buffs_config = settings.effects_a.clone();
-                create_effects_a_overlay(position, buffs_config, settings.effects_a_opacity)?
+                create_effects_overlay(kind, "Effects A", position, buffs_config, settings.effects_a_opacity)?
             }
             OverlayType::EffectsB => {
                 let debuffs_config = settings.effects_b.clone();
-                create_effects_b_overlay(position, debuffs_config, settings.effects_b_opacity)?
+                create_effects_overlay(kind, "Effects B", position, debuffs_config, settings.effects_b_opacity)?
+            }
+            OverlayType::EffectsC => {
+                let effects_config = settings.effects_c.clone();
+                create_effects_overlay(kind, "Effects C", position, effects_config, settings.effects_c_opacity)?
             }
             OverlayType::Cooldowns => {
                 let cooldowns_config = settings.cooldown_tracker.clone();
                 create_cooldowns_overlay(
+                    kind,
                     position,
                     cooldowns_config,
                     settings.cooldown_tracker_opacity,
+                )?
+            }
+            OverlayType::CooldownsB => {
+                let cooldowns_config = settings.cooldown_tracker_b.clone();
+                create_cooldowns_overlay(
+                    kind,
+                    position,
+                    cooldowns_config,
+                    settings.cooldown_tracker_b_opacity,
                 )?
             }
             OverlayType::DotTracker => {
@@ -274,7 +288,9 @@ impl OverlayManager {
             | OverlayType::Alerts
             | OverlayType::EffectsA
             | OverlayType::EffectsB
+            | OverlayType::EffectsC
             | OverlayType::Cooldowns
+            | OverlayType::CooldownsB
             | OverlayType::DotTracker
             | OverlayType::Notes
             | OverlayType::AbilityQueue => {
@@ -422,78 +438,24 @@ impl OverlayManager {
                 OverlayConfigUpdate::Alerts(alerts_config, settings.alerts_opacity, eu)
             }
             OverlayType::EffectsA => {
-                let cfg = &settings.effects_a;
-                let layout = if cfg.layout_bar {
-                    EffectsLayout::Bar
-                } else if cfg.layout_vertical {
-                    EffectsLayout::Vertical
-                } else {
-                    EffectsLayout::Horizontal
-                };
-                let buffs_config = EffectsABConfig {
-                    icon_size: cfg.icon_size,
-                    max_display: cfg.max_display,
-                    layout,
-                    show_effect_names: cfg.show_effect_names,
-                    show_countdown: cfg.show_countdown,
-                    stack_priority: cfg.stack_priority,
-                    show_header: cfg.show_header,
-                    header_title: "Effects A".to_string(),
-                    font_scale: cfg.font_scale,
-                    dynamic_background: cfg.dynamic_background,
-                    stack_from_bottom: cfg.stack_from_bottom,
-                    show_border: cfg.show_border,
-                    border_color: cfg.border_color,
-                    bar_gradient: cfg.bar_gradient,
-                };
-                OverlayConfigUpdate::EffectsA(buffs_config, settings.effects_a_opacity, eu)
+                let cfg = effects_ab_config(&settings.effects_a, "Effects A");
+                OverlayConfigUpdate::EffectsA(cfg, settings.effects_a_opacity, eu)
             }
             OverlayType::EffectsB => {
-                let cfg = &settings.effects_b;
-                let layout = if cfg.layout_bar {
-                    EffectsLayout::Bar
-                } else if cfg.layout_vertical {
-                    EffectsLayout::Vertical
-                } else {
-                    EffectsLayout::Horizontal
-                };
-                let debuffs_config = EffectsABConfig {
-                    icon_size: cfg.icon_size,
-                    max_display: cfg.max_display,
-                    layout,
-                    show_effect_names: cfg.show_effect_names,
-                    show_countdown: cfg.show_countdown,
-                    stack_priority: cfg.stack_priority,
-                    show_header: cfg.show_header,
-                    header_title: "Effects B".to_string(),
-                    font_scale: cfg.font_scale,
-                    dynamic_background: cfg.dynamic_background,
-                    stack_from_bottom: cfg.stack_from_bottom,
-                    show_border: cfg.show_border,
-                    border_color: cfg.border_color,
-                    bar_gradient: cfg.bar_gradient,
-                };
-                OverlayConfigUpdate::EffectsB(debuffs_config, settings.effects_b_opacity, eu)
+                let cfg = effects_ab_config(&settings.effects_b, "Effects B");
+                OverlayConfigUpdate::EffectsB(cfg, settings.effects_b_opacity, eu)
+            }
+            OverlayType::EffectsC => {
+                let cfg = effects_ab_config(&settings.effects_c, "Effects C");
+                OverlayConfigUpdate::EffectsC(cfg, settings.effects_c_opacity, eu)
             }
             OverlayType::Cooldowns => {
-                let cfg = &settings.cooldown_tracker;
-                let cooldowns_config = CooldownConfig {
-                    icon_size: cfg.icon_size,
-                    max_display: cfg.max_display,
-                    show_ability_names: cfg.show_ability_names,
-                    sort_by_remaining: cfg.sort_by_remaining,
-                    show_source_name: cfg.show_source_name,
-                    show_target_name: cfg.show_target_name,
-                    show_header: cfg.show_header,
-                    font_scale: cfg.font_scale,
-                    dynamic_background: cfg.dynamic_background,
-                    layout_bar: cfg.layout_bar,
-                    stack_from_bottom: cfg.stack_from_bottom,
-                    show_border: cfg.show_border,
-                    border_color: cfg.border_color,
-                    bar_gradient: cfg.bar_gradient,
-                };
-                OverlayConfigUpdate::Cooldowns(cooldowns_config, settings.cooldown_tracker_opacity, eu)
+                let cfg = cooldown_config(&settings.cooldown_tracker);
+                OverlayConfigUpdate::Cooldowns(cfg, settings.cooldown_tracker_opacity, eu)
+            }
+            OverlayType::CooldownsB => {
+                let cfg = cooldown_config(&settings.cooldown_tracker_b);
+                OverlayConfigUpdate::CooldownsB(cfg, settings.cooldown_tracker_b_opacity, eu)
             }
             OverlayType::DotTracker => {
                 let cfg = &settings.dot_tracker;
@@ -736,7 +698,9 @@ impl OverlayManager {
                 "alerts" => OverlayType::Alerts,
                 "effects_a" => OverlayType::EffectsA,
                 "effects_b" => OverlayType::EffectsB,
+                "effects_c" => OverlayType::EffectsC,
                 "cooldowns" => OverlayType::Cooldowns,
+                "cooldowns_b" => OverlayType::CooldownsB,
                 "dot_tracker" => OverlayType::DotTracker,
                 "notes" => OverlayType::Notes,
                 "combat_time" => OverlayType::CombatTime,
@@ -897,7 +861,9 @@ impl OverlayManager {
                 "alerts" => OverlayType::Alerts,
                 "effects_a" => OverlayType::EffectsA,
                 "effects_b" => OverlayType::EffectsB,
+                "effects_c" => OverlayType::EffectsC,
                 "cooldowns" => OverlayType::Cooldowns,
+                "cooldowns_b" => OverlayType::CooldownsB,
                 "dot_tracker" => OverlayType::DotTracker,
                 "notes" => OverlayType::Notes,
                 "combat_time" => OverlayType::CombatTime,
@@ -1235,7 +1201,9 @@ impl OverlayManager {
         service.set_overlay_active("timers", false);
         service.set_overlay_active("effects_a", false);
         service.set_overlay_active("effects_b", false);
+        service.set_overlay_active("effects_c", false);
         service.set_overlay_active("cooldowns", false);
+        service.set_overlay_active("cooldowns_b", false);
         service.set_overlay_active("dot_tracker", false);
     }
 
@@ -1251,7 +1219,9 @@ impl OverlayManager {
             OverlayType::Alerts,
             OverlayType::EffectsA,
             OverlayType::EffectsB,
+            OverlayType::EffectsC,
             OverlayType::Cooldowns,
+            OverlayType::CooldownsB,
             OverlayType::DotTracker,
             OverlayType::Notes,
             OverlayType::CombatTime,

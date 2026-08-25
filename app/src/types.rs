@@ -131,8 +131,16 @@ pub struct OverlayStatus {
     pub effects_a_enabled: bool,
     pub effects_b_running: bool,
     pub effects_b_enabled: bool,
+    #[serde(default)]
+    pub effects_c_running: bool,
+    #[serde(default)]
+    pub effects_c_enabled: bool,
     pub cooldowns_running: bool,
     pub cooldowns_enabled: bool,
+    #[serde(default)]
+    pub cooldowns_b_running: bool,
+    #[serde(default)]
+    pub cooldowns_b_enabled: bool,
     pub dot_tracker_running: bool,
     pub dot_tracker_enabled: bool,
     pub notes_running: bool,
@@ -324,7 +332,9 @@ pub enum OverlayType {
     Alerts,
     EffectsA,
     EffectsB,
+    EffectsC,
     Cooldowns,
+    CooldownsB,
     DotTracker,
     Notes,
     CombatTime,
@@ -830,7 +840,9 @@ pub enum DisplayTarget {
     EffectsA,
     #[serde(alias = "personal_debuffs")]
     EffectsB,
+    EffectsC,
     Cooldowns,
+    CooldownsB,
     DotTracker,
     BossHealth,
     EffectsOverlay,
@@ -843,7 +855,9 @@ impl DisplayTarget {
             Self::RaidFrames => "Raid Frames",
             Self::EffectsA => "Effects A",
             Self::EffectsB => "Effects B",
+            Self::EffectsC => "Effects C",
             Self::Cooldowns => "Cooldowns",
+            Self::CooldownsB => "Cooldowns B",
             Self::DotTracker => "DOT Tracker",
             Self::BossHealth => "Boss HP Bar",
             Self::EffectsOverlay => "Effects Overlay",
@@ -856,7 +870,9 @@ impl DisplayTarget {
             Self::RaidFrames,
             Self::EffectsA,
             Self::EffectsB,
+            Self::EffectsC,
             Self::Cooldowns,
+            Self::CooldownsB,
             Self::DotTracker,
             Self::BossHealth,
         ]

@@ -1284,7 +1284,7 @@ fn EffectEditForm(
                                     }
 
                                     // Display Source - only for personal overlays
-                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::Cooldowns)) {
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC | DisplayTarget::Cooldowns | DisplayTarget::CooldownsB)) {
                                         div { class: "form-row-hz",
                                             label { class: "flex items-center",
                                                 "Display Source"
@@ -1307,7 +1307,7 @@ fn EffectEditForm(
                                     }
 
                                     // Show Stack Count at 1 - Effects A/B and raid frames
-                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::RaidFrames)) {
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC | DisplayTarget::RaidFrames)) {
                                         div { class: "form-row-hz",
                                             label { class: "flex items-center",
                                                 "Show stack count at 1"
@@ -1330,7 +1330,7 @@ fn EffectEditForm(
                                     }
 
                                     // Emphasize Stacks - only for Effects A/B overlays
-                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB)) {
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC)) {
                                         div { class: "form-row-hz",
                                             label { class: "flex items-center",
                                                 "Emphasize Stacks"
@@ -1353,7 +1353,7 @@ fn EffectEditForm(
                                     }
 
                                     // Track Uptime - only for Effects A/B overlays
-                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB)) {
+                                    if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC)) {
                                         div { class: "form-row-hz",
                                             label { class: "flex items-center",
                                                 "Show when absent"
@@ -1890,7 +1890,7 @@ fn EffectEditForm(
                                 }
 
                                 // Fixed Duration - hide for Cooldowns (they always ignore effect removed)
-                                if !draft().display_targets.contains(&DisplayTarget::Cooldowns) {
+                                if !draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::Cooldowns | DisplayTarget::CooldownsB)) {
                                     label { class: "flex items-center gap-xs text-sm",
                                         input {
                                             r#type: "checkbox",
@@ -1913,7 +1913,7 @@ fn EffectEditForm(
                                 }
 
                                 // Cooldown Ready Secs (only for Cooldowns display target)
-                                if draft().display_targets.contains(&DisplayTarget::Cooldowns) {
+                                if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::Cooldowns | DisplayTarget::CooldownsB)) {
                                     div { class: "form-row-hz",
                                         label { class: "flex items-center",
                                             "Ready State"

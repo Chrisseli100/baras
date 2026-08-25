@@ -1404,7 +1404,9 @@ fn truncate_name(name: &str, max_chars: usize) -> String {
 impl Overlay for EffectsABOverlay {
     fn update_data(&mut self, data: OverlayData) -> bool {
         match data {
-            OverlayData::EffectsA(effects_data) | OverlayData::EffectsB(effects_data) => {
+            OverlayData::EffectsA(effects_data)
+            | OverlayData::EffectsB(effects_data)
+            | OverlayData::EffectsC(effects_data) => {
                 let was_empty = self.data.effects.is_empty();
                 let is_empty = effects_data.effects.is_empty();
                 self.set_data(effects_data);
@@ -1417,7 +1419,8 @@ impl Overlay for EffectsABOverlay {
     fn update_config(&mut self, config: OverlayConfigUpdate) {
         match config {
             OverlayConfigUpdate::EffectsA(cfg, alpha, european)
-            | OverlayConfigUpdate::EffectsB(cfg, alpha, european) => {
+            | OverlayConfigUpdate::EffectsB(cfg, alpha, european)
+            | OverlayConfigUpdate::EffectsC(cfg, alpha, european) => {
                 self.set_config(cfg);
                 self.set_background_alpha(alpha);
                 self.european_number_format = european;

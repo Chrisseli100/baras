@@ -164,8 +164,12 @@ pub struct SharedState {
     pub effects_a_overlay_active: AtomicBool,
     /// Whether effects B overlay is currently running
     pub effects_b_overlay_active: AtomicBool,
+    /// Whether effects C overlay is currently running
+    pub effects_c_overlay_active: AtomicBool,
     /// Whether cooldowns overlay is currently running
     pub cooldowns_overlay_active: AtomicBool,
+    /// Whether cooldowns B overlay is currently running
+    pub cooldowns_b_overlay_active: AtomicBool,
     /// Whether DOT tracker overlay is currently running
     pub dot_tracker_overlay_active: AtomicBool,
     /// Whether raid frame rearrange mode is active (bypasses rendering gates)
@@ -211,7 +215,9 @@ impl SharedState {
             timer_overlay_active: AtomicBool::new(false),
             effects_a_overlay_active: AtomicBool::new(false),
             effects_b_overlay_active: AtomicBool::new(false),
+            effects_c_overlay_active: AtomicBool::new(false),
             cooldowns_overlay_active: AtomicBool::new(false),
+            cooldowns_b_overlay_active: AtomicBool::new(false),
             dot_tracker_overlay_active: AtomicBool::new(false),
             rearrange_mode: AtomicBool::new(false),
             // Game process state — assume running until the process monitor says otherwise

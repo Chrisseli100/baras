@@ -2622,74 +2622,8 @@ impl Default for EffectsAConfig {
     }
 }
 
-/// Configuration for Effects B overlay
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EffectsBConfig {
-    /// Icon size in pixels
-    #[serde(default = "default_icon_size")]
-    pub icon_size: u8,
-    /// Maximum effects to display
-    #[serde(default = "default_max_buffs")]
-    pub max_display: u8,
-    /// Use vertical layout (true) or horizontal (false)
-    #[serde(default)]
-    pub layout_vertical: bool,
-    /// Render as stacked progress bars — overrides layout_vertical
-    #[serde(default)]
-    pub layout_bar: bool,
-    /// Show effect names below/beside icons
-    #[serde(default)]
-    pub show_effect_names: bool,
-    /// Show countdown text on icons
-    #[serde(default = "default_true")]
-    pub show_countdown: bool,
-    /// When true, stacks are shown large and centered; timer is secondary
-    #[serde(default)]
-    pub stack_priority: bool,
-    /// Show header title above overlay
-    #[serde(default)]
-    pub show_header: bool,
-    /// Font scale multiplier (0.3 - 3.0, default 1.0)
-    #[serde(default = "default_scaling_factor")]
-    pub font_scale: f32,
-    /// When true, background shrinks to fit content instead of filling the window
-    #[serde(default)]
-    pub dynamic_background: bool,
-    /// When true, entries stack from the bottom of the overlay window
-    #[serde(default)]
-    pub stack_from_bottom: bool,
-    /// When true (and in bar layout), draw an outline around each entry
-    #[serde(default = "default_true")]
-    pub show_border: bool,
-    /// Color of the per-entry border outline (bar layout only)
-    #[serde(default = "default_overlay_border_color")]
-    pub border_color: Color,
-    /// Fade each bar's fill from its color (left) to a darkened version (right).
-    /// Bar layout only.
-    #[serde(default)]
-    pub bar_gradient: bool,
-}
-
-impl Default for EffectsBConfig {
-    fn default() -> Self {
-        Self {
-            icon_size: 32,
-            max_display: 8,
-            layout_vertical: false,
-            layout_bar: false,
-            show_effect_names: false,
-            show_countdown: true,
-            stack_priority: false,
-            show_header: false,
-            font_scale: 1.0,
-            dynamic_background: false,
-            stack_from_bottom: false,
-            show_border: true,
-            border_color: default_overlay_border_color(),
-            bar_gradient: false,
-        }
-    }
-}
+/// Effects B/C overlays share the Effects A config shape
+pub type EffectsBConfig = EffectsAConfig;
 
 // Legacy aliases for backwards compatibility
 pub type PersonalBuffsConfig = EffectsAConfig;
@@ -3115,9 +3049,17 @@ pub struct OverlaySettings {
     #[serde(default = "default_opacity", alias = "personal_debuffs_opacity")]
     pub effects_b_opacity: u8,
     #[serde(default)]
+    pub effects_c: EffectsAConfig,
+    #[serde(default = "default_opacity")]
+    pub effects_c_opacity: u8,
+    #[serde(default)]
     pub cooldown_tracker: CooldownTrackerConfig,
     #[serde(default = "default_opacity")]
     pub cooldown_tracker_opacity: u8,
+    #[serde(default)]
+    pub cooldown_tracker_b: CooldownTrackerConfig,
+    #[serde(default = "default_opacity")]
+    pub cooldown_tracker_b_opacity: u8,
     #[serde(default)]
     pub dot_tracker: DotTrackerConfig,
     #[serde(default = "default_opacity")]
@@ -3205,8 +3147,12 @@ impl Default for OverlaySettings {
             effects_a_opacity: 180,
             effects_b: EffectsBConfig::default(),
             effects_b_opacity: 180,
+            effects_c: EffectsAConfig::default(),
+            effects_c_opacity: 180,
             cooldown_tracker: CooldownTrackerConfig::default(),
             cooldown_tracker_opacity: 180,
+            cooldown_tracker_b: CooldownTrackerConfig::default(),
+            cooldown_tracker_b_opacity: 180,
             dot_tracker: DotTrackerConfig::default(),
             dot_tracker_opacity: 180,
             notes_overlay: NotesOverlayConfig::default(),

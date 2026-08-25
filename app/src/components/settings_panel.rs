@@ -137,9 +137,14 @@ pub fn SettingsPanel(
                 config.overlay_settings.effects_a_opacity = new_settings.effects_a_opacity;
                 config.overlay_settings.effects_b = new_settings.effects_b.clone();
                 config.overlay_settings.effects_b_opacity = new_settings.effects_b_opacity;
+                config.overlay_settings.effects_c = new_settings.effects_c.clone();
+                config.overlay_settings.effects_c_opacity = new_settings.effects_c_opacity;
                 config.overlay_settings.cooldown_tracker = new_settings.cooldown_tracker.clone();
                 config.overlay_settings.cooldown_tracker_opacity =
                     new_settings.cooldown_tracker_opacity;
+                config.overlay_settings.cooldown_tracker_b = new_settings.cooldown_tracker_b.clone();
+                config.overlay_settings.cooldown_tracker_b_opacity =
+                    new_settings.cooldown_tracker_b_opacity;
                 config.overlay_settings.dot_tracker = new_settings.dot_tracker.clone();
                 config.overlay_settings.dot_tracker_opacity = new_settings.dot_tracker_opacity;
                 config.overlay_settings.notes_overlay = new_settings.notes_overlay.clone();
@@ -565,7 +570,9 @@ pub fn SettingsPanel(
                     div { class: "tab-group-buttons",
                         TabButton { label: "Effects A", tab_key: "effects_a", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Effects B", tab_key: "effects_b", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
+                        TabButton { label: "Effects C", tab_key: "effects_c", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Cooldowns", tab_key: "cooldowns", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
+                        TabButton { label: "Cooldowns B", tab_key: "cooldowns_b", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "DOT Tracker", tab_key: "dot_tracker", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                     }
                 }
@@ -1681,6 +1688,228 @@ pub fn SettingsPanel(
                         }
                     }
                 }
+            } else if tab == "effects_c" {
+                // Effects C Settings
+                div { class: "settings-section",
+                    h4 { "Appearance" }
+
+                    OpacitySlider {
+                        label: "Background Opacity",
+                        value: current_settings.effects_c_opacity,
+                        on_change: move |val| {
+                            let mut new_settings = draft_settings();
+                            new_settings.effects_c_opacity = val;
+                            update_draft(new_settings);
+                        },
+                    }
+
+                    Slider {
+                        label: "Icon/Bar Size",
+                        value: current_settings.effects_c.icon_size as f64,
+                        min: 16.0,
+                        max: 128.0,
+                        suffix: "px",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.effects_c.icon_size = (v as u8).clamp(16, 128);
+                            update_draft(new_settings);
+                        },
+                    }
+
+                    div { class: "setting-row",
+                        label { "Max Displayed" }
+                        select {
+                            class: "input-inline",
+                            value: "{current_settings.effects_c.max_display}",
+                            onchange: move |e: Event<FormData>| {
+                                if let Ok(val) = e.value().parse::<u8>() {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.effects_c.max_display = val.clamp(1, 16);
+                                    update_draft(new_settings);
+                                }
+                            },
+                            for n in 1..=16u8 {
+                                option { value: "{n}", selected: current_settings.effects_c.max_display == n, "{n}" }
+                            }
+                        }
+                    }
+
+                    h4 { style: "margin-top: 16px;", "Layout" }
+
+                    div { class: "setting-row",
+                        label { "Bar Mode" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.layout_bar = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Vertical Layout" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.layout_vertical,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.layout_vertical = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    h4 { style: "margin-top: 16px;", "Display Options" }
+
+                    div { class: "setting-row",
+                        label { "Show Header" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.show_header,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.show_header = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Show Countdown" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.show_countdown,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.show_countdown = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Show Effect Names" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.show_effect_names,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.show_effect_names = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Emphasize Effect Charges" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.stack_priority,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.stack_priority = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    Slider {
+                        label: "Font Scale",
+                        value: (current_settings.effects_c.font_scale * 100.0) as i32 as f64,
+                        min: 30.0,
+                        max: 300.0,
+                        step: 10.0,
+                        suffix: "%",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.effects_c.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
+                            update_draft(new_settings);
+                        },
+                    }
+                    div { class: "setting-row",
+                        label { "Dynamic Background" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.dynamic_background,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.dynamic_background = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Stack from Bottom" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.stack_from_bottom,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.stack_from_bottom = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Gradient Bars (bar layout)" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.bar_gradient,
+                            disabled: !current_settings.effects_c.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.bar_gradient = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Show Border (bar layout)" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.effects_c.show_border,
+                            disabled: !current_settings.effects_c.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c.show_border = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Border Color" }
+                        input {
+                            r#type: "color",
+                            value: "{color_to_hex(&current_settings.effects_c.border_color)}",
+                            class: "color-picker",
+                            disabled: !(current_settings.effects_c.layout_bar && current_settings.effects_c.show_border),
+                            oninput: move |e: Event<FormData>| {
+                                if let Some(color) = parse_hex_color(&e.value()) {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.effects_c.border_color = color;
+                                    update_draft(new_settings);
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row reset-row",
+                        button {
+                            class: "btn btn-reset",
+                            onclick: move |_| {
+                                let mut new_settings = draft_settings();
+                                new_settings.effects_c = EffectsAConfig::default();
+                                new_settings.effects_c_opacity = 180;
+                                update_draft(new_settings);
+                            },
+                            i { class: "fa-solid fa-rotate-left" }
+                            span { " Reset to Defaults" }
+                        }
+                    }
+                }
             } else if tab == "cooldowns" {
                 // Cooldowns Settings
                 div { class: "settings-section",
@@ -1868,6 +2097,200 @@ pub fn SettingsPanel(
                                 let mut new_settings = draft_settings();
                                 new_settings.cooldown_tracker = CooldownTrackerConfig::default();
                                 new_settings.cooldown_tracker_opacity = 180;
+                                update_draft(new_settings);
+                            },
+                            i { class: "fa-solid fa-rotate-left" }
+                            span { " Reset to Defaults" }
+                        }
+                    }
+                }
+            } else if tab == "cooldowns_b" {
+                // Cooldowns B Settings
+                div { class: "settings-section",
+                    h4 { "Appearance" }
+
+                    OpacitySlider {
+                        label: "Background Opacity",
+                        value: current_settings.cooldown_tracker_b_opacity,
+                        on_change: move |val| {
+                            let mut new_settings = draft_settings();
+                            new_settings.cooldown_tracker_b_opacity = val;
+                            update_draft(new_settings);
+                        },
+                    }
+
+                    Slider {
+                        label: "Icon/Bar Size",
+                        value: current_settings.cooldown_tracker_b.icon_size as f64,
+                        min: 16.0,
+                        max: 128.0,
+                        suffix: "px",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.cooldown_tracker_b.icon_size = (v as u8).clamp(16, 128);
+                            update_draft(new_settings);
+                        },
+                    }
+
+                    div { class: "setting-row",
+                        label { "Max Displayed" }
+                        select {
+                            class: "input-inline",
+                            value: "{current_settings.cooldown_tracker_b.max_display}",
+                            onchange: move |e: Event<FormData>| {
+                                if let Ok(val) = e.value().parse::<u8>() {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.cooldown_tracker_b.max_display = val.clamp(1, 20);
+                                    update_draft(new_settings);
+                                }
+                            },
+                            for n in 1..=20u8 {
+                                option { value: "{n}", selected: current_settings.cooldown_tracker_b.max_display == n, "{n}" }
+                            }
+                        }
+                    }
+
+                    h4 { style: "margin-top: 16px;", "Display Options" }
+
+                    div { class: "setting-row",
+                        label { "Bar Mode" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.layout_bar = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Show Header" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.show_header,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.show_header = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Show Ability Names" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.show_ability_names,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.show_ability_names = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row",
+                        label { "Sort by Remaining Time" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.sort_by_remaining,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.sort_by_remaining = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+
+                    Slider {
+                        label: "Font Scale",
+                        value: (current_settings.cooldown_tracker_b.font_scale * 100.0) as i32 as f64,
+                        min: 30.0,
+                        max: 300.0,
+                        step: 10.0,
+                        suffix: "%",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.cooldown_tracker_b.font_scale = (v as f32 / 100.0).clamp(0.3, 3.0);
+                            update_draft(new_settings);
+                        },
+                    }
+                    div { class: "setting-row",
+                        label { "Dynamic Background" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.dynamic_background,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.dynamic_background = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Stack from Bottom" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.stack_from_bottom,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.stack_from_bottom = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Gradient Bars (bar layout)" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.bar_gradient,
+                            disabled: !current_settings.cooldown_tracker_b.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.bar_gradient = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Show Border (bar layout)" }
+                        input {
+                            r#type: "checkbox",
+                            checked: current_settings.cooldown_tracker_b.show_border,
+                            disabled: !current_settings.cooldown_tracker_b.layout_bar,
+                            onchange: move |e: Event<FormData>| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b.show_border = e.checked();
+                                update_draft(new_settings);
+                            }
+                        }
+                    }
+                    div { class: "setting-row",
+                        label { "Border Color" }
+                        input {
+                            r#type: "color",
+                            value: "{color_to_hex(&current_settings.cooldown_tracker_b.border_color)}",
+                            class: "color-picker",
+                            disabled: !(current_settings.cooldown_tracker_b.layout_bar && current_settings.cooldown_tracker_b.show_border),
+                            oninput: move |e: Event<FormData>| {
+                                if let Some(color) = parse_hex_color(&e.value()) {
+                                    let mut new_settings = draft_settings();
+                                    new_settings.cooldown_tracker_b.border_color = color;
+                                    update_draft(new_settings);
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "setting-row reset-row",
+                        button {
+                            class: "btn btn-reset",
+                            onclick: move |_| {
+                                let mut new_settings = draft_settings();
+                                new_settings.cooldown_tracker_b = CooldownTrackerConfig::default();
+                                new_settings.cooldown_tracker_b_opacity = 180;
                                 update_draft(new_settings);
                             },
                             i { class: "fa-solid fa-rotate-left" }

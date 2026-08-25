@@ -906,7 +906,7 @@ impl CooldownOverlay {
 
 impl Overlay for CooldownOverlay {
     fn update_data(&mut self, data: OverlayData) -> bool {
-        if let OverlayData::Cooldowns(cooldown_data) = data {
+        if let OverlayData::Cooldowns(cooldown_data) | OverlayData::CooldownsB(cooldown_data) = data {
             let was_empty = self.data.entries.is_empty();
             let is_empty = cooldown_data.entries.is_empty();
             self.set_data(cooldown_data);
@@ -917,7 +917,9 @@ impl Overlay for CooldownOverlay {
     }
 
     fn update_config(&mut self, config: OverlayConfigUpdate) {
-        if let OverlayConfigUpdate::Cooldowns(cfg, alpha, european) = config {
+        if let OverlayConfigUpdate::Cooldowns(cfg, alpha, european)
+            | OverlayConfigUpdate::CooldownsB(cfg, alpha, european) = config
+        {
             self.set_config(cfg);
             self.set_background_alpha(alpha);
             self.european_number_format = european;

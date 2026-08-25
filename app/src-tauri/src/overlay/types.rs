@@ -168,8 +168,12 @@ pub enum OverlayType {
     EffectsA,
     /// Effects B overlay (personal effects)
     EffectsB,
+    /// Effects C overlay (personal effects)
+    EffectsC,
     /// Ability cooldowns
     Cooldowns,
+    /// Ability cooldowns (second tracker)
+    CooldownsB,
     /// DOTs on enemy targets
     DotTracker,
     /// Encounter notes overlay (Markdown)
@@ -198,7 +202,9 @@ impl OverlayType {
             OverlayType::Alerts => "alerts",
             OverlayType::EffectsA => "effects_a",
             OverlayType::EffectsB => "effects_b",
+            OverlayType::EffectsC => "effects_c",
             OverlayType::Cooldowns => "cooldowns",
+            OverlayType::CooldownsB => "cooldowns_b",
             OverlayType::DotTracker => "dot_tracker",
             OverlayType::Notes => "notes",
             OverlayType::CombatTime => "combat_time",
@@ -221,7 +227,9 @@ impl OverlayType {
             OverlayType::Alerts => "baras-alerts".to_string(),
             OverlayType::EffectsA => "baras-effects-a".to_string(),
             OverlayType::EffectsB => "baras-effects-b".to_string(),
+            OverlayType::EffectsC => "baras-effects-c".to_string(),
             OverlayType::Cooldowns => "baras-cooldowns".to_string(),
+            OverlayType::CooldownsB => "baras-cooldowns-b".to_string(),
             OverlayType::DotTracker => "baras-dot-tracker".to_string(),
             OverlayType::Notes => "baras-notes".to_string(),
             OverlayType::CombatTime => "baras-combat-time".to_string(),
@@ -244,7 +252,9 @@ impl OverlayType {
             OverlayType::Alerts => (950, 400),
             OverlayType::EffectsA => (350, 200),
             OverlayType::EffectsB => (350, 280),
+            OverlayType::EffectsC => (350, 360),
             OverlayType::Cooldowns => (50, 500),
+            OverlayType::CooldownsB => (250, 500),
             OverlayType::DotTracker => (50, 650),
             OverlayType::Notes => (950, 550),
             OverlayType::CombatTime => (400, 100),

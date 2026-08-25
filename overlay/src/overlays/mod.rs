@@ -124,8 +124,12 @@ pub enum OverlayData {
     EffectsA(EffectsABData),
     /// Effects B overlay (consolidated personal effects)
     EffectsB(EffectsABData),
+    /// Effects C overlay (consolidated personal effects)
+    EffectsC(EffectsABData),
     /// Ability cooldowns
     Cooldowns(CooldownData),
+    /// Ability cooldowns (second tracker)
+    CooldownsB(CooldownData),
     /// DOTs on enemy targets
     DotTracker(DotTrackerData),
     /// Encounter notes (Markdown text)
@@ -168,8 +172,12 @@ pub enum OverlayConfigUpdate {
     EffectsA(EffectsABConfig, u8, bool),
     /// Config for Effects B overlay (+ background alpha, european)
     EffectsB(EffectsABConfig, u8, bool),
+    /// Config for Effects C overlay (+ background alpha, european)
+    EffectsC(EffectsABConfig, u8, bool),
     /// Config for cooldown overlay (+ background alpha, european)
     Cooldowns(CooldownConfig, u8, bool),
+    /// Config for cooldown B overlay (+ background alpha, european)
+    CooldownsB(CooldownConfig, u8, bool),
     /// Config for DOT tracker overlay (+ background alpha, european)
     DotTracker(DotTrackerConfig, u8, bool),
     /// Config for notes overlay (+ background alpha, european)

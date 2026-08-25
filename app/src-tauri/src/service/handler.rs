@@ -1572,9 +1572,17 @@ impl ServiceHandle {
                 .shared
                 .effects_b_overlay_active
                 .store(active, Ordering::SeqCst),
+            "effects_c" => self
+                .shared
+                .effects_c_overlay_active
+                .store(active, Ordering::SeqCst),
             "cooldowns" => self
                 .shared
                 .cooldowns_overlay_active
+                .store(active, Ordering::SeqCst),
+            "cooldowns_b" => self
+                .shared
+                .cooldowns_b_overlay_active
                 .store(active, Ordering::SeqCst),
             "dot_tracker" => self
                 .shared

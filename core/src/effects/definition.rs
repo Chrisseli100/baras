@@ -39,8 +39,12 @@ pub enum DisplayTarget {
     /// Show on Effects B overlay (personal effects)
     #[serde(alias = "personal_debuffs")]
     EffectsB,
+    /// Show on Effects C overlay (personal effects)
+    EffectsC,
     /// Show on cooldown tracker (ability cooldowns)
     Cooldowns,
+    /// Show on cooldown tracker B (ability cooldowns)
+    CooldownsB,
     /// Show on multi-target DOT tracker (DOTs on enemies)
     DotTracker,
     /// Show on boss HP overlay (icons below the relevant boss bar)

@@ -372,8 +372,12 @@ pub enum OverlayUpdate {
     EffectsAUpdated(EffectsABData),
     /// Effects B overlay data
     EffectsBUpdated(EffectsABData),
+    /// Effects C overlay data
+    EffectsCUpdated(EffectsABData),
     /// Ability cooldowns
     CooldownsUpdated(CooldownData),
+    /// Ability cooldowns (second tracker)
+    CooldownsBUpdated(CooldownData),
     /// DOTs on enemy targets
     DotTrackerUpdated(DotTrackerData),
     /// Encounter notes (sent when entering an area with boss definitions)
@@ -2576,7 +2580,9 @@ impl CombatService {
             // Track previous state for new overlays to avoid redundant updates
             let mut last_effects_a_count: usize = 0;
             let mut last_effects_b_count: usize = 0;
+            let mut last_effects_c_count: usize = 0;
             let mut last_cooldowns_count: usize = 0;
+            let mut last_cooldowns_b_count: usize = 0;
             let mut last_dot_tracker_count: usize = 0;
 
             // Throttle stale-recovery checks to once per second
@@ -2589,7 +2595,9 @@ impl CombatService {
                 let timer_active = shared.timer_overlay_active.load(Ordering::Relaxed);
                 let effects_a_active = shared.effects_a_overlay_active.load(Ordering::Relaxed);
                 let effects_b_active = shared.effects_b_overlay_active.load(Ordering::Relaxed);
+                let effects_c_active = shared.effects_c_overlay_active.load(Ordering::Relaxed);
                 let cooldowns_active = shared.cooldowns_overlay_active.load(Ordering::Relaxed);
+                let cooldowns_b_active = shared.cooldowns_b_overlay_active.load(Ordering::Relaxed);
                 let dot_tracker_active = shared.dot_tracker_overlay_active.load(Ordering::Relaxed);
                 let in_combat = shared.in_combat.load(Ordering::Relaxed);
                 let is_live = shared.is_live_tailing.load(Ordering::SeqCst);
@@ -2600,7 +2608,9 @@ impl CombatService {
                     || timer_active
                     || effects_a_active
                     || effects_b_active
+                    || effects_c_active
                     || cooldowns_active
+                    || cooldowns_b_active
                     || dot_tracker_active;
                 let needs_audio = is_live && (in_combat || raid_active);
 
@@ -2700,9 +2710,29 @@ impl CombatService {
                     }
                 }
 
+                // Effects C: only send if there are effects or effects just cleared
+                if effects_c_active {
+                    if let Some(data) = build_effects_ab_data(&shared, icon_cache.as_ref(), DisplayTarget::EffectsC).await {
+                        let count = data.effects.len();
+                        if count > 0 || last_effects_c_count > 0 {
+                            if overlay_tx.try_send(OverlayUpdate::EffectsCUpdated(data)).is_err() {
+                                warn!("Overlay channel full, dropped effects C update");
+                            }
+                        }
+                        last_effects_c_count = count;
+                    } else if last_effects_c_count > 0 {
+                        if overlay_tx.try_send(OverlayUpdate::EffectsCUpdated(EffectsABData {
+                            effects: vec![],
+                        })).is_err() {
+                            warn!("Overlay channel full, dropped effects C clear");
+                        }
+                        last_effects_c_count = 0;
+                    }
+                }
+
                 // Cooldowns: only send if there are cooldowns or cooldowns just cleared
                 if cooldowns_active {
-                    if let Some(data) = build_cooldowns_data(&shared, icon_cache.as_ref()).await {
+                    if let Some(data) = build_cooldowns_data(&shared, icon_cache.as_ref(), DisplayTarget::Cooldowns).await {
                         let count = data.entries.len();
                         if count > 0 || last_cooldowns_count > 0 {
                             if overlay_tx.try_send(OverlayUpdate::CooldownsUpdated(data)).is_err() {
@@ -2717,6 +2747,26 @@ impl CombatService {
                             warn!("Overlay channel full, dropped cooldowns clear");
                         }
                         last_cooldowns_count = 0;
+                    }
+                }
+
+                // Cooldowns B: only send if there are cooldowns or cooldowns just cleared
+                if cooldowns_b_active {
+                    if let Some(data) = build_cooldowns_data(&shared, icon_cache.as_ref(), DisplayTarget::CooldownsB).await {
+                        let count = data.entries.len();
+                        if count > 0 || last_cooldowns_b_count > 0 {
+                            if overlay_tx.try_send(OverlayUpdate::CooldownsBUpdated(data)).is_err() {
+                                warn!("Overlay channel full, dropped cooldowns B update");
+                            }
+                        }
+                        last_cooldowns_b_count = count;
+                    } else if last_cooldowns_b_count > 0 {
+                        if overlay_tx.try_send(OverlayUpdate::CooldownsBUpdated(CooldownData {
+                            entries: vec![],
+                        })).is_err() {
+                            warn!("Overlay channel full, dropped cooldowns B clear");
+                        }
+                        last_cooldowns_b_count = 0;
                     }
                 }
 
@@ -4269,6 +4319,7 @@ async fn build_effects_ab_data(
 
     let mut effects: Vec<&ActiveEffect> = match target {
         DisplayTarget::EffectsB => tracker.effects_b().collect(),
+        DisplayTarget::EffectsC => tracker.effects_c().collect(),
         _ => tracker.effects_a().collect(),
     };
     effects.sort_by_key(|e| e.applied_at);
@@ -4323,6 +4374,7 @@ async fn build_effects_ab_data(
 async fn build_cooldowns_data(
     shared: &Arc<SharedState>,
     icon_cache: Option<&Arc<baras_overlay::icons::IconCache>>,
+    target: DisplayTarget,
 ) -> Option<CooldownData> {
     use std::sync::Arc as StdArc;
 
@@ -4339,7 +4391,10 @@ async fn build_cooldowns_data(
 
     let interp_time = tracker.interpolated_game_time();
 
-    let mut effects: Vec<_> = tracker.cooldown_effects().collect();
+    let mut effects: Vec<_> = match target {
+        DisplayTarget::CooldownsB => tracker.cooldown_b_effects().collect(),
+        _ => tracker.cooldown_effects().collect(),
+    };
 
     // Sort by remaining time (shortest first)
     effects.sort_by(|a, b| {
