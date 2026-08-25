@@ -194,6 +194,13 @@ impl ParsingSession {
         self.signal_handlers.push(handler);
     }
 
+    /// Drop effect tracking for this session. Effects are a live overlay
+    /// mechanism; historical opens show encounter data only, so removing the
+    /// tracker skips effect evaluation entirely (all consumers handle None).
+    pub fn disable_effect_tracking(&mut self) {
+        self.effect_tracker = None;
+    }
+
     /// Process a single event through the processor and dispatch signals
     pub fn process_event(&mut self, event: CombatEvent) {
         // Advance the game-time anchor (monotonic: never goes backward).
@@ -694,6 +701,56 @@ impl ParsingSession {
         if let Some(cache) = &mut self.session_cache {
             cache.finalize_current_encounter();
         }
+    }
+
+    /// Force-end an encounter still InCombat once no more events can arrive.
+    ///
+    /// A log that stops mid-fight (client quit mid-warzone, crash) has no end
+    /// event, so nothing ever closes the encounter. Ends it at the last event
+    /// timestamp, dispatches CombatEnded through the signal handlers (so
+    /// downstream combat state settles), and flushes its parquet. Used by
+    /// historical opens so a truncated encounter reads as completed instead
+    /// of ticking forever as live combat.
+    pub fn finalize_open_encounter(&mut self) {
+        use crate::encounter::EncounterState;
+        use crate::encounter::summary::determine_success;
+
+        let Some(exit_time) = self.last_event_time else {
+            return;
+        };
+        let Some(cache) = &mut self.session_cache else {
+            return;
+        };
+        let Some(enc) = cache.current_encounter_mut() else {
+            return;
+        };
+        if enc.state != EncounterState::InCombat {
+            return;
+        }
+        let encounter_id = enc.id;
+
+        enc.exit_combat_time = Some(exit_time);
+        enc.state = EncounterState::PostCombat { exit_time };
+        let duration = enc.duration_seconds(None).unwrap_or(0) as f32;
+        enc.challenge_tracker.finalize(exit_time, duration);
+
+        let success = cache.current_encounter().map(determine_success).unwrap_or(false);
+        // Summarizes the truncated encounter into history and starts a fresh one
+        cache.push_new_encounter();
+
+        let signals = [GameSignal::CombatEnded {
+            timestamp: exit_time,
+            encounter_id,
+            success,
+        }];
+        self.dispatch_signals(&signals);
+        self.flush_encounter_parquet();
+
+        tracing::info!(
+            encounter_id,
+            %exit_time,
+            "Finalized encounter left open at end of log"
+        );
     }
 
     /// Get the encounters directory path (for querying historical parquet files).

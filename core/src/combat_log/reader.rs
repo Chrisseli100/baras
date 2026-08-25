@@ -86,19 +86,41 @@ impl Reader {
     pub fn read_log_file_streaming<F>(
         &self,
         session_date: chrono::NaiveDateTime,
-        mut on_event: F,
+        on_event: F,
     ) -> Result<(u64, usize)>
+    where
+        F: FnMut(CombatEvent),
+    {
+        self.read_log_file_streaming_from(session_date, 0, 0, on_event)
+            .map(|(end_pos, _, event_count)| (end_pos, event_count))
+    }
+
+    /// Stream-parse from `start_byte`, numbering lines from `start_line`
+    /// (same resume contract as `tail_log_file`: `start_line` is the number
+    /// given to the first line read). Returns the final byte position, the
+    /// next line number, and the event count. Used to consume a parse-worker
+    /// handoff region without going through the live tail loop.
+    pub fn read_log_file_streaming_from<F>(
+        &self,
+        session_date: chrono::NaiveDateTime,
+        start_byte: u64,
+        start_line: u64,
+        mut on_event: F,
+    ) -> Result<(u64, u64, usize)>
     where
         F: FnMut(CombatEvent),
     {
         let file = fs::File::open(&self.path)?;
         let mmap = unsafe { Mmap::map(&file)? };
-        let bytes = mmap.as_ref();
-        let end_pos = bytes.len() as u64;
+        let end_pos = mmap.len() as u64;
+        if start_byte >= end_pos {
+            return Ok((end_pos, start_line, 0));
+        }
+        let bytes = &mmap.as_ref()[start_byte as usize..];
 
         let parser = LogParser::new(session_date);
         let mut event_count = 0usize;
-        let mut line_number = 0u64;
+        let mut line_number = start_line;
         let mut start = 0usize;
 
         // Parse line by line using memchr for fast newline detection
@@ -121,9 +143,10 @@ impl Reader {
                 on_event(event);
                 event_count += 1;
             }
+            line_number += 1;
         }
 
-        Ok((end_pos, event_count))
+        Ok((end_pos, line_number, event_count))
     }
 
     /// Tail a live log file, processing new lines as they are written.

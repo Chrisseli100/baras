@@ -48,10 +48,13 @@ use baras_core::state::ParseWorkerOutput;
 
 /// Fallback to streaming parse if subprocess fails.
 /// Returns true if the session is in combat after parsing.
+/// In historical mode (`is_live` false) an encounter left open at EOF is
+/// finalized instead, and this always returns false.
 async fn fallback_streaming_parse(
     reader: &Reader,
     session: &Arc<RwLock<ParsingSession>>,
     encounters_dir: PathBuf,
+    is_live: bool,
 ) -> bool {
     let timer = std::time::Instant::now();
     let mut session_guard = session.write().await;
@@ -69,7 +72,13 @@ async fn fallback_streaming_parse(
 
         session_guard.finalize_session();
         session_guard.sync_timer_context();
-        
+
+        if !is_live {
+            // Historical open: close an encounter left open at EOF so it
+            // doesn't tick as live combat (see start_tailing handoff note)
+            session_guard.finalize_open_encounter();
+        }
+
         // Check if we're mid-combat
         let in_combat = if let Some(cache) = &session_guard.session_cache {
             if let Some(enc) = cache.current_encounter() {
@@ -2031,6 +2040,12 @@ impl CombatService {
 
         let mut session = ParsingSession::new(path.clone(), self.definitions.clone());
 
+        // Historical opens never render effect overlays — skip effect
+        // evaluation entirely (a resume-live re-runs start_tailing fresh)
+        if !self.shared.is_live_tailing.load(Ordering::SeqCst) {
+            session.disable_effect_tracking();
+        }
+
         // Load timer preferences into the session's timer manager (Live mode only)
         if let Some(prefs_path) = Self::timer_preferences_path() {
             if let Some(timer_mgr) = session.timer_manager() {
@@ -2309,10 +2324,44 @@ impl CombatService {
 
                         session_guard.finalize_session();
                         session_guard.sync_timer_context();
-                        
-                        // Check if we're starting mid-encounter
+
+                        // Historical opens: the worker rewinds end_pos so live
+                        // tailing can replay an encounter left open at EOF
+                        // (e.g. logged out mid-warzone). Live mode wants that
+                        // replay; a historical file must not tick like live
+                        // combat, so consume the tail here and close the
+                        // encounter at its last event.
+                        if !self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                            let session_date =
+                                session_guard.game_session_date.unwrap_or_default();
+                            match reader.read_log_file_streaming_from(
+                                session_date,
+                                parse_result.end_pos,
+                                parse_result.line_count,
+                                |event| session_guard.process_event(event),
+                            ) {
+                                Ok((eof_pos, next_line, event_count)) => {
+                                    session_guard.current_byte = Some(eof_pos);
+                                    session_guard.current_line = Some(next_line);
+                                    if event_count > 0 {
+                                        info!(
+                                            event_count,
+                                            "Consumed handoff tail for historical open"
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!(error = %e, "Failed to consume handoff tail");
+                                }
+                            }
+                            session_guard.finalize_open_encounter();
+                        }
+
+                        // Check if we're starting mid-encounter (live mode only)
                         // This enables overlays to display data immediately when app starts during combat
-                        let mid_combat_startup = if let Some(cache) = &session_guard.session_cache {
+                        let mid_combat_startup = if !self.shared.is_live_tailing.load(Ordering::SeqCst) {
+                            false
+                        } else if let Some(cache) = &session_guard.session_cache {
                             if let Some(enc) = cache.current_encounter() {
                                 use baras_core::encounter::EncounterState;
                                 if enc.state == EncounterState::InCombat {
@@ -2429,7 +2478,13 @@ impl CombatService {
                     }
                     Err(e) => {
                         error!(error = %e, "Subprocess output parse failed");
-                        let in_combat = fallback_streaming_parse(&reader, &session, encounters_dir.clone()).await;
+                        let in_combat = fallback_streaming_parse(
+                            &reader,
+                            &session,
+                            encounters_dir.clone(),
+                            self.shared.is_live_tailing.load(Ordering::SeqCst),
+                        )
+                        .await;
                         if in_combat {
                             self.shared.in_combat.store(true, std::sync::atomic::Ordering::SeqCst);
                             let _ = trigger_tx.try_send(MetricsTrigger::CombatStarted);
@@ -2445,7 +2500,13 @@ impl CombatService {
                     "Subprocess failed"
                 );
                 // Fallback to streaming parse in main process
-                let in_combat = fallback_streaming_parse(&reader, &session, encounters_dir.clone()).await;
+                let in_combat = fallback_streaming_parse(
+                    &reader,
+                    &session,
+                    encounters_dir.clone(),
+                    self.shared.is_live_tailing.load(Ordering::SeqCst),
+                )
+                .await;
                 if in_combat {
                     self.shared.in_combat.store(true, std::sync::atomic::Ordering::SeqCst);
                     let _ = trigger_tx.try_send(MetricsTrigger::CombatStarted);
@@ -2456,7 +2517,13 @@ impl CombatService {
             Err(e) => {
                 error!(error = %e, "Failed to spawn subprocess");
                 // Fallback to streaming parse in main process
-                let in_combat = fallback_streaming_parse(&reader, &session, encounters_dir.clone()).await;
+                let in_combat = fallback_streaming_parse(
+                    &reader,
+                    &session,
+                    encounters_dir.clone(),
+                    self.shared.is_live_tailing.load(Ordering::SeqCst),
+                )
+                .await;
                 if in_combat {
                     self.shared.in_combat.store(true, std::sync::atomic::Ordering::SeqCst);
                     let _ = trigger_tx.try_send(MetricsTrigger::CombatStarted);
