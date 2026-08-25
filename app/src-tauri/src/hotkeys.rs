@@ -130,6 +130,14 @@ async fn try_portal_shortcuts(
         return Ok(());
     }
     
+    // xdg-desktop-portal 1.18+ rejects GlobalShortcuts sessions from
+    // non-sandboxed apps without an app id; registration is a no-op in a sandbox.
+    // Best-effort: requires a matching .desktop entry, and older portals lack
+    // the Registry interface entirely — session creation below still decides.
+    if let Err(e) = ashpd::register_host_app("com.pdubs.io".parse().unwrap()).await {
+        warn!("Could not register host app id with portal: {e}");
+    }
+
     // Create portal connection and session
     let portal = GlobalShortcuts::new().await?;
     let session = portal.create_session().await?;
