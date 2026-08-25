@@ -852,6 +852,15 @@ impl EffectTracker {
         }
     }
 
+    /// Forget uptime-tracking state on player logout (new blank log file or
+    /// game process exit): clears the detected discipline so "show when
+    /// absent" placeholders stop rendering, and the first-appearance memory
+    /// so `track_uptime_after_first` re-arms for the next login.
+    pub fn clear_uptime_tracking(&mut self) {
+        self.local_player_discipline = None;
+        self.uptime_last_icons.clear();
+    }
+
     /// Look up a definition by ID (e.g. from an active effect's definition_id)
     pub fn definition(&self, id: &str) -> Option<&super::EffectDefinition> {
         self.definitions.effects.get(id)

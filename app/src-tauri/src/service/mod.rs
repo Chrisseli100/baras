@@ -1797,6 +1797,8 @@ impl CombatService {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
             interval.tick().await; // consume the immediate first tick
             self.pending_file_interval = Some(interval);
+            // The old character logged out — drop its "show when absent" placeholders
+            clear_uptime_tracking(&self.shared).await;
             // Emit event so frontend can show "session ended" indicator
             let _ = self.app_handle.emit("session-ended", ());
             let _ = self
@@ -3002,6 +3004,7 @@ impl CombatService {
                         if was_running && !is_running {
                             // Game just closed
                             info!("Game process no longer detected");
+                            clear_uptime_tracking(&shared).await;
                             let _ = overlay_tx
                                 .try_send(OverlayUpdate::NotLiveStateChanged { is_live: false });
                         } else if !was_running && is_running {
@@ -4364,6 +4367,21 @@ fn active_to_ab_entry(
         stack_priority: def.is_some_and(|d| d.stack_priority),
         show_countdown: def.is_none_or(|d| d.show_countdown),
     })
+}
+
+/// Clear "show when absent" uptime placeholders after a player logout
+/// (blank new log file or game process exit). The overlay data loop picks
+/// up the cleared tracker state on its next tick.
+async fn clear_uptime_tracking(shared: &Arc<SharedState>) {
+    let session_guard = shared.session.read().await;
+    let Some(session) = session_guard.as_ref() else {
+        return;
+    };
+    let session = session.read().await;
+    if let Some(effect_tracker) = session.effect_tracker() {
+        let mut tracker = effect_tracker.lock().unwrap_or_else(|p| p.into_inner());
+        tracker.clear_uptime_tracking();
+    }
 }
 
 /// Build Effects A/B overlay data: uptime entries pinned first (gray
