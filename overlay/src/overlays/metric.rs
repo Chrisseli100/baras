@@ -320,21 +320,26 @@ impl MetricOverlay {
         let show_total = self.appearance.show_total && !self.hide_totals;
         let show_per_second = self.appearance.show_per_second;
 
-        // Filter and limit entries to max_entries per team: in PvP the list is
-        // friendly-first then enemy, so a flat take() would let friendlies
-        // exhaust the cap before any enemy row appears
+        // Limit to the max_entries highest values overall, then display in the
+        // original friendly-first order: entries are sorted friendly then enemy,
+        // so a flat take() would let friendlies exhaust the cap before any
+        // enemy row appears
         let max_entries = self.appearance.max_entries as usize;
-        let (mut friendly_shown, mut enemy_shown) = (0usize, 0usize);
-        let visible_entries: Vec<_> = self
+        let mut visible_idx: Vec<usize> = self
             .entries
             .iter()
-            .filter(|e| self.show_empty_bars || e.value != 0)
-            .filter(|e| {
-                let shown = if e.is_enemy { &mut enemy_shown } else { &mut friendly_shown };
-                *shown += 1;
-                *shown <= max_entries
-            })
+            .enumerate()
+            .filter(|(_, e)| self.show_empty_bars || e.value != 0)
+            .map(|(i, _)| i)
             .collect();
+        if visible_idx.len() > max_entries {
+            visible_idx.select_nth_unstable_by_key(max_entries - 1, |&i| {
+                std::cmp::Reverse(self.entries[i].value)
+            });
+            visible_idx.truncate(max_entries);
+            visible_idx.sort_unstable();
+        }
+        let visible_entries: Vec<_> = visible_idx.iter().map(|&i| &self.entries[i]).collect();
         let num_entries = visible_entries.len();
 
         // PvP faction divider: entries are sorted friendly-first, so a single
