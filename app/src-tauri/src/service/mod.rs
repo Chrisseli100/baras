@@ -4612,7 +4612,11 @@ async fn build_dot_tracker_data(
                     Some(DotEntry {
                         effect_id: effect.game_effect_id,
                         icon_ability_id: effect.icon_ability_id,
-                        name: effect.name.clone(),
+                        name: if effect.display_text.is_empty() {
+                            effect.name.clone()
+                        } else {
+                            effect.display_text.clone()
+                        },
                         remaining_secs,
                         total_secs,
                         color: effect.color,
