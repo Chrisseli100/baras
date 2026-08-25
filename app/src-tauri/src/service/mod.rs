@@ -3089,8 +3089,12 @@ async fn calculate_combat_data(shared: &Arc<SharedState>) -> Option<CombatData> 
             .collect();
 
         // Enemy player frames for the PvP enemy HP overlay: stable first-seen
-        // slot order; discipline from the session registry (source of truth)
-        let enemy_frames: Vec<baras_overlay::EnemyFrame> = if is_pvp {
+        // slot order; discipline from the session registry (source of truth).
+        // Only while still inside the PvP area — after zoning out the match is
+        // over, and a re-shown overlay must not resurrect the ended match's
+        // frames from the lingering encounter.
+        let in_pvp_area = baras_core::game_data::is_pvp_area(cache.current_area.area_id);
+        let enemy_frames: Vec<baras_overlay::EnemyFrame> = if is_pvp && in_pvp_area {
             let mut enemies: Vec<_> = encounter
                 .players
                 .values()

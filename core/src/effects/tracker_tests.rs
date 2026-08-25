@@ -970,6 +970,77 @@ fn test_single_instance_local_activation_registers_target_without_instance() {
     );
 }
 
+#[test]
+fn test_non_raid_frame_effect_does_not_register_target() {
+    // A tracked cooldown/buff (e.g. a stim re-applied at zone-in) matches a
+    // definition, but only raid-frame definitions may queue the target for
+    // raid frame registration.
+    let local_player_id: i64 = 1;
+
+    let mut stim = make_effect(
+        "stim",
+        "Stim",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(4256329770205184)],
+            source: EntityFilter::LocalPlayer,
+            target: EntityFilter::Any,
+            position: vec![],
+        },
+        None,
+    );
+    stim.display_targets = vec![super::definition::DisplayTarget::Cooldowns];
+
+    let mut hot = make_effect(
+        "hot",
+        "HOT",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(814832605462528)],
+            source: EntityFilter::LocalPlayer,
+            target: EntityFilter::AnyPlayer,
+            position: vec![],
+        },
+        Some(21.0),
+    );
+    hot.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
+
+    let mut tracker = make_tracker(vec![stim, hot]);
+    tracker.set_player_context(local_player_id, 0);
+
+    // Self-applied stim: tracked, but must not claim a raid-frame slot
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(
+            4256329770205184,
+            local_player_id,
+            local_player_id,
+            now(),
+        ),
+        None,
+    );
+    assert_eq!(tracker.active_effects().count(), 1, "Stim is still tracked");
+    assert!(
+        tracker.take_new_targets().is_empty(),
+        "Non-raid-frame effects must not register their target"
+    );
+
+    // A raid-frame HOT on self still registers
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(
+            814832605462528,
+            local_player_id,
+            local_player_id,
+            now(),
+        ),
+        None,
+    );
+    assert!(
+        tracker
+            .take_new_targets()
+            .iter()
+            .any(|t| t.entity_id == local_player_id),
+        "Raid-frame effects register their target"
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PvP: only classified teammates may register to raid frames
 // ─────────────────────────────────────────────────────────────────────────────

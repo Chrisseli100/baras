@@ -1196,7 +1196,8 @@ impl EffectTracker {
                 // Register the target even when the cast came from another
                 // player — in PvE anyone receiving this buff is a group member;
                 // in PvP only once classified as a teammate.
-                if target_entity_type == EntityType::Player
+                if def.display_targets.contains(&DisplayTarget::RaidFrames)
+                    && target_entity_type == EntityType::Player
                     && Self::can_register_target(local_player_id, source_id, target_id, encounter)
                 {
                     self.new_targets.push(NewTargetInfo {
@@ -1248,7 +1249,7 @@ impl EffectTracker {
                 if let Some(c) = charges {
                     existing.set_stacks(c);
                 }
-                should_register = true;
+                should_register |= def.display_targets.contains(&DisplayTarget::RaidFrames);
 
                 // Collect alert for effect refresh if configured
                 if def.alert_on == AlertTrigger::OnApply
@@ -1301,7 +1302,7 @@ impl EffectTracker {
 
                 self.active_effects.insert(key, effect);
                 self.ticking_count += 1;
-                should_register = true;
+                should_register |= def.display_targets.contains(&DisplayTarget::RaidFrames);
 
                 // Collect alert for effect start if configured
                 if def.alert_on == AlertTrigger::OnApply
@@ -1326,8 +1327,10 @@ impl EffectTracker {
         // Queue collected alerts
         self.fired_alerts.extend(pending_alerts);
 
-        // Queue target for raid frame registration only when effect was created or refreshed.
-        // Only players belong on raid frames (not companions or NPCs)
+        // Queue target for raid frame registration only when a raid-frame effect
+        // was created or refreshed — a tracked cooldown/buff (e.g. a stim
+        // re-applied at zone-in) must not claim a slot. Only players belong on
+        // raid frames (not companions or NPCs)
         if should_register
             && is_from_local
             && target_entity_type == EntityType::Player
