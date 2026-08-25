@@ -227,6 +227,8 @@ fn default_effect(name: String) -> EffectListItem {
         is_aoe_refresh: false,
         aoe_refresh_immediate: false,
         is_refreshed_on_modify: false,
+        single_instance_per_target: false,
+        default_charges: None,
         color: Some([80, 200, 80, 255]),
         show_at_secs: 0.0,
         display_targets: vec![],

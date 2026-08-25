@@ -44,6 +44,7 @@ trigger = { type = "effect_applied", effects = [
 refresh_abilities = [985226842996736]
 duration_secs = 180.0
 default_charges = 7
+single_instance_per_target = true
 color = [255, 126, 66, 255]
 display_target = "raid_frames"
 
@@ -55,6 +56,7 @@ trigger = { type = "effect_applied", effects = [
 ], source = "other_players", target = "group_members" }
 refresh_abilities = [985226842996736]
 duration_secs = 180.0
+single_instance_per_target = true
 color = [0, 13, 174, 255]
 display_target = "raid_frames"
 
@@ -67,6 +69,7 @@ trigger = { type = "effect_applied", effects = [
 refresh_abilities = [999516199190528]
 duration_secs = 180.0
 default_charges = 7
+single_instance_per_target = true
 color = [255, 126, 66, 255]
 display_target = "raid_frames"
 
@@ -78,6 +81,7 @@ trigger = { type = "effect_applied", effects = [
 ], source = "other_players", target = "group_members" }
 refresh_abilities = [999516199190528]
 duration_secs = 180.0
+single_instance_per_target = true
 color = [0, 13, 174, 255]
 display_target = "raid_frames"
 

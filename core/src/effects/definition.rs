@@ -119,6 +119,12 @@ pub struct EffectDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_charges: Option<u8>,
 
+    /// Game maintains at most one instance of this buff per target across all
+    /// sources (e.g. Kolto Shell, Trauma Probe); any caster's reapply refreshes
+    /// the original caster's instance, which retains credit.
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
+    pub single_instance_per_target: bool,
+
     // ─── Duration ───────────────────────────────────────────────────────────
     /// Expected duration in seconds (None = indefinite/unknown)
     #[serde(default, skip_serializing_if = "Option::is_none")]

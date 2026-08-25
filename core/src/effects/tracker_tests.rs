@@ -35,6 +35,7 @@ fn make_effect(
         is_aoe_refresh: false,
         aoe_refresh_immediate: false,
         is_refreshed_on_modify: false,
+        single_instance_per_target: false,
         default_charges: None,
         duration_secs,
         is_affected_by_alacrity: false,
@@ -431,11 +432,12 @@ fn test_kolto_shell_others_does_not_create_phantom_when_local_active() {
     );
     kolto_shell.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
     kolto_shell.default_charges = Some(7);
+    kolto_shell.single_instance_per_target = true;
     kolto_shell.refresh_abilities = vec![RefreshAbility::Simple(baras_types::AbilitySelector::Id(
         effect_id,
     ))];
 
-    let kolto_shell_others = make_effect(
+    let mut kolto_shell_others = make_effect(
         "kolto_shell_others",
         "Other's Kolto Shell",
         Trigger::EffectApplied {
@@ -446,6 +448,7 @@ fn test_kolto_shell_others_does_not_create_phantom_when_local_active() {
         },
         Some(180.0),
     );
+    kolto_shell_others.single_instance_per_target = true;
 
     let mut tracker = make_tracker(vec![kolto_shell, kolto_shell_others]);
     tracker.set_player_context(local_player_id, 0);
@@ -505,8 +508,9 @@ fn test_kolto_shell_others_creates_normally_when_no_local_active() {
         Some(180.0),
     );
     kolto_shell.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
+    kolto_shell.single_instance_per_target = true;
 
-    let kolto_shell_others = make_effect(
+    let mut kolto_shell_others = make_effect(
         "kolto_shell_others",
         "Other's Kolto Shell",
         Trigger::EffectApplied {
@@ -517,6 +521,7 @@ fn test_kolto_shell_others_creates_normally_when_no_local_active() {
         },
         Some(180.0),
     );
+    kolto_shell_others.single_instance_per_target = true;
 
     let mut tracker = make_tracker(vec![kolto_shell, kolto_shell_others]);
     tracker.set_player_context(local_player_id, 0);
@@ -732,7 +737,7 @@ fn test_kolto_shell_others_refreshes_via_ability_activated() {
     let other_player_id: i64 = 99;
     let target_id: i64 = 2;
 
-    let kolto_shell = make_effect(
+    let mut kolto_shell = make_effect(
         "kolto_shell",
         "Kolto Shell",
         Trigger::EffectApplied {
@@ -743,6 +748,7 @@ fn test_kolto_shell_others_refreshes_via_ability_activated() {
         },
         Some(180.0),
     );
+    kolto_shell.single_instance_per_target = true;
 
     let mut kolto_shell_others = make_effect(
         "kolto_shell_others",
@@ -756,6 +762,7 @@ fn test_kolto_shell_others_refreshes_via_ability_activated() {
         Some(180.0),
     );
     kolto_shell_others.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
+    kolto_shell_others.single_instance_per_target = true;
     kolto_shell_others.refresh_abilities = vec![RefreshAbility::Simple(
         baras_types::AbilitySelector::Id(effect_id),
     )];
@@ -798,9 +805,11 @@ fn test_kolto_shell_others_refreshes_via_ability_activated() {
 }
 
 #[test]
-fn test_other_player_effect_late_registration_not_marked_local() {
-    // When an effect is late-registered via refresh for another player,
-    // it should NOT be marked as is_from_local_player.
+fn test_single_instance_activation_does_not_late_register() {
+    // A cast with no tracked instance may be silently refreshing an instance
+    // whose apply predates the log (the true caster is unknown). No instance
+    // should be fabricated — only the target gets registered for raid frames.
+    // The real instance arrives via ApplyEffect (fresh cast) or ModifyCharges.
     let effect_id: u64 = 985226842996736;
     let local_player_id: i64 = 1;
     let other_player_id: i64 = 99;
@@ -818,6 +827,7 @@ fn test_other_player_effect_late_registration_not_marked_local() {
         Some(180.0),
     );
     kolto_shell_others.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
+    kolto_shell_others.single_instance_per_target = true;
     kolto_shell_others.refresh_abilities = vec![RefreshAbility::Simple(
         baras_types::AbilitySelector::Id(effect_id),
     )];
@@ -825,19 +835,332 @@ fn test_other_player_effect_late_registration_not_marked_local() {
     let mut tracker = make_tracker(vec![kolto_shell_others]);
     tracker.set_player_context(local_player_id, 0);
 
-    // No EffectApplied — go straight to AbilityActivated (late registration)
+    // No EffectApplied — go straight to AbilityActivated
     let ts = now();
     tracker.handle_signal(
         &ability_activated_signal_with_source(effect_id as i64, other_player_id, target_id, ts),
         None,
     );
 
-    assert_eq!(tracker.active_effects().count(), 1);
+    assert_eq!(
+        tracker.active_effects().count(),
+        0,
+        "Activation alone must not fabricate a single-instance effect"
+    );
+    let targets = tracker.take_new_targets();
+    assert!(
+        targets.iter().any(|t| t.entity_id == target_id),
+        "Target should still be registered for raid frames"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single-instance buffs: imperfect information (zoned in after apply)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Kolto Shell pair with single-instance semantics, mirroring the bundled defs
+fn make_single_instance_pair(effect_id: u64) -> (EffectDefinition, EffectDefinition) {
+    let mut local = make_effect(
+        "kolto_shell",
+        "Kolto Shell",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(effect_id)],
+            source: EntityFilter::LocalPlayer,
+            target: EntityFilter::AnyPlayer,
+            position: vec![],
+        },
+        Some(180.0),
+    );
+    local.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
+    local.default_charges = Some(7);
+    local.single_instance_per_target = true;
+    local.refresh_abilities = vec![RefreshAbility::Simple(baras_types::AbilitySelector::Id(
+        effect_id,
+    ))];
+
+    let mut others = make_effect(
+        "kolto_shell_others",
+        "Other's Kolto Shell",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(effect_id)],
+            source: EntityFilter::OtherPlayers,
+            target: EntityFilter::AnyPlayer,
+            position: vec![],
+        },
+        Some(180.0),
+    );
+    others.display_targets = vec![super::definition::DisplayTarget::RaidFrames];
+    others.single_instance_per_target = true;
+    others.refresh_abilities = vec![RefreshAbility::Simple(baras_types::AbilitySelector::Id(
+        effect_id,
+    ))];
+
+    (local, others)
+}
+
+#[test]
+fn test_single_instance_local_apply_refreshes_others_instance() {
+    // Reverse direction of the phantom test: another player's instance is
+    // active and the local player applies — the existing instance refreshes
+    // and the original caster keeps credit; no second instance appears.
+    let effect_id: u64 = 985226842996736;
+    let local_player_id: i64 = 1;
+    let other_player_id: i64 = 99;
+    let target_id: i64 = 2;
+
+    let (local, others) = make_single_instance_pair(effect_id);
+    let mut tracker = make_tracker(vec![local, others]);
+    tracker.set_player_context(local_player_id, 0);
+
+    let ts = now();
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, other_player_id, target_id, ts),
+        None,
+    );
+    let original_expires = tracker.active_effects().next().unwrap().expires_at;
+
+    let ts2 = ts + chrono::Duration::seconds(5);
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, local_player_id, target_id, ts2),
+        None,
+    );
+
+    assert_eq!(
+        tracker.active_effects().count(),
+        1,
+        "Local apply over other's instance must refresh, not duplicate"
+    );
     let effect = tracker.active_effects().next().unwrap();
     assert_eq!(effect.definition_id, "kolto_shell_others");
+    assert_eq!(
+        effect.source_entity_id, other_player_id,
+        "Original caster keeps credit"
+    );
+    assert!(effect.expires_at > original_expires, "Timer should refresh");
+}
+
+#[test]
+fn test_single_instance_local_activation_registers_target_without_instance() {
+    // Local player casts on a target with no tracked instance (the other
+    // healer applied before we zoned in): no instance is created, but the
+    // target is registered for raid frames.
+    let effect_id: u64 = 985226842996736;
+    let local_player_id: i64 = 1;
+    let target_id: i64 = 2;
+
+    let (local, others) = make_single_instance_pair(effect_id);
+    let mut tracker = make_tracker(vec![local, others]);
+    tracker.set_player_context(local_player_id, 0);
+
+    let ts = now();
+    tracker.handle_signal(
+        &ability_activated_signal_with_source(effect_id as i64, local_player_id, target_id, ts),
+        None,
+    );
+
+    assert_eq!(
+        tracker.active_effects().count(),
+        0,
+        "No instance without ApplyEffect/ModifyCharges — credit is unknown"
+    );
+    let targets = tracker.take_new_targets();
     assert!(
-        !effect.is_from_local_player,
-        "Late-registered effect from other player should NOT be marked as local"
+        targets.iter().any(|t| t.entity_id == target_id),
+        "Target should be registered for raid frames"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PvP: only classified teammates may register to raid frames
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Warzone encounter (The Pit) with an empty faction map
+fn warzone_encounter() -> crate::encounter::CombatEncounter {
+    let mut enc =
+        crate::encounter::CombatEncounter::new(1, crate::encounter::ProcessingMode::Live);
+    enc.set_area(Some(137438988866), Some("The Pit".to_string()), None);
+    enc
+}
+
+#[test]
+fn test_pvp_other_source_registers_only_classified_teammates() {
+    let effect_id: u64 = 985226842996736;
+    let local_player_id: i64 = 1;
+    let other_healer_id: i64 = 50;
+    let target_id: i64 = 51;
+
+    let (local, others) = make_single_instance_pair(effect_id);
+    let mut tracker = make_tracker(vec![local, others]);
+    tracker.set_player_context(local_player_id, 0);
+    let mut enc = warzone_encounter();
+
+    // Another player's shell on an unclassified target: the effect is tracked,
+    // but the target must not claim a raid-frame slot — not via the fresh apply...
+    let ts = now();
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, other_healer_id, target_id, ts),
+        Some(&enc),
+    );
+    // ...the single-instance re-apply...
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(
+            effect_id as i64,
+            other_healer_id,
+            target_id,
+            ts + chrono::Duration::seconds(5),
+        ),
+        Some(&enc),
+    );
+    // ...or the recast/refresh path.
+    tracker.handle_signal(
+        &ability_activated_signal_with_source(
+            effect_id as i64,
+            other_healer_id,
+            target_id,
+            ts + chrono::Duration::seconds(10),
+        ),
+        Some(&enc),
+    );
+    assert!(
+        tracker.take_new_targets().is_empty(),
+        "A cast with no known-friendly endpoint must not register in PvP"
+    );
+
+    // Once the SOURCE is classified as a teammate (they heal the local player),
+    // their next recast proves the target is friendly too and registers them.
+    enc.pvp_factions
+        .observe_pair(other_healer_id, local_player_id, false, local_player_id);
+    tracker.handle_signal(
+        &ability_activated_signal_with_source(
+            effect_id as i64,
+            other_healer_id,
+            target_id,
+            ts + chrono::Duration::seconds(15),
+        ),
+        Some(&enc),
+    );
+    assert!(
+        tracker
+            .take_new_targets()
+            .iter()
+            .any(|t| t.entity_id == target_id),
+        "A friendly healer's cast registers its (still unclassified) target"
+    );
+}
+
+#[test]
+fn test_pvp_local_source_registers_unclassified_target() {
+    // The local player can only land beneficial effects on teammates, so a
+    // local cast registers its target even before faction classification.
+    let effect_id: u64 = 985226842996736;
+    let local_player_id: i64 = 1;
+    let target_id: i64 = 2;
+
+    let (local, others) = make_single_instance_pair(effect_id);
+    let mut tracker = make_tracker(vec![local, others]);
+    tracker.set_player_context(local_player_id, 0);
+    let enc = warzone_encounter();
+
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, local_player_id, target_id, now()),
+        Some(&enc),
+    );
+    assert!(
+        tracker
+            .take_new_targets()
+            .iter()
+            .any(|t| t.entity_id == target_id),
+        "Local casts register their target without classification"
+    );
+}
+
+#[test]
+fn test_single_instance_charges_create_missing_instance() {
+    // ModifyCharges reveals the true caster of an instance whose apply
+    // predates the log: it creates the instance with correct credit.
+    let effect_id: u64 = 985226842996736;
+    let local_player_id: i64 = 1;
+    let other_player_id: i64 = 99;
+    let target_id: i64 = 2;
+
+    let (local, others) = make_single_instance_pair(effect_id);
+    let mut tracker = make_tracker(vec![local, others]);
+    tracker.set_player_context(local_player_id, 0);
+
+    let ts = now();
+    tracker.handle_signal(
+        &charges_changed_signal(effect_id as i64, other_player_id, target_id, 6, ts),
+        None,
+    );
+
+    assert_eq!(
+        tracker.active_effects().count(),
+        1,
+        "ModifyCharges should create the missing instance"
+    );
+    let effect = tracker.active_effects().next().unwrap();
+    assert_eq!(effect.definition_id, "kolto_shell_others");
+    assert_eq!(effect.source_entity_id, other_player_id);
+    assert!(!effect.is_from_local_player);
+    assert_eq!(effect.stacks, 6, "Stacks come from the event");
+    assert!(
+        effect.expires_at > Some(ts + chrono::Duration::seconds(179)),
+        "Starts a full duration (real remaining time is unknown)"
+    );
+
+    // Local variant creates when the charges come from the local player
+    let mut tracker = {
+        let (local, others) = make_single_instance_pair(effect_id);
+        make_tracker(vec![local, others])
+    };
+    tracker.set_player_context(local_player_id, 0);
+    tracker.handle_signal(
+        &charges_changed_signal(effect_id as i64, local_player_id, target_id, 5, ts),
+        None,
+    );
+    let effect = tracker.active_effects().next().unwrap();
+    assert_eq!(effect.definition_id, "kolto_shell");
+    assert!(effect.is_from_local_player);
+    assert_eq!(effect.stacks, 5);
+}
+
+#[test]
+fn test_single_instance_merged_charges_update() {
+    // Local instance refreshed by another player's apply (merged): subsequent
+    // ModifyCharges from that other player must still update the stacks —
+    // the merged instance is keyed under the local source.
+    let effect_id: u64 = 985226842996736;
+    let local_player_id: i64 = 1;
+    let other_player_id: i64 = 99;
+    let target_id: i64 = 2;
+
+    let (local, others) = make_single_instance_pair(effect_id);
+    let mut tracker = make_tracker(vec![local, others]);
+    tracker.set_player_context(local_player_id, 0);
+
+    let ts = now();
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, local_player_id, target_id, ts),
+        None,
+    );
+    let ts2 = ts + chrono::Duration::seconds(5);
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(effect_id as i64, other_player_id, target_id, ts2),
+        None,
+    );
+    assert_eq!(tracker.active_effects().count(), 1, "Merged into one instance");
+
+    let ts3 = ts + chrono::Duration::seconds(10);
+    tracker.handle_signal(
+        &charges_changed_signal(effect_id as i64, other_player_id, target_id, 5, ts3),
+        None,
+    );
+
+    let effect = tracker.active_effects().next().unwrap();
+    assert_eq!(effect.definition_id, "kolto_shell");
+    assert_eq!(
+        effect.stacks, 5,
+        "Charges from the other source must reach the merged instance"
     );
 }
 

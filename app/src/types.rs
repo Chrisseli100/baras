@@ -939,6 +939,12 @@ pub struct EffectListItem {
     pub duration_secs: Option<f32>,
     #[serde(default)]
     pub is_refreshed_on_modify: bool,
+    // Game keeps one instance per target across all sources (Kolto Shell/Trauma Probe)
+    #[serde(default)]
+    pub single_instance_per_target: bool,
+    // Charges applied on late registration; must round-trip or editor saves wipe it
+    #[serde(default)]
+    pub default_charges: Option<u8>,
 
     // Display
     pub color: Option<[u8; 4]>,

@@ -13,7 +13,7 @@ use crate::combat_log::EntityType;
 use crate::context::IStr;
 use crate::dsl::EntityDefinition;
 use crate::dsl::EntityFilterMatching;
-use crate::encounter::CombatEncounter;
+use crate::encounter::{CombatEncounter, PvpFaction};
 use crate::game_data::{Discipline, DisciplineFilter};
 use crate::signal_processor::{GameSignal, SignalHandler};
 
@@ -611,6 +611,23 @@ impl EffectTracker {
         })
     }
 
+    /// Source-agnostic lookup for `single_instance_per_target` buffs: find the
+    /// tracked instance on `target_id` under any definition in the group
+    /// (e.g. `kolto_shell` + `kolto_shell_others`), regardless of source. The
+    /// game keeps one instance per target, so at most one entry can match.
+    ///
+    /// Takes the map directly (not `&mut self`) so callers can hold definition
+    /// borrows across the call.
+    fn find_single_instance_effect<'a>(
+        active_effects: &'a mut HashMap<EffectKey, ActiveEffect>,
+        group_ids: &[&str],
+        target_id: i64,
+    ) -> Option<&'a mut ActiveEffect> {
+        active_effects.values_mut().find(|e| {
+            e.target_entity_id == target_id && group_ids.iter().any(|id| *id == e.definition_id)
+        })
+    }
+
     /// Handle signals with explicit local player ID from session cache
     pub fn handle_signals_with_player(
         &mut self,
@@ -908,6 +925,30 @@ impl EffectTracker {
         std::mem::take(&mut self.new_targets)
     }
 
+    /// Whether an effect target may be queued for raid frame registration.
+    ///
+    /// The game only lands beneficial effects on teammates, so a cast from the
+    /// local player — or, in PvP, from any player classified friendly — proves
+    /// the target is a teammate. In PvP a cast where neither endpoint is known
+    /// friendly must not register: an enemy healer's Kolto Shell would pull
+    /// enemies onto the raid frames.
+    fn can_register_target(
+        local_player_id: Option<i64>,
+        source_id: i64,
+        target_id: i64,
+        encounter: Option<&CombatEncounter>,
+    ) -> bool {
+        if local_player_id == Some(source_id) {
+            return true;
+        }
+        let Some(enc) = encounter.filter(|e| e.is_pvp()) else {
+            return true;
+        };
+        let local = local_player_id.unwrap_or(0);
+        enc.pvp_factions.faction_of(source_id, local) == Some(PvpFaction::Friendly)
+            || enc.pvp_factions.faction_of(target_id, local) == Some(PvpFaction::Friendly)
+    }
+
     /// Tick the tracker - removes expired effects and updates state
     ///
     /// Uses interpolated game time for accurate remaining time calculations
@@ -1105,6 +1146,15 @@ impl EffectTracker {
             .definitions
             .find_matching(effect_id as u64, Some(effect_name_str));
 
+        // Ids of single-instance defs sharing this game effect (e.g. kolto_shell
+        // + kolto_shell_others) — the source-agnostic lookup group used below.
+        // Collected before filtering: source filters keep only one of the pair.
+        let single_instance_ids: Vec<&str> = all_matches
+            .iter()
+            .filter(|d| d.single_instance_per_target)
+            .map(|d| d.id.as_str())
+            .collect();
+
         let matching_defs: Vec<_> = all_matches
             .into_iter()
             .filter(|def| def.is_effect_applied_trigger())
@@ -1126,42 +1176,35 @@ impl EffectTracker {
 
             let duration = self.effective_duration(def, timestamp);
 
-            // Hard-coded exclusivity: when another player refreshes the same ability
-            // (e.g., Kolto Shell, Trauma Probe), the game refreshes the original
-            // caster's effect rather than creating a new one. If the local player's
-            // version is already active, refresh it instead of creating a phantom
-            // "_others" variant.
-            let dominant_def_id = match def.id.as_str() {
-                "kolto_shell_others" => Some("kolto_shell"),
-                "trauma_probe_others" => Some("trauma_probe"),
-                _ => None,
-            };
-            if let Some(dominant_id) = dominant_def_id {
-                // Find the existing effect regardless of who originally cast it.
-                // The game merges a second healer's cast into the existing buff,
-                // so we need a source-agnostic lookup here.
-                let dominant_entry = self.active_effects.values_mut().find(|e| {
-                    e.definition_id == dominant_id && e.target_entity_id == target_id
-                });
-                if let Some(dominant) = dominant_entry {
-                    if dominant.removed_at.is_none() {
-                        // The local player's effect exists — the other player just refreshed it.
-                        // Update our effect's duration instead of creating a phantom.
-                        dominant.refresh(timestamp, duration);
-                        if let Some(c) = charges {
-                            dominant.set_stacks(c);
-                        }
-                        // Register the target for raid frames even though the signal
-                        // came from another player — the target is a known group member.
-                        if target_entity_type == EntityType::Player {
-                            self.new_targets.push(NewTargetInfo {
-                                entity_id: target_id,
-                                name: target_name,
-                            });
-                        }
-                        continue;
-                    }
+            // Single-instance buffs (Kolto Shell, Trauma Probe): the game keeps one
+            // instance per target across all sources — a second caster's apply
+            // refreshes the existing instance and the original caster keeps credit.
+            // Source-agnostic lookup across the def group, in both directions
+            // (local over other's AND other's over local).
+            if def.single_instance_per_target
+                && let Some(existing) = Self::find_single_instance_effect(
+                    &mut self.active_effects,
+                    &single_instance_ids,
+                    target_id,
+                )
+                && existing.removed_at.is_none()
+            {
+                existing.refresh(timestamp, duration);
+                if let Some(c) = charges {
+                    existing.set_stacks(c);
                 }
+                // Register the target even when the cast came from another
+                // player — in PvE anyone receiving this buff is a group member;
+                // in PvP only once classified as a teammate.
+                if target_entity_type == EntityType::Player
+                    && Self::can_register_target(local_player_id, source_id, target_id, encounter)
+                {
+                    self.new_targets.push(NewTargetInfo {
+                        entity_id: target_id,
+                        name: target_name,
+                    });
+                }
+                continue;
             }
 
             if let Some(existing) = self.active_effects.get_mut(&key) {
@@ -1345,6 +1388,10 @@ impl EffectTracker {
         let entities = get_entities(encounter);
         let pvp_factions = encounter.and_then(|e| e.pvp_faction_context());
 
+        // In PvP, only classified teammates may claim raid-frame slots.
+        let can_register =
+            is_player && Self::can_register_target(local_player_id, source_id, target_id, encounter);
+
         // Collect matching definitions with all info needed for creation
         struct RefreshableEffect {
             id: String,
@@ -1365,12 +1412,26 @@ impl EffectTracker {
             /// Minimum stacks required for this refresh (None = any)
             min_stacks: Option<u8>,
             refresh_scope: RefreshScope,
+            /// One instance per target across sources (Kolto Shell/Trauma Probe)
+            single_instance_per_target: bool,
             /// Resolved per-ability flag: defer the refresh to the first damage
             /// event from this ability instead of firing on cast.
             defer_to_first_damage: bool,
         }
 
         let local_discipline = self.local_player_discipline;
+
+        // Ids of single-instance defs refreshable by this ability (both the
+        // local and `_others` variants) — the source-agnostic lookup group used
+        // below. Collected before filtering: source filters keep only one.
+        let single_instance_ids: Vec<String> = self
+            .definitions
+            .find_refreshable_by(action_id as u64, Some(action_name_str))
+            .into_iter()
+            .filter(|d| d.single_instance_per_target)
+            .map(|d| d.id.clone())
+            .collect();
+
         let refreshable_defs: Vec<_> = self
             .definitions
             .find_refreshable_by(action_id as u64, Some(action_name_str))
@@ -1437,6 +1498,7 @@ impl EffectTracker {
                     default_charges: def.default_charges,
                     min_stacks: refresh_ability.min_stacks(),
                     refresh_scope: def.refresh_scope,
+                    single_instance_per_target: def.single_instance_per_target,
                     defer_to_first_damage: refresh_ability.refresh_on_first_damage(
                         def.display_targets.contains(&DisplayTarget::DotTracker),
                     ),
@@ -1458,6 +1520,39 @@ impl EffectTracker {
                     source_id,
                     timestamp,
                 });
+                continue;
+            }
+
+            // Single-instance buffs (Kolto Shell, Trauma Probe): the recast may be
+            // silently refreshing any caster's instance, so look up source-agnostically
+            // across the def group. When nothing is tracked, the cast may have refreshed
+            // an instance whose apply predates the log (healer zoned in earlier) — don't
+            // fabricate an instance with wrong credit; just make sure the target is on
+            // the raid frames. The true instance is created by the next
+            // ApplyEffect (fresh cast) or ModifyCharges (untracked instance).
+            if def.single_instance_per_target {
+                let group_ids: Vec<&str> =
+                    single_instance_ids.iter().map(String::as_str).collect();
+                let existing = Self::find_single_instance_effect(
+                    &mut self.active_effects,
+                    &group_ids,
+                    target_id,
+                );
+                if let Some(effect) = existing.filter(|e| e.removed_at.is_none()) {
+                    if let Some(min_stacks) = def.min_stacks
+                        && effect.stacks < min_stacks
+                    {
+                        continue;
+                    }
+                    // Original caster keeps credit — only the duration refreshes.
+                    effect.refresh(timestamp, def.duration);
+                }
+                if def.display_targets.contains(&DisplayTarget::RaidFrames) && can_register {
+                    self.new_targets.push(NewTargetInfo {
+                        entity_id: target_id,
+                        name: target_name,
+                    });
+                }
                 continue;
             }
 
@@ -1501,7 +1596,7 @@ impl EffectTracker {
                 effect.refresh(timestamp, def.duration);
 
                 // Re-register for raid frames (in case user cleared the slot)
-                if def.display_targets.contains(&DisplayTarget::RaidFrames) && is_player {
+                if def.display_targets.contains(&DisplayTarget::RaidFrames) && can_register {
                     self.new_targets.push(NewTargetInfo {
                         entity_id: target_id,
                         name: target_name,
@@ -1547,7 +1642,7 @@ impl EffectTracker {
                 self.ticking_count += 1;
 
                 // Queue target for raid frame registration (only players)
-                if def.display_targets.contains(&DisplayTarget::RaidFrames) && is_player {
+                if def.display_targets.contains(&DisplayTarget::RaidFrames) && can_register {
                     self.new_targets.push(NewTargetInfo {
                         entity_id: target_id,
                         name: target_name,
@@ -2142,9 +2237,18 @@ impl EffectTracker {
             .into_iter()
             .collect();
 
+        // Source-agnostic lookup group for single-instance buffs (see
+        // handle_effect_applied) — a merged instance keeps the original
+        // caster's key, which may not match this signal's source.
+        let single_instance_ids: Vec<&str> = matching_defs
+            .iter()
+            .filter(|d| d.single_instance_per_target)
+            .map(|d| d.id.as_str())
+            .collect();
+
         let is_from_local = local_player_id == Some(source_id);
 
-        for def in matching_defs {
+        for def in &matching_defs {
             let key = EffectKey::for_scope(&def.id, def.refresh_scope, source_id, target_id);
 
             if def.is_effect_applied_trigger() {
@@ -2152,10 +2256,21 @@ impl EffectTracker {
                 // Skip if ignore_effect_removed OR cooldowns (cooldowns always use timer-based expiry)
                 let is_cooldown = def.display_targets.contains(&DisplayTarget::Cooldowns)
                     || def.display_targets.contains(&DisplayTarget::CooldownsB);
-                if !def.ignore_effect_removed
-                    && !is_cooldown
-                    && let Some(effect) = self.active_effects.get_mut(&key)
-                {
+                if def.ignore_effect_removed || is_cooldown {
+                    continue;
+                }
+                let matched = if self.active_effects.contains_key(&key) {
+                    self.active_effects.get_mut(&key)
+                } else if def.single_instance_per_target {
+                    Self::find_single_instance_effect(
+                        &mut self.active_effects,
+                        &single_instance_ids,
+                        target_id,
+                    )
+                } else {
+                    None
+                };
+                if let Some(effect) = matched {
                     // Only honor removal if it occurred well AFTER the last refresh.
                     // DOT reapplication sends ApplyEffect then RemoveEffect - sometimes
                     // the RemoveEffect arrives up to ~1 second later (for the old DOT instance).
@@ -2240,9 +2355,16 @@ impl EffectTracker {
         _action_id: i64,
         _action_name: IStr,
         source_id: i64,
+        source_entity_type: EntityType,
+        source_name: IStr,
+        source_npc_id: i64,
         target_id: i64,
+        target_entity_type: EntityType,
+        target_name: IStr,
+        target_npc_id: i64,
         timestamp: NaiveDateTime,
         charges: u8,
+        encounter: Option<&crate::encounter::CombatEncounter>,
     ) {
         self.advance_game_time_anchor(timestamp);
 
@@ -2251,12 +2373,35 @@ impl EffectTracker {
             self.alacrity_buffs.on_charges_changed(effect_id, charges, timestamp);
         }
 
+        // Entity info for filter matching (single-instance creation below)
+        let source_info = EntityInfo {
+            id: source_id,
+            npc_id: source_npc_id,
+            entity_type: source_entity_type,
+            name: source_name,
+        };
+        let target_info = EntityInfo {
+            id: target_id,
+            npc_id: target_npc_id,
+            entity_type: target_entity_type,
+            name: target_name,
+        };
+
         // Find matching definitions (by ID or name)
         let effect_name_str = crate::context::resolve(effect_name);
         let matching_defs: Vec<_> = self
             .definitions
             .find_matching(effect_id as u64, Some(effect_name_str))
             .into_iter()
+            .collect();
+
+        // Source-agnostic lookup group for single-instance buffs (see
+        // handle_effect_applied) — a merged instance keeps the original
+        // caster's key, which may not match this signal's source.
+        let single_instance_ids: Vec<&str> = matching_defs
+            .iter()
+            .filter(|d| d.single_instance_per_target)
+            .map(|d| d.id.as_str())
             .collect();
 
         // Effects removed by `cancel` modifiers (ticking_count is adjusted after the
@@ -2274,7 +2419,17 @@ impl EffectTracker {
             let duration = if needs_duration { self.effective_duration(def, timestamp) } else { None };
             let icds: Vec<Option<f32>> = def.modifiers.iter().map(|m| self.effective_icd(m, timestamp)).collect();
 
-            if let Some(effect) = self.active_effects.get_mut(&key) {
+            if let Some(effect) = if self.active_effects.contains_key(&key) {
+                self.active_effects.get_mut(&key)
+            } else if def.single_instance_per_target {
+                Self::find_single_instance_effect(
+                    &mut self.active_effects,
+                    &single_instance_ids,
+                    target_id,
+                )
+            } else {
+                None
+            } {
                 let old_stacks = effect.stacks;
                 effect.set_stacks(charges);
 
@@ -2343,6 +2498,47 @@ impl EffectTracker {
                         }
                     }
                 }
+            } else if def.single_instance_per_target
+                && def.is_effect_applied_trigger()
+                && !def.is_alert
+                && self.matches_filters(def, source_info, target_info, encounter)
+            {
+                // Nothing tracked on this target: the original apply predates the
+                // log (e.g. the local player zoned in after another healer applied).
+                // ModifyCharges carries the true caster as source, so create the
+                // instance here with correct credit. Real remaining duration is
+                // unknown — start a full one and let refreshes/RemoveEffect
+                // correct it. matches_filters picks the local vs `_others` def,
+                // so the pair creates at most one instance.
+                let duration = self.effective_duration(def, timestamp);
+                let display_text = def.display_text().to_string();
+                let icon_ability_id = def.icon_ability_id.unwrap_or(effect_id as u64);
+                let mut effect = ActiveEffect::new(
+                    def.id.clone(),
+                    effect_id as u64,
+                    def.name.clone(),
+                    display_text,
+                    source_id,
+                    source_name,
+                    target_id,
+                    target_name,
+                    self.local_player_id == Some(source_id),
+                    timestamp,
+                    duration,
+                    def.effective_color(),
+                    def.display_targets.clone(),
+                    icon_ability_id,
+                    def.show_at_secs,
+                    def.show_icon,
+                    def.display_source,
+                    def.cooldown_ready_secs,
+                    &def.audio,
+                    def.alert_text.clone(),
+                    def.alert_on == AlertTrigger::OnExpire,
+                );
+                effect.set_stacks(charges);
+                self.active_effects.insert(key, effect);
+                self.ticking_count += 1;
             }
         }
         self.ticking_count = self.ticking_count.saturating_sub(cancelled);
@@ -2754,10 +2950,15 @@ impl SignalHandler for EffectTracker {
                 action_id,
                 action_name,
                 source_id,
+                source_entity_type,
+                source_name,
+                source_npc_id,
                 target_id,
+                target_entity_type,
+                target_name,
+                target_npc_id,
                 timestamp,
                 charges,
-                ..
             } => {
                 self.handle_charges_changed(
                     *effect_id,
@@ -2765,9 +2966,16 @@ impl SignalHandler for EffectTracker {
                     *action_id,
                     *action_name,
                     *source_id,
+                    *source_entity_type,
+                    *source_name,
+                    *source_npc_id,
                     *target_id,
+                    *target_entity_type,
+                    *target_name,
+                    *target_npc_id,
                     *timestamp,
                     *charges,
+                    encounter,
                 );
             }
             GameSignal::EntityDeath { entity_id, .. } => {
