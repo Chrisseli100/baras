@@ -188,6 +188,11 @@ pub struct EffectDefinition {
     #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
     pub track_uptime: bool,
 
+    /// With `track_uptime`: suppress the desaturated placeholder until the
+    /// effect has been applied at least once this session.
+    #[serde(default, skip_serializing_if = "crate::serde_defaults::is_false")]
+    pub track_uptime_after_first: bool,
+
     /// Emphasize stacks for this effect on Effects A/B: stack count drawn
     /// large and centered, countdown in the corner. ORed with the overlay's
     /// own stack_priority setting.

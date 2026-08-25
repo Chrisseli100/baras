@@ -236,6 +236,7 @@ fn default_effect(name: String) -> EffectListItem {
         show_icon: true,
         display_source: false,
         track_uptime: false,
+        track_uptime_after_first: false,
         stack_priority: false,
         show_countdown: true,
         show_single_stack: false,
@@ -1272,9 +1273,11 @@ fn EffectEditForm(
                                         }
                                     }
 
-                                    // Show Icon
-                                    div { class: "form-row-hz",
-                                        label { "Show Icon" }
+                                    // ─── Display Options ───────────────────────────────────
+                                    span { class: "form-subheader", "Display Options" }
+
+                                    label {
+                                        class: "flex items-center gap-xs text-sm mt-xs",
                                         input {
                                             r#type: "checkbox",
                                             checked: draft().show_icon,
@@ -1284,19 +1287,13 @@ fn EffectEditForm(
                                                 draft.set(d);
                                             }
                                         }
+                                        span { "Show Icon" }
                                     }
 
                                     // Display Source - only for personal overlays
                                     if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC | DisplayTarget::Cooldowns | DisplayTarget::CooldownsB)) {
-                                        div { class: "form-row-hz",
-                                            label { class: "flex items-center",
-                                                "Display Source"
-                                                span {
-                                                    class: "help-icon",
-                                                    title: "Show who applied this effect on the overlay",
-                                                    "?"
-                                                }
-                                            }
+                                        label {
+                                            class: "flex items-center gap-xs text-sm",
                                             input {
                                                 r#type: "checkbox",
                                                 checked: draft().display_source,
@@ -1306,20 +1303,21 @@ fn EffectEditForm(
                                                     draft.set(d);
                                                 }
                                             }
+                                            span { class: "flex items-center",
+                                                "Display Source"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Show who applied this effect on the overlay",
+                                                    "?"
+                                                }
+                                            }
                                         }
                                     }
 
                                     // Show Stack Count at 1 - Effects A/B and raid frames
                                     if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC | DisplayTarget::RaidFrames)) {
-                                        div { class: "form-row-hz",
-                                            label { class: "flex items-center",
-                                                "Show stack count at 1"
-                                                span {
-                                                    class: "help-icon",
-                                                    title: "Always display a stack count for this effect, starting at 1. Non-stacking effects show \"1\"; real counts show as they climb. Raid frames normally hide counts below 2.",
-                                                    "?"
-                                                }
-                                            }
+                                        label {
+                                            class: "flex items-center gap-xs text-sm",
                                             input {
                                                 r#type: "checkbox",
                                                 checked: draft().show_single_stack,
@@ -1329,20 +1327,21 @@ fn EffectEditForm(
                                                     draft.set(d);
                                                 }
                                             }
+                                            span { class: "flex items-center",
+                                                "Show stack count at 1"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Always display a stack count for this effect, starting at 1. Non-stacking effects show \"1\"; real counts show as they climb. Raid frames normally hide counts below 2.",
+                                                    "?"
+                                                }
+                                            }
                                         }
                                     }
 
                                     // Show Countdown - only for Effects A/B overlays
                                     if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC)) {
-                                        div { class: "form-row-hz",
-                                            label { class: "flex items-center",
-                                                "Show countdown"
-                                                span {
-                                                    class: "help-icon",
-                                                    title: "Show the remaining-time text on this effect's icon. Uncheck to hide the countdown for just this effect. The overlay's own 'Show countdown' setting must also be on.",
-                                                    "?"
-                                                }
-                                            }
+                                        label {
+                                            class: "flex items-center gap-xs text-sm",
                                             input {
                                                 r#type: "checkbox",
                                                 checked: draft().show_countdown,
@@ -1352,20 +1351,21 @@ fn EffectEditForm(
                                                     draft.set(d);
                                                 }
                                             }
+                                            span { class: "flex items-center",
+                                                "Show countdown"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Show the remaining-time text on this effect's icon. Uncheck to hide the countdown for just this effect. The overlay's own 'Show countdown' setting must also be on.",
+                                                    "?"
+                                                }
+                                            }
                                         }
                                     }
 
                                     // Emphasize Stacks - only for Effects A/B overlays
                                     if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC)) {
-                                        div { class: "form-row-hz",
-                                            label { class: "flex items-center",
-                                                "Emphasize Stacks"
-                                                span {
-                                                    class: "help-icon",
-                                                    title: "Draw this effect's stack count large and centered with the countdown in the corner. Works even when the overlay's own 'Emphasize stacked effects' setting is off.",
-                                                    "?"
-                                                }
-                                            }
+                                        label {
+                                            class: "flex items-center gap-xs text-sm",
                                             input {
                                                 r#type: "checkbox",
                                                 checked: draft().stack_priority,
@@ -1375,13 +1375,34 @@ fn EffectEditForm(
                                                     draft.set(d);
                                                 }
                                             }
+                                            span { class: "flex items-center",
+                                                "Emphasize Stacks"
+                                                span {
+                                                    class: "help-icon",
+                                                    title: "Draw this effect's stack count large and centered with the countdown in the corner. Works even when the overlay's own 'Emphasize stacked effects' setting is off.",
+                                                    "?"
+                                                }
+                                            }
                                         }
                                     }
 
                                     // Track Uptime - only for Effects A/B overlays
                                     if draft().display_targets.iter().any(|t| matches!(t, DisplayTarget::EffectsA | DisplayTarget::EffectsB | DisplayTarget::EffectsC)) {
-                                        div { class: "form-row-hz",
-                                            label { class: "flex items-center",
+                                        label {
+                                            class: "flex items-center gap-xs text-sm",
+                                            input {
+                                                r#type: "checkbox",
+                                                checked: draft().track_uptime,
+                                                onchange: move |e| {
+                                                    let mut d = draft();
+                                                    d.track_uptime = e.checked();
+                                                    if !e.checked() {
+                                                        d.track_uptime_after_first = false;
+                                                    }
+                                                    draft.set(d);
+                                                }
+                                            }
+                                            span { class: "flex items-center",
                                                 "Show when absent"
                                                 span {
                                                     class: "help-icon",
@@ -1389,13 +1410,28 @@ fn EffectEditForm(
                                                     "?"
                                                 }
                                             }
-                                            input {
-                                                r#type: "checkbox",
-                                                checked: draft().track_uptime,
-                                                onchange: move |e| {
-                                                    let mut d = draft();
-                                                    d.track_uptime = e.checked();
-                                                    draft.set(d);
+                                        }
+
+                                        if draft().track_uptime {
+                                            label {
+                                                class: "flex items-center gap-xs text-sm",
+                                                style: "padding-left: 20px;",
+                                                input {
+                                                    r#type: "checkbox",
+                                                    checked: draft().track_uptime_after_first,
+                                                    onchange: move |e| {
+                                                        let mut d = draft();
+                                                        d.track_uptime_after_first = e.checked();
+                                                        draft.set(d);
+                                                    }
+                                                }
+                                                span { class: "flex items-center",
+                                                    "Only show after first appearance"
+                                                    span {
+                                                        class: "help-icon",
+                                                        title: "Hide the grayed-out icon until this effect has been applied at least once this session. After that, it persists as usual while the effect is inactive.",
+                                                        "?"
+                                                    }
                                                 }
                                             }
                                         }
@@ -1403,8 +1439,8 @@ fn EffectEditForm(
                                 }
 
                                 // Entry Enabled
-                                div { class: "form-row-hz",
-                                    label { "Entry Enabled" }
+                                label {
+                                    class: "flex items-center gap-xs text-sm",
                                     input {
                                         r#type: "checkbox",
                                         checked: draft().enabled,
@@ -1414,6 +1450,7 @@ fn EffectEditForm(
                                             draft.set(d);
                                         }
                                     }
+                                    span { "Entry Enabled" }
                                 }
                             }
                         }
@@ -1668,7 +1705,7 @@ fn EffectEditForm(
                                     }
 
                                     // ─── Behavior Options ──────────────────────────────────
-                                    span { class: "text-sm font-bold text-secondary mt-sm", "Behavior" }
+                                    span { class: "form-subheader", "Behavior" }
 
                                     label {
                                         class: "flex items-center gap-xs text-sm mt-xs",

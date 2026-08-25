@@ -64,6 +64,8 @@ pub struct EffectListItem {
     #[serde(default)]
     pub track_uptime: bool,
     #[serde(default)]
+    pub track_uptime_after_first: bool,
+    #[serde(default)]
     pub stack_priority: bool,
     #[serde(default = "baras_core::serde_defaults::default_true")]
     pub show_countdown: bool,
@@ -138,6 +140,7 @@ impl EffectListItem {
             show_icon: def.show_icon,
             display_source: def.display_source,
             track_uptime: def.track_uptime,
+            track_uptime_after_first: def.track_uptime_after_first,
             stack_priority: def.stack_priority,
             show_countdown: def.show_countdown,
             show_single_stack: def.show_single_stack,
@@ -205,6 +208,7 @@ impl EffectListItem {
             show_icon: self.show_icon,
             display_source: self.display_source,
             track_uptime: self.track_uptime,
+            track_uptime_after_first: self.track_uptime_after_first,
             stack_priority: self.stack_priority,
             show_countdown: self.show_countdown,
             show_single_stack: self.show_single_stack,

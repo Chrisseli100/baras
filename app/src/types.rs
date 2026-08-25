@@ -964,6 +964,9 @@ pub struct EffectListItem {
     /// Pin on overlay for matching disciplines; desaturated while inactive
     #[serde(default)]
     pub track_uptime: bool,
+    /// With track_uptime: hide placeholder until first application this session
+    #[serde(default)]
+    pub track_uptime_after_first: bool,
     /// Emphasize stacks for this effect (ORed with overlay setting)
     #[serde(default)]
     pub stack_priority: bool,

@@ -819,6 +819,8 @@ impl EffectTracker {
                     && def.track_uptime
                     && def.displays_on(target)
                     && (def.disciplines.is_empty() || def.disciplines.contains(discipline))
+                    && (!def.track_uptime_after_first
+                        || self.uptime_last_icons.contains_key(&def.id))
             })
             .collect();
         // Stable pin order regardless of HashMap iteration
