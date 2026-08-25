@@ -241,8 +241,11 @@ impl EffectsABOverlay {
 
     /// Render the overlay
     pub fn render(&mut self) {
-        // In move mode, always render preview (bypass dirty check)
+        // In move mode, always render preview (bypass dirty check).
+        // Clear dirty-check state so the first locked render repaints over the preview.
         if self.frame.is_in_move_mode() {
+            self.last_rendered.clear();
+            self.last_rendered_bar.clear();
             self.render_preview();
             return;
         }
