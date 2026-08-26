@@ -17,6 +17,7 @@ refresh_abilities = [
 duration_secs = 21.0
 color = [38, 181, 81, 255]
 is_affected_by_alacrity = true
+show_single_stack = true
 display_target = "raid_frames"
 
 [[effect]]
@@ -33,6 +34,7 @@ refresh_abilities = [
 duration_secs = 21.0
 color = [38, 181, 81, 255]
 is_affected_by_alacrity = true
+show_single_stack = true
 display_target = "raid_frames"
 
 [[effect]]
@@ -46,6 +48,7 @@ duration_secs = 180.0
 default_charges = 7
 single_instance_per_target = true
 color = [255, 126, 66, 255]
+show_single_stack = true
 display_target = "raid_frames"
 
 [[effect]]
@@ -58,6 +61,7 @@ refresh_abilities = [985226842996736]
 duration_secs = 180.0
 single_instance_per_target = true
 color = [0, 13, 174, 255]
+show_single_stack = true
 display_target = "raid_frames"
 
 [[effect]]
@@ -71,6 +75,7 @@ duration_secs = 180.0
 default_charges = 7
 single_instance_per_target = true
 color = [255, 126, 66, 255]
+show_single_stack = true
 display_target = "raid_frames"
 
 [[effect]]
@@ -83,6 +88,7 @@ refresh_abilities = [999516199190528]
 duration_secs = 180.0
 single_instance_per_target = true
 color = [0, 13, 174, 255]
+show_single_stack = true
 display_target = "raid_frames"
 
 [[effect]]
