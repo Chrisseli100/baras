@@ -1640,6 +1640,8 @@ mod examples {
             let boss_config = BossHealthConfig {
                 show_target: true,
                 dynamic_background: true,
+                // Percent-only readout: HP value toggled off for this row.
+                show_hp_value: false,
                 ..Default::default()
             };
             let window_config = OverlayConfig {
@@ -1706,7 +1708,7 @@ mod examples {
         println!("│     Boss Health - Font Scale + Content-Aware Background      │");
         println!("├─────────────────────────────────────────────────────────────┤");
         println!("│  Row 1: Font scale 1.0x | 1.5x | 2.0x  (3 bosses, 280x200) │");
-        println!("│  Row 2: Content-aware BG with 1 | 2 | 3 bosses (280x300)   │");
+        println!("│  Row 2: Content-aware BG, percent-only readout (280x300)   │");
         println!("│         Background shrinks to fit content height!            │");
         println!("│  Row 3: HP markers + shields (300x350)                      │");
         println!("├─────────────────────────────────────────────────────────────┤");
