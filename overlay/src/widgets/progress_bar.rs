@@ -46,10 +46,6 @@ const SEAM_DARKEN: f32 = 0.25;
 /// - Label + right: `| Name              Value |`
 /// - Label + center + right: `| Name    Center   Value |` (3-column, smaller font)
 /// - Label + center: `| Name           Center   |`
-/// Fraction of a bar's height used for an inline icon in bar-mode overlays.
-/// Leaves breathing room above/below so the icon doesn't crowd the bar text.
-pub const BAR_ICON_RATIO: f32 = 0.75;
-
 #[derive(Debug, Clone)]
 pub struct ProgressBar {
     pub label: String,
