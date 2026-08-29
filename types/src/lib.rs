@@ -2180,6 +2180,9 @@ pub struct RaidOverlaySettings {
     pub effect_fill_opacity: u8,
     #[serde(default)]
     pub show_effect_icons: bool,
+    /// Outline colored effect squares with the effect's own color
+    #[serde(default)]
+    pub effect_colored_borders: bool,
     #[serde(default = "default_frame_spacing")]
     pub frame_spacing: f32,
 }
@@ -2223,6 +2226,7 @@ impl Default for RaidOverlaySettings {
             show_class_icons: false,
             effect_fill_opacity: 255,
             show_effect_icons: false,
+            effect_colored_borders: false,
             frame_spacing: 4.0,
         }
     }

@@ -388,16 +388,7 @@ impl EffectsABOverlay {
 
         for effect in &effects {
             // Draw icon
-            self.draw_icon(effect, x, y, icon_size, icon_size_u32);
-
-            // Border
-            let border = if effect.inactive {
-                color_from_rgba([160, 160, 160, 160])
-            } else {
-                colors::white()
-            };
-            self.frame
-                .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, border);
+            let has_icon = self.draw_icon(effect, x, y, icon_size, icon_size_u32);
 
             // Clock wipe overlay
             let progress = effect.progress();
@@ -411,6 +402,18 @@ impl EffectsABOverlay {
                     color_from_rgba([0, 0, 0, 140]),
                 );
             }
+
+            // Border (after wipe so it stays bright); colored squares use the
+            // effect's own color so identity survives the wipe darkening
+            let border = if effect.inactive {
+                color_from_rgba([160, 160, 160, 160])
+            } else if has_icon {
+                colors::white()
+            } else {
+                color_from_rgba([effect.color[0], effect.color[1], effect.color[2], 255])
+            };
+            self.frame
+                .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, border);
 
             // Stack priority vs normal mode
             if (self.config.stack_priority || effect.stack_priority) && effect.stacks >= 1 {
@@ -580,7 +583,7 @@ impl EffectsABOverlay {
             let x = padding;
 
             // Draw icon
-            self.draw_icon(effect, x, y, icon_size, icon_size_u32);
+            let has_icon = self.draw_icon(effect, x, y, icon_size, icon_size_u32);
 
             // Clock wipe overlay
             let progress = effect.progress();
@@ -595,11 +598,14 @@ impl EffectsABOverlay {
                 );
             }
 
-            // Border
+            // Border; colored squares use the effect's own color so identity
+            // survives the wipe darkening
             let border = if effect.inactive {
                 color_from_rgba([160, 160, 160, 160])
-            } else {
+            } else if has_icon {
                 colors::white()
+            } else {
+                color_from_rgba([effect.color[0], effect.color[1], effect.color[2], 255])
             };
             self.frame
                 .stroke_rounded_rect(x, y, icon_size, icon_size, 3.0, 1.0, border);
@@ -870,7 +876,7 @@ impl EffectsABOverlay {
         self.frame.end_frame();
     }
 
-    /// Draw icon or colored square fallback
+    /// Draw icon or colored square fallback; returns whether an icon was drawn
     fn draw_icon(
         &mut self,
         effect: &EffectABEntry,
@@ -878,7 +884,7 @@ impl EffectsABOverlay {
         y: f32,
         icon_size: f32,
         icon_size_u32: u32,
-    ) {
+    ) -> bool {
         let has_icon = if effect.show_icon {
             // On cache miss, scale (and desaturate if inactive) through the cache
             // rather than drawing the raw color RGBA — keeps inactive entries gray.
@@ -925,6 +931,7 @@ impl EffectsABOverlay {
             self.frame
                 .fill_rounded_rect(x, y, icon_size, icon_size, 3.0, bg_color);
         }
+        has_icon
     }
 
     /// Draw stack-priority mode (big stacks centered, timer in corner)

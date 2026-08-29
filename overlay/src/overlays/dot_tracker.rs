@@ -435,7 +435,13 @@ impl DotTrackerOverlay {
                     );
                 }
 
-                // Border
+                // Border; colored squares use the DOT's own color so identity
+                // survives the wipe darkening
+                let border = if has_icon {
+                    colors::white()
+                } else {
+                    color_from_rgba([dot.color[0], dot.color[1], dot.color[2], 255])
+                };
                 self.frame.stroke_rounded_rect(
                     icon_x,
                     y,
@@ -443,7 +449,7 @@ impl DotTrackerOverlay {
                     icon_size,
                     2.0,
                     1.0,
-                    colors::white(),
+                    border,
                 );
 
                 // Font size for countdown text

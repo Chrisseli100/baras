@@ -3396,6 +3396,20 @@ pub fn SettingsPanel(
                             }
                             p { class: "hint", "Display ability icons instead of colored squares (requires icon pack)" }
 
+                            div { class: "setting-row",
+                                label { "Colored Effect Borders" }
+                                input {
+                                    r#type: "checkbox",
+                                    checked: current_settings.raid_overlay.effect_colored_borders,
+                                    onchange: move |e: Event<FormData>| {
+                                        let mut new_settings = draft_settings();
+                                        new_settings.raid_overlay.effect_colored_borders = e.checked();
+                                        update_draft(new_settings);
+                                    }
+                                }
+                            }
+                            p { class: "hint", "Outline colored effect squares with the effect's own color" }
+
                             div { class: "setting-row reset-row",
                                 button {
                                     class: "btn btn-reset",
