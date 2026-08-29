@@ -906,6 +906,32 @@ pub fn SettingsPanel(
                                 }
                             }
 
+                            div { class: "setting-row",
+                                label { "Show HP markers" }
+                                input {
+                                    r#type: "checkbox",
+                                    checked: current_settings.boss_health.show_hp_markers,
+                                    onchange: move |e: Event<FormData>| {
+                                        let mut new_settings = draft_settings();
+                                        new_settings.boss_health.show_hp_markers = e.checked();
+                                        update_draft(new_settings);
+                                    }
+                                }
+                            }
+
+                            div { class: "setting-row",
+                                label { "Show shields" }
+                                input {
+                                    r#type: "checkbox",
+                                    checked: current_settings.boss_health.show_shield,
+                                    onchange: move |e: Event<FormData>| {
+                                        let mut new_settings = draft_settings();
+                                        new_settings.boss_health.show_shield = e.checked();
+                                        update_draft(new_settings);
+                                    }
+                                }
+                            }
+
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.boss_health.font_scale * 100.0) as i32 as f64,

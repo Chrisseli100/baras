@@ -2278,6 +2278,12 @@ pub struct BossHealthConfig {
     /// When true, show the current HP value (e.g. "1.90M") inline on the bar
     #[serde(default = "default_true")]
     pub show_hp_value: bool,
+    /// When true, show phase HP markers (line through the bar + gutter label)
+    #[serde(default = "default_true")]
+    pub show_hp_markers: bool,
+    /// When true, show active shields (gutter fill + remaining amount)
+    #[serde(default = "default_true")]
+    pub show_shield: bool,
     /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
@@ -2310,6 +2316,8 @@ impl Default for BossHealthConfig {
             show_percent: true,
             show_target: true,
             show_hp_value: true,
+            show_hp_markers: true,
+            show_shield: true,
             font_scale: 1.0,
             dynamic_background: false,
             clear_after_combat: true,
