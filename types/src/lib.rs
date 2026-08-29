@@ -2287,6 +2287,17 @@ pub struct BossHealthConfig {
     /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
+    /// Scale multiplier for the lower (gutter) bar: scales its text and,
+    /// more gently, the bar height itself (0.5 - 2.0)
+    #[serde(default = "default_scaling_factor", alias = "target_scale")]
+    pub lower_bar_scale: f32,
+    /// Scale multiplier for the boss-effect icons below the bar (0.5 - 2.0)
+    #[serde(default = "default_scaling_factor")]
+    pub icon_scale: f32,
+    /// Fraction of the window height each boss entry targets (0.1 - 1.0):
+    /// 0.25 fits 4 bosses, 0.2 fits 5, etc.
+    #[serde(default = "default_boss_height_scale")]
+    pub height_scale: f32,
     /// When true, background shrinks to fit content instead of filling the window
     #[serde(default)]
     pub dynamic_background: bool,
@@ -2308,6 +2319,10 @@ fn default_boss_bar_color() -> Color {
     overlay_colors::BOSS_BAR
 }
 
+fn default_boss_height_scale() -> f32 {
+    0.25
+}
+
 impl Default for BossHealthConfig {
     fn default() -> Self {
         Self {
@@ -2319,6 +2334,9 @@ impl Default for BossHealthConfig {
             show_hp_markers: true,
             show_shield: true,
             font_scale: 1.0,
+            lower_bar_scale: 1.0,
+            icon_scale: 1.0,
+            height_scale: 0.25,
             dynamic_background: false,
             clear_after_combat: true,
             show_border: true,

@@ -945,6 +945,45 @@ pub fn SettingsPanel(
                             update_draft(new_settings);
                         },
                     }
+                    Slider {
+                        label: "Lower Bar Scale",
+                        value: (current_settings.boss_health.lower_bar_scale * 100.0) as i32 as f64,
+                        min: 50.0,
+                        max: 200.0,
+                        step: 10.0,
+                        suffix: "%",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.boss_health.lower_bar_scale = (v as f32 / 100.0).clamp(0.5, 2.0);
+                            update_draft(new_settings);
+                        },
+                    }
+                    Slider {
+                        label: "Icon Scale",
+                        value: (current_settings.boss_health.icon_scale * 100.0) as i32 as f64,
+                        min: 50.0,
+                        max: 200.0,
+                        step: 10.0,
+                        suffix: "%",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.boss_health.icon_scale = (v as f32 / 100.0).clamp(0.5, 2.0);
+                            update_draft(new_settings);
+                        },
+                    }
+                    Slider {
+                        label: "Height Scale",
+                        value: (current_settings.boss_health.height_scale * 100.0) as i32 as f64,
+                        min: 10.0,
+                        max: 100.0,
+                        step: 5.0,
+                        suffix: "%",
+                        on_change: move |v: f64| {
+                            let mut new_settings = draft_settings();
+                            new_settings.boss_health.height_scale = (v as f32 / 100.0).clamp(0.1, 1.0);
+                            update_draft(new_settings);
+                        },
+                    }
                     div { class: "setting-row",
                         label { "Dynamic Background" }
                         input {

@@ -1443,6 +1443,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Tanky McTank".to_string()),
+                target_role: Some(baras_core::game_data::Role::Tank),
                 hp_markers: vec![],
                 active_shields: vec![],
                 pushes_at: None,
@@ -1454,6 +1455,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("StabbySith".to_string()),
+                target_role: Some(baras_core::game_data::Role::Dps),
                 hp_markers: vec![],
                 active_shields: vec![],
                 pushes_at: None,
@@ -1465,6 +1467,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: None,
+                target_role: None,
                 hp_markers: vec![],
                 active_shields: vec![],
                 pushes_at: None,
@@ -1478,6 +1481,7 @@ mod examples {
             max: 12_000_000,
             first_seen_at: None,
             target_name: Some("Tanky McTank".to_string()),
+                target_role: Some(baras_core::game_data::Role::Tank),
             hp_markers: vec![],
             active_shields: vec![],
             pushes_at: None,
@@ -1491,6 +1495,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Shield Wall".to_string()),
+                target_role: None,
                 hp_markers: vec![],
                 active_shields: vec![],
                 pushes_at: None,
@@ -1502,6 +1507,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Tanky McTank".to_string()),
+                target_role: Some(baras_core::game_data::Role::Tank),
                 hp_markers: vec![],
                 active_shields: vec![],
                 pushes_at: None,
@@ -1518,6 +1524,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("Tanky McTank".to_string()),
+                target_role: Some(baras_core::game_data::Role::Tank),
                 hp_markers: vec![
                     HpMarker {
                         hp_percent: 75.0,
@@ -1552,6 +1559,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: None,
+                target_role: None,
                 hp_markers: vec![],
                 active_shields: vec![ActiveShield {
                     label: "Energy Shield".to_string(),
@@ -1568,6 +1576,7 @@ mod examples {
                 max: 8_000_000,
                 first_seen_at: None,
                 target_name: Some("HealBot".to_string()),
+                target_role: Some(baras_core::game_data::Role::Healer),
                 hp_markers: vec![
                     HpMarker {
                         hp_percent: 60.0,
