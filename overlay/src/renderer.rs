@@ -354,6 +354,47 @@ impl Renderer {
         pixmap.fill_rect(rect, &paint, Transform::identity(), None);
     }
 
+    /// Draw a filled diamond (square rotated 45°) centered at (cx, cy) with
+    /// the given point-to-center radius.
+    pub fn fill_diamond(
+        &self,
+        buffer: &mut [u8],
+        width: u32,
+        height: u32,
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        color: Color,
+    ) {
+        if radius <= 0.0 {
+            return;
+        }
+
+        let Some(mut pixmap) = PixmapMut::from_bytes(buffer, width, height) else {
+            return;
+        };
+
+        let mut pb = PathBuilder::new();
+        pb.move_to(cx, cy - radius);
+        pb.line_to(cx + radius, cy);
+        pb.line_to(cx, cy + radius);
+        pb.line_to(cx - radius, cy);
+        pb.close();
+        let Some(path) = pb.finish() else { return };
+
+        let mut paint = Paint::default();
+        paint.set_color(color);
+        paint.anti_alias = true;
+
+        pixmap.fill_path(
+            &path,
+            &paint,
+            FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
+    }
+
     /// Draw a rounded rectangle (filled)
     pub fn fill_rounded_rect(
         &self,

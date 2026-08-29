@@ -376,6 +376,11 @@ impl OverlayFrame {
     }
 
     /// Draw a filled rounded rectangle
+    /// Draw a filled diamond centered at (cx, cy)
+    pub fn fill_diamond(&mut self, cx: f32, cy: f32, radius: f32, color: Color) {
+        self.window.fill_diamond(cx, cy, radius, color);
+    }
+
     pub fn fill_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: Color) {
         self.window.fill_rounded_rect(x, y, w, h, radius, color);
     }

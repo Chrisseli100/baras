@@ -10,7 +10,7 @@ use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::{color_from_rgba, shared_scaled_icons};
-use crate::widgets::{colors, ProgressBar};
+use crate::widgets::{colors, draw_icon_placeholder, ProgressBar};
 use crate::widgets::Header;
 
 /// A single DOT entry on a target
@@ -659,8 +659,8 @@ impl DotTrackerOverlay {
                 }
 
                 // Draw icon in the reserved column first so the bar's left
-                // edge overlaps its right border; the slot stays empty when
-                // the entry has no icon so bars remain aligned.
+                // edge overlaps its right border; entries without an icon get
+                // the shared tinted placeholder so bars stay aligned.
                 let mut icon_drawn = false;
                 if has_icon {
                     if let Some(scaled_icon) =
@@ -683,21 +683,27 @@ impl DotTrackerOverlay {
                         icon_drawn = true;
                     }
                 }
+                if !icon_drawn {
+                    draw_icon_placeholder(
+                        &mut self.frame,
+                        padding,
+                        y,
+                        icon_size,
+                        bar_height,
+                        bar_radius,
+                        color_from_rgba(dot.color),
+                    );
+                }
 
                 bar.render(&mut self.frame, bar_x, y, bar_width, bar_height, font_size, bar_radius);
 
                 // Per-entry border outline (user-configurable colour, toggleable):
-                // one continuous outline around icon + bar when an icon is drawn.
+                // one continuous outline around the icon slot + bar.
                 if self.config.show_border {
-                    let (x, w) = if icon_drawn {
-                        (padding, content_width)
-                    } else {
-                        (bar_x, bar_width)
-                    };
                     self.frame.stroke_rounded_rect(
-                        x,
+                        padding,
                         y,
-                        w,
+                        content_width,
                         bar_height,
                         bar_radius,
                         0.8 * scale,
@@ -799,7 +805,8 @@ impl DotTrackerOverlay {
                 let bar_x = padding + icon_size - icon_overlap;
                 let bar_width = content_width - icon_size + icon_overlap;
 
-                self.frame.fill_rounded_rect(
+                draw_icon_placeholder(
+                    &mut self.frame,
                     padding,
                     y,
                     icon_size,

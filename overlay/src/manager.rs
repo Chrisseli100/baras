@@ -107,6 +107,16 @@ impl OverlayWindow {
         }
     }
 
+    /// Draw a filled diamond centered at (cx, cy)
+    pub fn fill_diamond(&mut self, cx: f32, cy: f32, radius: f32, color: Color) {
+        let width = self.platform.width();
+        let height = self.platform.height();
+        if let Some(buffer) = self.platform.pixel_buffer() {
+            self.renderer
+                .fill_diamond(buffer, width, height, cx, cy, radius, color);
+        }
+    }
+
     /// Draw a filled rounded rectangle
     pub fn fill_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: Color) {
         let width = self.platform.width();

@@ -9,7 +9,7 @@ use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::{color_from_rgba, shared_scaled_icons};
-use crate::widgets::{colors, ProgressBar};
+use crate::widgets::{colors, draw_icon_placeholder, ProgressBar};
 use crate::widgets::Header;
 
 /// A single cooldown entry for display
@@ -768,8 +768,8 @@ impl CooldownOverlay {
                 .with_text_glow();
 
             // Draw icon in the reserved column first so the bar's left edge
-            // overlaps its right border; the slot stays empty when the entry
-            // has no icon so bars remain aligned.
+            // overlaps its right border; entries without an icon get the
+            // shared tinted placeholder so bars stay aligned with no hole.
             let mut icon_drawn = false;
             if has_icon {
                 if let Some(scaled) = shared_scaled_icons().get(entry.icon_ability_id, icon_size_u32)
@@ -782,17 +782,23 @@ impl CooldownOverlay {
                     icon_drawn = true;
                 }
             }
+            if !icon_drawn {
+                draw_icon_placeholder(
+                    &mut self.frame,
+                    padding,
+                    y,
+                    icon_size,
+                    bar_height,
+                    bar_radius,
+                    bar_color,
+                );
+            }
 
             bar.render(&mut self.frame, bar_x, y, bar_width, bar_height, font_size, bar_radius);
 
-            // Outline around icon + bar as one continuous shape when an icon
-            // is drawn. Drawn before the ready-state border so the ready
-            // highlight wins.
-            let (outline_x, outline_w) = if icon_drawn {
-                (padding, content_width)
-            } else {
-                (bar_x, bar_width)
-            };
+            // Outline around icon + bar as one continuous shape. Drawn before
+            // the ready-state border so the ready highlight wins.
+            let (outline_x, outline_w) = (padding, content_width);
             if self.config.show_border {
                 self.frame.stroke_rounded_rect(
                     outline_x,
@@ -860,8 +866,7 @@ impl CooldownOverlay {
 
         for (name, time_text, is_ready) in previews {
             // Placeholder icon slot
-            self.frame
-                .fill_rounded_rect(padding, y, icon_size, bar_height, bar_radius, accent);
+            draw_icon_placeholder(&mut self.frame, padding, y, icon_size, bar_height, bar_radius, accent);
 
             ProgressBar::new(name, if is_ready { 1.0 } else { 0.4 })
                 .with_fill_color(accent)

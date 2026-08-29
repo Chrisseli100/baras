@@ -10,7 +10,7 @@ use super::{Overlay, OverlayConfigUpdate, OverlayData};
 use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::{color_from_rgba, shared_scaled_icons};
-use crate::widgets::{colors, ProgressBar};
+use crate::widgets::{colors, draw_icon_placeholder, ProgressBar};
 
 /// A single timer entry for display
 #[derive(Debug, Clone)]
@@ -204,7 +204,8 @@ impl TimerOverlay {
 
         for (name, time_text, progress) in &previews {
             // Placeholder icon slot
-            self.frame.fill_rounded_rect(
+            draw_icon_placeholder(
+                &mut self.frame,
                 padding,
                 y,
                 icon_size,
@@ -343,8 +344,8 @@ impl TimerOverlay {
             let time_text = entry.format_time(self.european_number_format);
 
             // Draw icon in the reserved column first so the bar's left edge
-            // overlaps its right border; the slot stays empty when the entry
-            // has no icon so bars remain aligned.
+            // overlaps its right border; entries without an icon get a filler
+            // square so bars stay aligned with no hole in the row.
             let mut icon_drawn = false;
             if let Some(ability_id) = entry.icon_ability_id {
                 if let Some(scaled_icon) = shared_scaled_icons().get(ability_id, icon_size_u32) {
@@ -364,6 +365,17 @@ impl TimerOverlay {
                         .draw_image(rgba, img_w, img_h, padding, y, icon_size, icon_size);
                     icon_drawn = true;
                 }
+            }
+            if !icon_drawn {
+                draw_icon_placeholder(
+                    &mut self.frame,
+                    padding,
+                    y,
+                    icon_size,
+                    bar_height,
+                    bar_radius,
+                    bar_color,
+                );
             }
 
             // Draw timer bar with name on left, time on right
@@ -386,17 +398,12 @@ impl TimerOverlay {
                 );
 
             // Per-entry border outline (user-configurable colour, toggleable):
-            // one continuous outline around icon + bar when an icon is drawn.
+            // one continuous outline around the icon slot + bar.
             if self.config.show_border {
-                let (x, w) = if icon_drawn {
-                    (padding, content_width)
-                } else {
-                    (bar_x, bar_width)
-                };
                 self.frame.stroke_rounded_rect(
-                    x,
+                    padding,
                     y,
-                    w,
+                    content_width,
                     bar_height,
                     bar_radius,
                     0.8 * self.frame.scale_factor(),

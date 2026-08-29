@@ -264,11 +264,12 @@ impl BossHealthOverlay {
     }
 
     /// Draw the bar text: boss name on its own top line (left-aligned), then
-    /// a readout line with the HP value left-aligned and the HP percent
-    /// right-aligned. Each line gets the full bar width, so nothing competes
-    /// horizontally; a name only ellipsis-truncates when it genuinely exceeds
-    /// the bar. Parts are emptied upstream by the show_hp_value /
-    /// show_percent config toggles.
+    /// a readout line with the HP value left-aligned. The HP percent gets an
+    /// enlarged, vertically centered column spanning the bar's full height on
+    /// the right; that column's width is reserved (sized to "100.0%" so it
+    /// stays stable as the number shrinks) and the name and HP value
+    /// ellipsis-truncate before running into it. Parts are emptied upstream
+    /// by the show_hp_value / show_percent config toggles.
     #[allow(clippy::too_many_arguments)]
     fn draw_bar_text(
         &mut self,
@@ -285,9 +286,27 @@ impl BossHealthOverlay {
     ) {
         let pad_x = 4.0 * self.scale();
 
+        // Percent column: full bar height, right-aligned, centered vertically.
+        let mut reserved_w = 0.0;
+        if !percent_text.is_empty() {
+            let percent_font = (hp_font_size * 1.45).min(bar_h * 0.55);
+            let (tw, _) = self.measure_text_bold(percent_text, percent_font);
+            let (template_w, _) = self.measure_text_bold("100.0%", percent_font);
+            reserved_w = tw.max(template_w) + pad_x;
+            let pct_y = bar_top + bar_h / 2.0 + percent_font / 3.0;
+            self.draw_text_bold(
+                percent_text,
+                bar_x + bar_w - tw - pad_x * 2.0,
+                pct_y,
+                percent_font,
+                font_color,
+            );
+        }
+        let text_max_w = bar_w - pad_x * 2.0 - reserved_w;
+
         // Name line: centered in the top half of the bar.
         let name_y = bar_top + bar_h * 0.25 + name_font_size / 3.0;
-        let display = self.truncate_text_to_width(name, bar_w - pad_x * 2.0, name_font_size);
+        let display = self.truncate_text_to_width(name, text_max_w, name_font_size);
         self.draw_text_bold(&display, bar_x + pad_x, name_y, name_font_size, font_color);
 
         // Readout line: centered in the bottom half, nudged up so the text
@@ -295,17 +314,8 @@ impl BossHealthOverlay {
         let hp_text_y =
             bar_top + bar_h * 0.75 + hp_font_size / 3.0 - 2.0 * self.scale();
         if !health_text.is_empty() {
-            self.draw_text_bold(health_text, bar_x + pad_x, hp_text_y, hp_font_size, font_color);
-        }
-        if !percent_text.is_empty() {
-            let (tw, _) = self.measure_text_bold(percent_text, hp_font_size);
-            self.draw_text_bold(
-                percent_text,
-                bar_x + bar_w - tw - pad_x * 2.0,
-                hp_text_y,
-                hp_font_size,
-                font_color,
-            );
+            let display = self.truncate_text_to_width(health_text, text_max_w, hp_font_size);
+            self.draw_text_bold(&display, bar_x + pad_x, hp_text_y, hp_font_size, font_color);
         }
     }
 
