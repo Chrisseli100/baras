@@ -110,8 +110,6 @@ const BASE_BAR_HEIGHT: f32 = 18.0;
 const BASE_ENTRY_SPACING: f32 = 2.0;
 const BASE_PADDING: f32 = 6.0;
 const BASE_FONT_SIZE: f32 = 11.0;
-/// Gap between the icon column and the timer bar
-const BASE_ICON_GAP: f32 = 3.0;
 
 /// Timer bar overlay
 pub struct TimerOverlay {
@@ -185,9 +183,9 @@ impl TimerOverlay {
 
         // Reserved icon column: full bar height, left of every bar
         let icon_size = bar_height;
-        let icon_gap = self.frame.scaled(BASE_ICON_GAP);
-        let bar_x = padding + icon_size + icon_gap;
-        let bar_width = content_width - icon_size - icon_gap;
+        let icon_overlap = 1.0 * self.frame.scale_factor();
+        let bar_x = padding + icon_size - icon_overlap;
+        let bar_width = content_width - icon_size + icon_overlap;
 
         let previews = [
             ("Mechanic A", "12.3", 0.75_f32),
@@ -233,25 +231,14 @@ impl TimerOverlay {
                 );
 
             if self.config.show_border {
-                let border_color = color_from_rgba(self.config.border_color);
-                let border_width = 0.8 * self.frame.scale_factor();
                 self.frame.stroke_rounded_rect(
                     padding,
                     y,
-                    icon_size,
+                    content_width,
                     bar_height,
                     bar_radius,
-                    border_width,
-                    border_color,
-                );
-                self.frame.stroke_rounded_rect(
-                    bar_x,
-                    y,
-                    bar_width,
-                    bar_height,
-                    bar_radius,
-                    border_width,
-                    border_color,
+                    0.8 * self.frame.scale_factor(),
+                    color_from_rgba(self.config.border_color),
                 );
             }
 
@@ -333,11 +320,13 @@ impl TimerOverlay {
 
         // Reserved icon column: full bar height, left of every bar. Always
         // reserved so bars stay aligned whether or not an entry has an icon.
+        // The bar overlaps the icon's right edge by 1px so they read as one
+        // continuous shape under a single outline.
         let icon_size = bar_height;
-        let icon_gap = self.frame.scaled(BASE_ICON_GAP);
+        let icon_overlap = 1.0 * self.frame.scale_factor();
         let icon_size_u32 = icon_size.round() as u32;
-        let bar_x = padding + icon_size + icon_gap;
-        let bar_width = content_width - icon_size - icon_gap;
+        let bar_x = padding + icon_size - icon_overlap;
+        let bar_width = content_width - icon_size + icon_overlap;
 
         let mut y = bars_start_y;
 
@@ -353,27 +342,9 @@ impl TimerOverlay {
             let bar_color = color_from_rgba(entry.color);
             let time_text = entry.format_time(self.european_number_format);
 
-            // Draw timer bar with name on left, time on right
-            ProgressBar::new(&entry.name, entry.progress())
-                .with_fill_color(bar_color)
-                .with_bg_color(colors::dps_bar_bg())
-                .with_text_color(font_color)
-                .with_right_text(time_text)
-                .with_bold_text()
-                .with_gradient(self.config.bar_gradient)
-                .with_text_glow()
-                .render(
-                    &mut self.frame,
-                    bar_x,
-                    y,
-                    bar_width,
-                    bar_height,
-                    font_size,
-                    bar_radius,
-                );
-
-            // Draw icon in the reserved column; the slot stays empty when the
-            // entry has no icon so bars remain aligned.
+            // Draw icon in the reserved column first so the bar's left edge
+            // overlaps its right border; the slot stays empty when the entry
+            // has no icon so bars remain aligned.
             let mut icon_drawn = false;
             if let Some(ability_id) = entry.icon_ability_id {
                 if let Some(scaled_icon) = shared_scaled_icons().get(ability_id, icon_size_u32) {
@@ -395,31 +366,42 @@ impl TimerOverlay {
                 }
             }
 
-            // Per-entry border outline (user-configurable colour, toggleable);
-            // the icon shares the same outline style as the bar.
-            if self.config.show_border {
-                let border_color = color_from_rgba(self.config.border_color);
-                let border_width = 0.8 * self.frame.scale_factor();
-                self.frame.stroke_rounded_rect(
+            // Draw timer bar with name on left, time on right
+            ProgressBar::new(&entry.name, entry.progress())
+                .with_fill_color(bar_color)
+                .with_bg_color(colors::dps_bar_bg())
+                .with_text_color(font_color)
+                .with_right_text(time_text)
+                .with_bold_text()
+                .with_gradient(self.config.bar_gradient)
+                .with_text_glow()
+                .render(
+                    &mut self.frame,
                     bar_x,
                     y,
                     bar_width,
                     bar_height,
+                    font_size,
                     bar_radius,
-                    border_width,
-                    border_color,
                 );
-                if icon_drawn {
-                    self.frame.stroke_rounded_rect(
-                        padding,
-                        y,
-                        icon_size,
-                        icon_size,
-                        bar_radius,
-                        border_width,
-                        border_color,
-                    );
-                }
+
+            // Per-entry border outline (user-configurable colour, toggleable):
+            // one continuous outline around icon + bar when an icon is drawn.
+            if self.config.show_border {
+                let (x, w) = if icon_drawn {
+                    (padding, content_width)
+                } else {
+                    (bar_x, bar_width)
+                };
+                self.frame.stroke_rounded_rect(
+                    x,
+                    y,
+                    w,
+                    bar_height,
+                    bar_radius,
+                    0.8 * self.frame.scale_factor(),
+                    color_from_rgba(self.config.border_color),
+                );
             }
 
             y += bar_height + entry_spacing;

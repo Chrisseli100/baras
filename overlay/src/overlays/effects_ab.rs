@@ -156,8 +156,6 @@ const BASE_FONT_SIZE: f32 = 10.0;
 const ICON_FONT_RATIO: f32 = BASE_FONT_SIZE / 32.0;
 /// Bar mode dimensions (matches timer overlay style)
 const BASE_BAR_FONT_SIZE: f32 = 17.0;
-/// Gap between the icon column and the bar (bar layout)
-const BASE_ICON_GAP: f32 = 3.0;
 
 /// Effects overlay - displays effect icons in horizontal or vertical layout
 pub struct EffectsABOverlay {
@@ -689,11 +687,13 @@ impl EffectsABOverlay {
 
         // Reserved icon column: full bar height, left of every bar. Always
         // reserved so bars stay aligned whether or not an entry has an icon.
+        // The bar overlaps the icon's right edge by 1px so they read as one
+        // continuous shape under a single outline.
         let icon_size = bar_height;
-        let icon_gap = self.frame.scaled(BASE_ICON_GAP);
+        let icon_overlap = 1.0 * scale;
         let icon_size_u32 = icon_size.round() as u32;
-        let bar_x = padding + icon_size + icon_gap;
-        let bar_width = content_width - icon_size - icon_gap;
+        let bar_x = padding + icon_size - icon_overlap;
+        let bar_width = content_width - icon_size + icon_overlap;
 
         let header_space = if self.config.show_header {
             header_font_size + entry_spacing + 2.0 + entry_spacing + 4.0 * scale
@@ -792,10 +792,9 @@ impl EffectsABOverlay {
                 }
                 bar = bar.with_right_text(right);
             }
-            bar.render(&mut self.frame, bar_x, y, bar_width, bar_height, font_size, bar_radius);
-
-            // Draw icon in the reserved column; the slot stays empty when the
-            // entry has no icon so bars remain aligned.
+            // Draw icon in the reserved column first so the bar's left edge
+            // overlaps its right border; the slot stays empty when the entry
+            // has no icon so bars remain aligned.
             let mut icon_drawn = false;
             if has_icon {
                 let scaled_icon = shared_scaled_icons()
@@ -837,31 +836,25 @@ impl EffectsABOverlay {
                 }
             }
 
-            // Per-entry border outline (user-configurable colour, toggleable);
-            // the icon shares the same outline style as the bar.
+            bar.render(&mut self.frame, bar_x, y, bar_width, bar_height, font_size, bar_radius);
+
+            // Per-entry border outline (user-configurable colour, toggleable):
+            // one continuous outline around icon + bar when an icon is drawn.
             if self.config.show_border {
-                let border_color = color_from_rgba(self.config.border_color);
-                let border_width = 0.8 * scale;
+                let (x, w) = if icon_drawn {
+                    (padding, content_width)
+                } else {
+                    (bar_x, bar_width)
+                };
                 self.frame.stroke_rounded_rect(
-                    bar_x,
+                    x,
                     y,
-                    bar_width,
+                    w,
                     bar_height,
                     bar_radius,
-                    border_width,
-                    border_color,
+                    0.8 * scale,
+                    color_from_rgba(self.config.border_color),
                 );
-                if icon_drawn {
-                    self.frame.stroke_rounded_rect(
-                        padding,
-                        y,
-                        icon_size,
-                        icon_size,
-                        bar_radius,
-                        border_width,
-                        border_color,
-                    );
-                }
             }
 
             y += bar_height + entry_spacing;
@@ -1292,9 +1285,9 @@ impl EffectsABOverlay {
 
         // Reserved icon column (matches render_bar_mode geometry)
         let icon_size = bar_height;
-        let icon_gap = self.frame.scaled(BASE_ICON_GAP);
-        let bar_x = padding + icon_size + icon_gap;
-        let bar_width = content_width - icon_size - icon_gap;
+        let icon_overlap = 1.0 * scale;
+        let bar_x = padding + icon_size - icon_overlap;
+        let bar_width = content_width - icon_size + icon_overlap;
 
         let mut y = bars_start_y;
         for (name, time_text, progress) in &previews {
