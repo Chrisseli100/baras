@@ -985,10 +985,9 @@ pub fn SettingsPanel(
                             update_draft(new_settings);
                         },
                     }
-                    // Entries are sized so this many bosses fill the window;
-                    // fights with more bosses compress to fit.
                     Slider {
                         label: "Bosses Sized to Fit",
+                        tooltip: "The number of entries to reserve space for in the overlay window. If this number is exceeded, the entries will be compressed.",
                         value: current_settings.boss_health.visible_bosses as f64,
                         min: 1.0,
                         max: 7.0,

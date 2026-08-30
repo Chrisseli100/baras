@@ -189,16 +189,21 @@ impl BossHealthOverlay {
 
     /// Draw the gutter row contents: the bottom strip of the contiguous
     /// bar+gutter unit, whose space is always reserved so entries never resize
-    /// as elements toggle. Hosts the shield (blue fill + remaining amount,
-    /// centered), the next phase marker (left) and the current target (right);
-    /// absent elements simply leave their slot empty. The target renders its
-    /// role icon (tank/heal/dps) before the name when the role is known, and
-    /// falls back to a "⌖" prefix otherwise. The unit's shared background
-    /// and outline are drawn by the caller.
+    /// as elements toggle. Slots follow element prevalence: the current
+    /// target (most common) owns the left slot, the shield remaining amount
+    /// (rarest) the right corner, and the phase marker label is soft-anchored
+    /// — centered under its marker line, clamped into the measured free zone
+    /// between the other two so overlap is impossible; extreme marker
+    /// positions saturate at a zone edge instead of clipping. `marker` is
+    /// (line fraction across the bar, label). Absent elements leave their
+    /// slot empty. The target renders its role icon (tank/heal/dps) before
+    /// the name when the role is known, and falls back to a "⌖" prefix
+    /// otherwise. The unit's shared background and outline are drawn by the
+    /// caller.
     #[allow(clippy::too_many_arguments)]
     fn draw_gutter_row(
         &mut self,
-        marker: Option<&str>,
+        marker: Option<(f32, &str)>,
         shield: Option<(f32, &str)>,
         target: Option<(&str, Option<Role>)>,
         x: f32,
@@ -218,48 +223,58 @@ impl BossHealthOverlay {
             }
         }
         let text_y = y + h / 2.0 + font / 3.0;
-        if let Some(marker_text) = marker {
-            // Only cede the center to the shield amount when one is shown;
-            // otherwise the marker may run up to the target block (or nearly
-            // the full width when there's no target either).
-            let marker_max = if shield.is_some() {
-                w * 0.4
-            } else if target.is_some() {
-                w * 0.5
-            } else {
-                w - pad_x * 2.0
-            };
-            let display = self.truncate_text_to_width(marker_text, marker_max, font);
-            self.draw_text_bold(&display, x + pad_x, text_y, font, font_color);
-        }
+
+        // Target: left slot, icon + name capped at 40% of the width.
+        let mut zone_left = x + pad_x;
         if let Some((target_name, role)) = target {
             let icon = role.and_then(|r| crate::class_icons::get_role_icon(r.icon_name()));
             if let Some(icon) = icon {
                 let icon_size = h * 0.8;
                 let icon_gap = 2.0 * self.scale();
-                let display = self.truncate_text_to_width(target_name, w * 0.4, font);
+                let display = self.truncate_text_to_width(
+                    target_name,
+                    w * 0.4 - icon_size - icon_gap,
+                    font,
+                );
                 let (tw, _) = self.measure_text_bold(&display, font);
-                let text_x = x + w - tw - pad_x;
                 self.frame.draw_image(
                     &icon.rgba,
                     icon.width,
                     icon.height,
-                    text_x - icon_gap - icon_size,
+                    x + pad_x,
                     y + (h - icon_size) / 2.0,
                     icon_size,
                     icon_size,
                 );
+                let text_x = x + pad_x + icon_size + icon_gap;
                 self.draw_text_bold(&display, text_x, text_y, font, font_color);
+                zone_left = text_x + tw + pad_x * 2.0;
             } else {
                 let text = format!("⌖ {}", target_name);
                 let display = self.truncate_text_to_width(&text, w * 0.4, font);
                 let (tw, _) = self.measure_text_bold(&display, font);
-                self.draw_text_bold(&display, x + w - tw - pad_x, text_y, font, font_color);
+                self.draw_text_bold(&display, x + pad_x, text_y, font, font_color);
+                zone_left = x + pad_x + tw + pad_x * 2.0;
             }
         }
+
+        // Shield amount: right slot.
+        let mut zone_right = x + w - pad_x;
         if let Some((_, amount)) = shield {
             let (tw, _) = self.measure_text_bold(amount, font);
-            self.draw_text_bold(amount, x + (w - tw) / 2.0, text_y, font, font_color);
+            self.draw_text_bold(amount, x + w - tw - pad_x, text_y, font, font_color);
+            zone_right = x + w - tw - pad_x * 3.0;
+        }
+
+        // Marker label: soft-anchored under its line within the free zone.
+        if let Some((line_frac, label)) = marker {
+            let zone_w = (zone_right - zone_left).max(0.0);
+            let display = self.truncate_text_to_width(label, zone_w, font);
+            let (tw, _) = self.measure_text_bold(&display, font);
+            let line_x = x + line_frac.clamp(0.0, 1.0) * w;
+            let text_x =
+                (line_x - tw / 2.0).clamp(zone_left, (zone_right - tw).max(zone_left));
+            self.draw_text_bold(&display, text_x, text_y, font, font_color);
         }
     }
 
@@ -579,7 +594,10 @@ impl BossHealthOverlay {
             );
 
             if gutter_h > 0.0 {
-                let marker = self.config.show_hp_markers.then_some("50% Burn");
+                let marker = self
+                    .config
+                    .show_hp_markers
+                    .then_some((marker_pct, "50% Burn"));
                 let shield = self.config.show_shield.then_some((0.6, "150.00K"));
                 let target = self
                     .config
@@ -817,8 +835,8 @@ impl BossHealthOverlay {
 
             // ── Gutter row (reserved while enabled): shield/marker/target ──
             if gutter_h > 0.0 {
-                let marker_label =
-                    marker.map(|(hp_pct, label)| format!("{}% {}", hp_pct as u32, label));
+                let marker_label = marker
+                    .map(|(hp_pct, label)| (hp_pct / 100.0, format!("{}% {}", hp_pct as u32, label)));
                 let shield_info = self
                     .config
                     .show_shield
@@ -839,7 +857,7 @@ impl BossHealthOverlay {
                         )
                     });
                 self.draw_gutter_row(
-                    marker_label.as_deref(),
+                    marker_label.as_ref().map(|(frac, s)| (*frac, s.as_str())),
                     shield_info.as_ref().map(|(frac, amt)| (*frac, amt.as_str())),
                     target_info,
                     padding,
