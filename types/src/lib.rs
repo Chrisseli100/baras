@@ -2551,6 +2551,16 @@ pub struct ChallengeOverlayConfig {
     /// connected, ~0.2 = default. Keeps spacing consistent across resolutions.
     #[serde(default = "default_bar_spacing_ratio")]
     pub bar_spacing_ratio: f32,
+    /// How many challenge cards the window is sized for. 0 = auto (cards
+    /// fill the window). When set, each card takes 1/N of the window width
+    /// (horizontal layout) or height (vertical) and only compresses when
+    /// more than N challenges are visible.
+    #[serde(default)]
+    pub visible_challenges: u8,
+    /// Anchor cards to the far edge of the stacking axis: right edge in
+    /// horizontal layout, bottom edge in vertical.
+    #[serde(default)]
+    pub stack_from_end: bool,
 }
 
 fn default_challenge_bar_color() -> Color {
@@ -2574,6 +2584,8 @@ impl Default for ChallengeOverlayConfig {
             dynamic_background: false,
             bar_gradient: true,
             bar_spacing_ratio: 0.2,
+            visible_challenges: 0,
+            stack_from_end: false,
         }
     }
 }

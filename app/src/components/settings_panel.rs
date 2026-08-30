@@ -2904,6 +2904,60 @@ pub fn SettingsPanel(
                                 }
                             }
 
+                            // Reserve space for N challenge cards
+                            div { class: "setting-row",
+                                label {
+                                    title: "The number of challenge cards to reserve space for. Cards keep this fixed size (1/N of the window) instead of stretching to fill it, and only compress when more challenges than this appear.",
+                                    "Sized to Fit"
+                                }
+                                select {
+                                    class: "input-inline",
+                                    onchange: move |e: Event<FormData>| {
+                                        if let Ok(val) = e.value().parse::<u8>() {
+                                            let mut new_settings = draft_settings();
+                                            new_settings.challenge_overlay.visible_challenges = val.min(8);
+                                            update_draft(new_settings);
+                                        }
+                                    },
+                                    option { value: "0", selected: challenge_config.visible_challenges == 0, "Auto (fill window)" }
+                                    for n in 1..=8u8 {
+                                        option { value: "{n}", selected: challenge_config.visible_challenges == n, "{n}" }
+                                    }
+                                }
+                            }
+
+                            // Which edge cards stack from (label follows layout direction)
+                            div { class: "setting-row",
+                                label {
+                                    title: "Which edge challenge cards are anchored to when they don't fill the window.",
+                                    "Stack From"
+                                }
+                                select {
+                                    class: "input-inline",
+                                    onchange: move |e: Event<FormData>| {
+                                        let mut new_settings = draft_settings();
+                                        new_settings.challenge_overlay.stack_from_end = e.value() == "end";
+                                        update_draft(new_settings);
+                                    },
+                                    option {
+                                        value: "start",
+                                        selected: !challenge_config.stack_from_end,
+                                        {match challenge_config.layout {
+                                            ChallengeLayout::Horizontal => "Left",
+                                            ChallengeLayout::Vertical => "Top",
+                                        }}
+                                    }
+                                    option {
+                                        value: "end",
+                                        selected: challenge_config.stack_from_end,
+                                        {match challenge_config.layout {
+                                            ChallengeLayout::Horizontal => "Right",
+                                            ChallengeLayout::Vertical => "Bottom",
+                                        }}
+                                    }
+                                }
+                            }
+
                             h4 { style: "margin-top: 16px;", "Display Options" }
 
                             // Show footer
