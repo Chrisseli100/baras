@@ -932,6 +932,19 @@ pub fn SettingsPanel(
                                 }
                             }
 
+                            div { class: "setting-row",
+                                label { "Show effect icons" }
+                                input {
+                                    r#type: "checkbox",
+                                    checked: current_settings.boss_health.show_icons,
+                                    onchange: move |e: Event<FormData>| {
+                                        let mut new_settings = draft_settings();
+                                        new_settings.boss_health.show_icons = e.checked();
+                                        update_draft(new_settings);
+                                    }
+                                }
+                            }
+
                     Slider {
                         label: "Font Scale",
                         value: (current_settings.boss_health.font_scale * 100.0) as i32 as f64,
@@ -965,22 +978,24 @@ pub fn SettingsPanel(
                         max: 200.0,
                         step: 10.0,
                         suffix: "%",
+                        disabled: !current_settings.boss_health.show_icons,
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
                             new_settings.boss_health.icon_scale = (v as f32 / 100.0).clamp(0.5, 2.0);
                             update_draft(new_settings);
                         },
                     }
+                    // Entries are sized so this many bosses fill the window;
+                    // fights with more bosses compress to fit.
                     Slider {
-                        label: "Height Scale",
-                        value: (current_settings.boss_health.height_scale * 100.0) as i32 as f64,
-                        min: 10.0,
-                        max: 100.0,
-                        step: 5.0,
-                        suffix: "%",
+                        label: "Bosses Sized to Fit",
+                        value: current_settings.boss_health.visible_bosses as f64,
+                        min: 1.0,
+                        max: 7.0,
+                        step: 1.0,
                         on_change: move |v: f64| {
                             let mut new_settings = draft_settings();
-                            new_settings.boss_health.height_scale = (v as f32 / 100.0).clamp(0.1, 1.0);
+                            new_settings.boss_health.visible_bosses = (v as u32).clamp(1, 7);
                             update_draft(new_settings);
                         },
                     }

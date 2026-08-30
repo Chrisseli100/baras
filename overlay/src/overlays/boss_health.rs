@@ -16,7 +16,7 @@ use crate::frame::OverlayFrame;
 use crate::platform::{OverlayConfig, PlatformError};
 use crate::utils::color_from_rgba;
 use crate::widgets::colors;
-use crate::widgets::ProgressBar;
+use crate::widgets::{draw_icon_placeholder, ProgressBar};
 use baras_types::formatting;
 
 /// A single effect icon to render beneath a boss HP bar.
@@ -269,7 +269,8 @@ impl BossHealthOverlay {
     /// the right; that column's width is reserved (sized to "100.0%" so it
     /// stays stable as the number shrinks) and the name and HP value
     /// ellipsis-truncate before running into it. Parts are emptied upstream
-    /// by the show_hp_value / show_percent config toggles.
+    /// by the show_hp_value / show_percent config toggles; with the HP value
+    /// off, the name drops to the percent's vertical plane and enlarges.
     #[allow(clippy::too_many_arguments)]
     fn draw_bar_text(
         &mut self,
@@ -304,7 +305,16 @@ impl BossHealthOverlay {
         }
         let text_max_w = bar_w - pad_x * 2.0 - reserved_w;
 
-        // Name line: centered in the top half of the bar.
+        // Name line: centered in the top half of the bar. With no HP readout
+        // below it the name instead takes the whole bar — enlarged to fill
+        // the freed space and centered on the same plane as the percent.
+        if health_text.is_empty() {
+            let name_font = (name_font_size * 1.45).min(bar_h * 0.55);
+            let name_y = bar_top + bar_h / 2.0 + name_font / 3.0;
+            let display = self.truncate_text_to_width(name, text_max_w, name_font);
+            self.draw_text_bold(&display, bar_x + pad_x, name_y, name_font, font_color);
+            return;
+        }
         let name_y = bar_top + bar_h * 0.25 + name_font_size / 3.0;
         let display = self.truncate_text_to_width(name, text_max_w, name_font_size);
         self.draw_text_bold(&display, bar_x + pad_x, name_y, name_font_size, font_color);
@@ -313,10 +323,8 @@ impl BossHealthOverlay {
         // doesn't hug the bar's bottom edge.
         let hp_text_y =
             bar_top + bar_h * 0.75 + hp_font_size / 3.0 - 2.0 * self.scale();
-        if !health_text.is_empty() {
-            let display = self.truncate_text_to_width(health_text, text_max_w, hp_font_size);
-            self.draw_text_bold(&display, bar_x + pad_x, hp_text_y, hp_font_size, font_color);
-        }
+        let display = self.truncate_text_to_width(health_text, text_max_w, hp_font_size);
+        self.draw_text_bold(&display, bar_x + pad_x, hp_text_y, hp_font_size, font_color);
     }
 
     /// Ellipsis-truncate `text` to fit `max_width` at `font_size` (bold metrics).
@@ -369,17 +377,16 @@ impl BossHealthOverlay {
     }
 
     /// Per-entry height: one contiguous unit (name row + readout row + gutter
-    /// row), plus the icon row when boss-effect icons are present. Everything
-    /// except the icon row is constant, so toggling shield/marker/target never
-    /// resizes the layout.
-    fn entry_height(
-        &self,
-        bar_height: f32,
-        icon_row_height: Option<f32>,
-        name_row_h: f32,
-        gutter_h: f32,
-    ) -> f32 {
-        name_row_h + bar_height + gutter_h + icon_row_height.unwrap_or(0.0)
+    /// row), plus the always-reserved icon row when icons are enabled. Every
+    /// part is constant per frame, so neither config toggles nor effects
+    /// landing mid-fight ever resize the layout.
+    fn entry_height(&self, bar_height: f32, name_row_h: f32, gutter_h: f32) -> f32 {
+        let icon_row = if self.config.show_icons {
+            self.icon_row_height(bar_height)
+        } else {
+            0.0
+        };
+        name_row_h + bar_height + gutter_h + icon_row
     }
 
     /// Boss-effect icon size for a given bar height, including the user's
@@ -393,84 +400,59 @@ impl BossHealthOverlay {
         self.icon_size(bar_height) + 6.0
     }
 
-    /// Calculate compression factor to fit entries in available height
-    fn compression_factor(&self, entries: &[OverlayHealthEntry]) -> f32 {
+    /// The user's visible-bosses setting, clamped to its valid range.
+    fn visible_bosses(&self) -> usize {
+        (self.config.visible_bosses as usize).clamp(1, MAX_SUPPORTED_BOSSES)
+    }
+
+    /// Vertical factor at which exactly `entry_count` uniform entries (plus
+    /// spacing and outer padding) fill the window height, measured against
+    /// the natural entry height at the current width scale.
+    fn fit_factor(&self, entry_count: usize) -> f32 {
         let height = self.frame.height() as f32;
         let padding = self.scaled(BASE_PADDING);
         let bar_height = self.scaled(BASE_BAR_HEIGHT);
         let entry_spacing = self.scaled(BASE_ENTRY_SPACING);
         let layout_bar_font = self.scaled(BASE_FONT_SIZE) * 0.70;
         let (name_row_h, gutter_h) = self.row_metrics(layout_bar_font, 1.0);
+        let base_entry = self.entry_height(bar_height, name_row_h, gutter_h);
+        let n = entry_count.max(1) as f32;
+        let usable = (height - padding * 2.0).max(1.0);
+        usable / (n * (base_entry + entry_spacing) - entry_spacing)
+    }
 
-        let icon_row_h = self.icon_row_height(bar_height);
-
-        let total_needed: f32 = padding * 2.0
-            + entries
-                .iter()
-                .map(|e| {
-                    let has_icons = self.data.boss_icons.get(&e.entity_id).is_some_and(|v| !v.is_empty());
-                    self.entry_height(
-                        bar_height,
-                        has_icons.then_some(icon_row_h),
-                        name_row_h,
-                        gutter_h,
-                    ) + entry_spacing
-                })
-                .sum::<f32>()
-            - entry_spacing;
-
-        // Each entry targets height_scale × window height (0.25 → 4 fit,
-        // 0.2 → 5 fit), shrinking further only when the actual boss count
-        // wouldn't fit at that size.
-        self.height_factor()
-            .min(height / total_needed)
+    /// Vertical factor from the visible-bosses setting: entries are sized so
+    /// exactly that many fill the window, giving every fight up to that boss
+    /// count the same fixed entry size.
+    fn height_factor(&self) -> f32 {
+        self.fit_factor(self.visible_bosses())
             .clamp(MIN_COMPRESSION, MAX_HEIGHT_FACTOR)
     }
 
-    /// Vertical factor from the height-scale setting: one entry (plus its
-    /// spacing) targets `height_scale` × window height. Based on the natural
-    /// icon-free entry height at the current width scale.
-    fn height_factor(&self) -> f32 {
-        let height = self.frame.height() as f32;
-        let bar_height = self.scaled(BASE_BAR_HEIGHT);
-        let entry_spacing = self.scaled(BASE_ENTRY_SPACING);
-        let layout_bar_font = self.scaled(BASE_FONT_SIZE) * 0.70;
-        let (name_row_h, gutter_h) = self.row_metrics(layout_bar_font, 1.0);
-        let base_entry =
-            self.entry_height(bar_height, None, name_row_h, gutter_h) + entry_spacing;
-        let target = height * self.config.height_scale.clamp(0.1, 1.0);
-        (target / base_entry).clamp(MIN_COMPRESSION, MAX_HEIGHT_FACTOR)
+    /// Compression only kicks in past the visible-bosses count: the factor is
+    /// the fixed height_factor until `entry_count` exceeds it, then shrinks
+    /// entries just enough to fit them all.
+    fn compression_factor(&self, entry_count: usize) -> f32 {
+        self.height_factor()
+            .min(self.fit_factor(entry_count))
+            .clamp(MIN_COMPRESSION, MAX_HEIGHT_FACTOR)
     }
 
     /// Pre-compute the total content height for all visible entries.
-    fn compute_content_height(&self, entries: &[OverlayHealthEntry], compression: f32) -> f32 {
+    fn compute_content_height(&self, entry_count: usize, compression: f32) -> f32 {
+        if entry_count == 0 {
+            return 0.0;
+        }
         let padding = self.scaled(BASE_PADDING);
         let bar_height = self.scaled(BASE_BAR_HEIGHT) * compression;
         let entry_spacing = self.scaled(BASE_ENTRY_SPACING) * compression;
         let layout_bar_font =
             self.scaled(BASE_FONT_SIZE) * font_step(compression) * 0.70;
         let (name_row_h, gutter_h) = self.row_metrics(layout_bar_font, compression);
-
-        let icon_row_h = self.icon_row_height(bar_height);
-        let mut y = padding;
-
-        for entry in entries {
-            let has_icons = self.data.boss_icons.get(&entry.entity_id).is_some_and(|v| !v.is_empty());
-            y += self.entry_height(
-                bar_height,
-                has_icons.then_some(icon_row_h),
-                name_row_h,
-                gutter_h,
-            );
-            y += entry_spacing;
-        }
-
-        // Replace the trailing entry_spacing with bottom padding
-        if !entries.is_empty() {
-            y = y - entry_spacing + padding;
-        }
-
-        y
+        let n = entry_count as f32;
+        padding * 2.0
+            + n * (self.entry_height(bar_height, name_row_h, gutter_h) + entry_spacing)
+            - entry_spacing
     }
 
     /// Find the next relevant HP marker: the highest hp_percent that is <= current HP%.
@@ -489,19 +471,24 @@ impl BossHealthOverlay {
             .map(|m| (m.hp_percent, m.label.as_str()))
     }
 
-    /// Render a skeleton preview when in move mode: one sample boss showing
-    /// every element — name, HP readout, phase marker line, and a gutter with
-    /// marker text, shield, and target — all following the live config
-    /// toggles so the preview reflects the user's actual settings.
+    /// Render a skeleton preview when in move mode: one sample boss per
+    /// visible-bosses slot, each showing every element — name, HP readout,
+    /// phase marker line, a gutter with marker text, shield, and target, and
+    /// a reserved icon row of placeholder slots — all following the live
+    /// config toggles. Showing the full visible-bosses count at the fixed
+    /// per-entry size makes the sizing model concrete: this is exactly what
+    /// fills the window, and fights with fewer bosses use the same entry
+    /// size rather than scaling up.
     fn render_preview(&mut self) {
         let width = self.frame.width() as f32;
 
         let font_scale = self.config.font_scale.clamp(0.3, 3.0);
-        // The height-scale factor applies in the preview too, so the sample
-        // bar shows its true in-fight size.
+        // Same factor the live render uses at the visible-bosses count, so
+        // the sample bars show their true in-fight size.
         let factor = self.height_factor();
         let padding = self.scaled(BASE_PADDING);
         let bar_height = self.scaled(BASE_BAR_HEIGHT) * factor;
+        let entry_spacing = self.scaled(BASE_ENTRY_SPACING) * factor;
         let bar_radius = 4.0 * self.scale() * factor;
 
         let bar_color = color_from_rgba(self.config.bar_color);
@@ -518,110 +505,146 @@ impl BossHealthOverlay {
             (layout_bar_font * 0.60 * font_scale * self.lower_bar_scale()).min(gutter_h * 0.9);
         let total_bar_h = name_row_h + bar_height;
         let unit_h = total_bar_h + gutter_h;
-
-        let name = "Dread Master Calphayus";
-        let progress = 0.72;
+        let icon_size = self.icon_size(bar_height);
+        let icon_spacing = 2.0;
         let marker_pct = 0.50;
 
+        let samples = [
+            ("Dread Master Calphayus", 0.72_f32, "7.1M", "72.0%"),
+            ("Dread Master Raptus", 0.45_f32, "4.4M", "45.0%"),
+            ("Dread Master Bestia", 0.88_f32, "8.7M", "88.0%"),
+            ("Dread Master Tyrans", 0.31_f32, "3.1M", "31.0%"),
+            ("Dread Master Styrak", 0.64_f32, "6.3M", "64.0%"),
+            ("Dread Guard", 0.52_f32, "5.1M", "52.0%"),
+            ("Kephess the Undying", 0.19_f32, "1.9M", "19.0%"),
+        ];
+
         self.frame.begin_frame();
-        let bar_top = padding;
+        let mut y = padding;
 
-        let health_text = if self.config.show_hp_value { "7.1M" } else { "" };
-        let percent_text = if self.config.show_percent { "72.0%" } else { "" };
+        for &(name, progress, hp, pct) in samples.iter().take(self.visible_bosses()) {
+            let bar_top = y;
+            let health_text = if self.config.show_hp_value { hp } else { "" };
+            let percent_text = if self.config.show_percent { pct } else { "" };
 
-        // Shared background for the contiguous bar + gutter unit.
-        self.frame.fill_rounded_rect(
-            padding,
-            bar_top,
-            content_width,
-            unit_h,
-            bar_radius,
-            gutter_bg(),
-        );
-
-        // Bar background + fill span both bar rows; text is drawn per-row below.
-        ProgressBar::new("", progress)
-            .with_fill_color(bar_color)
-            .with_bg_color(colors::dps_bar_bg())
-            .with_gradient(self.config.bar_gradient)
-            .render(
-                &mut self.frame,
-                padding,
-                bar_top,
-                content_width,
-                total_bar_h,
-                bar_font_size,
-                bar_radius,
-            );
-
-        // Sample phase HP marker line through the bar (thinner than the border).
-        if self.config.show_hp_markers {
-            let marker_x = padding + marker_pct * content_width;
-            let line_width = 0.6 * self.scale();
-            self.frame.fill_rect(
-                marker_x - line_width / 2.0,
-                bar_top,
-                line_width,
-                total_bar_h,
-                marker_line_color(),
-            );
-        }
-
-        self.draw_bar_text(
-            name,
-            health_text,
-            percent_text,
-            padding,
-            bar_top,
-            content_width,
-            total_bar_h,
-            bar_font_size * 0.79,
-            bar_font_size,
-            font_color,
-        );
-
-        if gutter_h > 0.0 {
-            let marker = self.config.show_hp_markers.then_some("50% Burn");
-            let shield = self.config.show_shield.then_some((0.6, "150.00K"));
-            let target = self
-                .config
-                .show_target
-                .then_some(("Tank", Some(Role::Tank)));
-            self.draw_gutter_row(
-                marker,
-                shield,
-                target,
-                padding,
-                bar_top + total_bar_h,
-                content_width,
-                gutter_h,
-                gutter_font,
-                bar_radius,
-                font_color,
-            );
-        }
-
-        if self.config.show_border {
-            let border_width = 0.8 * self.scale();
-            let border_color = color_from_rgba(self.config.border_color);
-            if gutter_h > 0.0 {
-                self.frame.fill_rect(
-                    padding,
-                    bar_top + total_bar_h - border_width / 2.0,
-                    content_width,
-                    border_width,
-                    border_color,
-                );
-            }
-            self.frame.stroke_rounded_rect(
+            // Shared background for the contiguous bar + gutter unit.
+            self.frame.fill_rounded_rect(
                 padding,
                 bar_top,
                 content_width,
                 unit_h,
                 bar_radius,
-                border_width,
-                border_color,
+                gutter_bg(),
             );
+
+            // Bar background + fill span both bar rows; text is drawn per-row below.
+            ProgressBar::new("", progress)
+                .with_fill_color(bar_color)
+                .with_bg_color(colors::dps_bar_bg())
+                .with_gradient(self.config.bar_gradient)
+                .render(
+                    &mut self.frame,
+                    padding,
+                    bar_top,
+                    content_width,
+                    total_bar_h,
+                    bar_font_size,
+                    bar_radius,
+                );
+
+            // Sample phase HP marker line through the bar (thinner than the border).
+            if self.config.show_hp_markers {
+                let marker_x = padding + marker_pct * content_width;
+                let line_width = 0.6 * self.scale();
+                self.frame.fill_rect(
+                    marker_x - line_width / 2.0,
+                    bar_top,
+                    line_width,
+                    total_bar_h,
+                    marker_line_color(),
+                );
+            }
+
+            self.draw_bar_text(
+                name,
+                health_text,
+                percent_text,
+                padding,
+                bar_top,
+                content_width,
+                total_bar_h,
+                bar_font_size * 0.79,
+                bar_font_size,
+                font_color,
+            );
+
+            if gutter_h > 0.0 {
+                let marker = self.config.show_hp_markers.then_some("50% Burn");
+                let shield = self.config.show_shield.then_some((0.6, "150.00K"));
+                let target = self
+                    .config
+                    .show_target
+                    .then_some(("Tank", Some(Role::Tank)));
+                self.draw_gutter_row(
+                    marker,
+                    shield,
+                    target,
+                    padding,
+                    bar_top + total_bar_h,
+                    content_width,
+                    gutter_h,
+                    gutter_font,
+                    bar_radius,
+                    font_color,
+                );
+            }
+
+            if self.config.show_border {
+                let border_width = 0.8 * self.scale();
+                let border_color = color_from_rgba(self.config.border_color);
+                if gutter_h > 0.0 {
+                    self.frame.fill_rect(
+                        padding,
+                        bar_top + total_bar_h - border_width / 2.0,
+                        content_width,
+                        border_width,
+                        border_color,
+                    );
+                }
+                self.frame.stroke_rounded_rect(
+                    padding,
+                    bar_top,
+                    content_width,
+                    unit_h,
+                    bar_radius,
+                    border_width,
+                    border_color,
+                );
+            }
+
+            y += unit_h;
+
+            // Reserved icon row: placeholder slots where boss-effect icons
+            // appear in-fight.
+            if self.config.show_icons {
+                let icon_y = y + 3.0;
+                let mut icon_x = padding;
+                for _ in 0..3 {
+                    draw_icon_placeholder(
+                        &mut self.frame,
+                        icon_x,
+                        icon_y,
+                        icon_size,
+                        icon_size,
+                        2.0,
+                        bar_color,
+                    );
+                    icon_x += icon_size + icon_spacing;
+                }
+                y += self.icon_row_height(bar_height);
+            }
+
+            y += entry_spacing;
         }
 
         self.frame.end_frame();
@@ -657,8 +680,8 @@ impl BossHealthOverlay {
             return;
         }
 
-        // Calculate compression factor based on entries
-        let compression = self.compression_factor(&entries);
+        // Calculate compression factor based on entry count
+        let compression = self.compression_factor(entries.len());
 
         // Clamp font_scale to sensible range
         let font_scale = self.config.font_scale.clamp(0.3, 3.0);
@@ -691,7 +714,7 @@ impl BossHealthOverlay {
             (layout_bar_font * 0.60 * font_scale * self.lower_bar_scale()).min(gutter_h * 0.9);
 
         // Pre-compute content height, then begin frame with content-aware background
-        let content_height = self.compute_content_height(&entries, compression);
+        let content_height = self.compute_content_height(entries.len(), compression);
         if self.config.dynamic_background {
             self.frame.begin_frame_with_content_height(content_height);
         } else {
@@ -855,10 +878,15 @@ impl BossHealthOverlay {
                 );
             }
 
-            // ── Icon Row (below gutter, only when icons are present) ────
-            let entry_icons = self.data.boss_icons.get(&entry.entity_id);
-            if entry_icons.is_some_and(|v| !v.is_empty()) {
-                let icons = entry_icons.unwrap();
+            // ── Icon Row (space always reserved while icons are enabled,
+            // so a landing effect never resizes the entry) ──────────────
+            if self.config.show_icons {
+                let icons = self
+                    .data
+                    .boss_icons
+                    .get(&entry.entity_id)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
                 let icon_y = y + 3.0;
                 let mut icon_x = padding;
 
@@ -917,7 +945,7 @@ impl BossHealthOverlay {
                     icon_x += icon_size + icon_spacing;
                 }
 
-                y += icon_size + 6.0;
+                y += self.icon_row_height(bar_height);
             }
 
             y += entry_spacing;

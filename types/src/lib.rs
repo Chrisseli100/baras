@@ -2288,6 +2288,10 @@ pub struct BossHealthConfig {
     /// When true, show active shields (gutter fill + remaining amount)
     #[serde(default = "default_true")]
     pub show_shield: bool,
+    /// When true, show boss-effect icons; their row's space is always
+    /// reserved below each bar so entries never resize when effects land
+    #[serde(default = "default_true")]
+    pub show_icons: bool,
     /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
@@ -2298,10 +2302,11 @@ pub struct BossHealthConfig {
     /// Scale multiplier for the boss-effect icons below the bar (0.5 - 2.0)
     #[serde(default = "default_scaling_factor")]
     pub icon_scale: f32,
-    /// Fraction of the window height each boss entry targets (0.1 - 1.0):
-    /// 0.25 fits 4 bosses, 0.2 fits 5, etc.
-    #[serde(default = "default_boss_height_scale")]
-    pub height_scale: f32,
+    /// How many bosses the window is sized for (1 - 7): entries render at
+    /// window_height / visible_bosses and only compress when more bosses
+    /// than this are alive
+    #[serde(default = "default_visible_bosses")]
+    pub visible_bosses: u32,
     /// When true, background shrinks to fit content instead of filling the window
     #[serde(default)]
     pub dynamic_background: bool,
@@ -2323,8 +2328,8 @@ fn default_boss_bar_color() -> Color {
     overlay_colors::BOSS_BAR
 }
 
-fn default_boss_height_scale() -> f32 {
-    0.25
+fn default_visible_bosses() -> u32 {
+    4
 }
 
 impl Default for BossHealthConfig {
@@ -2337,10 +2342,11 @@ impl Default for BossHealthConfig {
             show_hp_value: true,
             show_hp_markers: true,
             show_shield: true,
+            show_icons: true,
             font_scale: 1.0,
             lower_bar_scale: 1.0,
             icon_scale: 1.0,
-            height_scale: 0.25,
+            visible_bosses: 4,
             dynamic_background: false,
             clear_after_combat: true,
             show_border: true,
