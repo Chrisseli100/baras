@@ -15,7 +15,7 @@ pub use area_index::{
 pub use background_tasks::BackgroundTasks;
 pub use config::{
     AlertsOverlayConfig, AppConfig, AppConfigExt, BossHealthConfig, ChallengeColumns,
-    ChallengeLayout, ChallengeOverlayConfig, Color, HotkeySettings, MAX_PROFILES,
+    ChallengeLayout, ChallengeOverlayConfig, Color, HotkeySettings, IconPosition, MAX_PROFILES,
     OverlayAppearanceConfig, OverlayPositionConfig, OverlayProfile, OverlaySettings,
     PersonalOverlayConfig, PersonalStat, PersonalStatCategory, RaidOverlaySettings,
     TimerOverlayConfig, overlay_colors,

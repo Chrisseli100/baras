@@ -8,7 +8,8 @@ use super::error::ConfigError;
 // Re-export all shared types
 pub use baras_types::{
     overlay_colors, AlertsOverlayConfig, AppConfig, BossHealthConfig, ChallengeColumns,
-    ChallengeLayout, ChallengeOverlayConfig, Color, HotkeySettings, OverlayAppearanceConfig,
+    ChallengeLayout, ChallengeOverlayConfig, Color, HotkeySettings, IconPosition,
+    OverlayAppearanceConfig,
     OverlayPositionConfig, OverlayProfile, OverlaySettings, PersonalOverlayConfig, PersonalStat,
     PersonalStatCategory, RaidOverlaySettings, TimerOverlayConfig, MAX_PROFILES,
 };

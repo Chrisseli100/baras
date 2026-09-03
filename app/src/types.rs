@@ -38,6 +38,7 @@ pub use baras_types::{
     EncounterBuilderState,
     EntityFilter,
     EntitySelector,
+    IconPosition,
     MainTab,
     MitigationType,
     NotesOverlayConfig,

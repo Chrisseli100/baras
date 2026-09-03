@@ -11,6 +11,7 @@ use crate::api;
 use crate::components::{Slider, ToastSeverity, use_toast};
 use crate::types::{
     AlertsOverlayConfig, BossHealthConfig, ChallengeLayout, ClassIconMode, CooldownTrackerConfig,
+    IconPosition,
     DotTrackerConfig, EffectsAConfig, EffectsBConfig,
     MAX_PROFILES, MetricType, OverlayAppearanceConfig, OverlaySettings,
     PersonalOverlayConfig, PersonalStat, RaidOverlaySettings, TimerOverlayConfig,
@@ -942,6 +943,28 @@ pub fn SettingsPanel(
                                         new_settings.boss_health.show_icons = e.checked();
                                         update_draft(new_settings);
                                     }
+                                }
+                            }
+
+                            div { class: "setting-row",
+                                label { "Icon Position" }
+                                select {
+                                    class: "input-inline",
+                                    disabled: !current_settings.boss_health.show_icons,
+                                    onchange: move |e: Event<FormData>| {
+                                        let mut new_settings = draft_settings();
+                                        new_settings.boss_health.icon_position = match e.value().as_str() {
+                                            "top" => IconPosition::Top,
+                                            "left" => IconPosition::Left,
+                                            "right" => IconPosition::Right,
+                                            _ => IconPosition::Bottom,
+                                        };
+                                        update_draft(new_settings);
+                                    },
+                                    option { value: "top", selected: current_settings.boss_health.icon_position == IconPosition::Top, "Top" }
+                                    option { value: "bottom", selected: current_settings.boss_health.icon_position == IconPosition::Bottom, "Bottom" }
+                                    option { value: "left", selected: current_settings.boss_health.icon_position == IconPosition::Left, "Left (4 slots)" }
+                                    option { value: "right", selected: current_settings.boss_health.icon_position == IconPosition::Right, "Right (4 slots)" }
                                 }
                             }
 

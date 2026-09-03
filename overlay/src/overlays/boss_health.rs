@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use baras_core::context::BossHealthConfig;
+use baras_core::context::{BossHealthConfig, IconPosition};
 use baras_core::game_data::Role;
 use baras_core::OverlayHealthEntry;
 use tiny_skia::Color;
@@ -104,6 +104,12 @@ fn font_step(factor: f32) -> f32 {
 
 /// Maximum number of bosses we optimize scaling for
 const MAX_SUPPORTED_BOSSES: usize = 7;
+/// Icon slots reserved when the effect-icon strip sits beside the bar
+/// (left/right): horizontal space is scarce there, so only this many icons
+/// are reserved and drawn; extras are dropped.
+const SIDE_ICON_SLOTS: usize = 4;
+/// Gap between adjacent effect icons.
+const ICON_SPACING: f32 = 2.0;
 /// Minimum compression factor to keep entries readable
 const MIN_COMPRESSION: f32 = 0.4;
 /// Upper bound on the height-scale-driven vertical factor
@@ -377,16 +383,73 @@ impl BossHealthOverlay {
     }
 
     /// Per-entry height: one contiguous unit (name row + readout row + gutter
-    /// row), plus the always-reserved icon row when icons are enabled. Every
-    /// part is constant per frame, so neither config toggles nor effects
-    /// landing mid-fight ever resize the layout.
+    /// row), plus the always-reserved icon row when icons sit above or below
+    /// the bar (beside the bar they cost width, not height). Every part is
+    /// constant per frame, so neither config toggles nor effects landing
+    /// mid-fight ever resize the layout.
     fn entry_height(&self, bar_height: f32, name_row_h: f32, gutter_h: f32) -> f32 {
-        let icon_row = if self.config.show_icons {
+        let icon_row = if self.config.show_icons && !self.icons_beside_bar() {
             self.icon_row_height(bar_height)
         } else {
             0.0
         };
         name_row_h + bar_height + gutter_h + icon_row
+    }
+
+    /// True when the effect-icon strip sits beside the bar (left/right)
+    /// rather than above/below it.
+    fn icons_beside_bar(&self) -> bool {
+        matches!(
+            self.config.icon_position,
+            IconPosition::Left | IconPosition::Right
+        )
+    }
+
+    /// Width reserved for the side icon strip (fixed SIDE_ICON_SLOTS slots
+    /// plus a gap to the bar); zero when icons are off or above/below.
+    fn side_strip_width(&self, icon_size: f32) -> f32 {
+        if self.config.show_icons && self.icons_beside_bar() {
+            SIDE_ICON_SLOTS as f32 * (icon_size + ICON_SPACING) + 2.0 * self.scale()
+        } else {
+            0.0
+        }
+    }
+
+    /// Where one entry's icon strip starts and how it's sized:
+    /// (first icon x, y, drawn icon size, per-icon x advance, max icons).
+    /// Above/below the bar the strip is a full-width row with no cap; beside
+    /// it the strip is vertically centered on the unit, icons shrink to fit
+    /// the unit height, and the count is capped at the reserved slots. Side
+    /// icons hug the bar and grow outward (leftward on the left — the
+    /// advance is negative there — so empty slots never open a gap between
+    /// the icons and the bar). `entry_top` is the entry's very top (icon row
+    /// included when on top); `bar_top`/`unit_h` locate the bar+gutter unit.
+    fn icon_strip_geometry(
+        &self,
+        bar_x: f32,
+        bar_w: f32,
+        entry_top: f32,
+        bar_top: f32,
+        unit_h: f32,
+        icon_size: f32,
+    ) -> (f32, f32, f32, f32, usize) {
+        let advance = icon_size + ICON_SPACING;
+        match self.config.icon_position {
+            IconPosition::Top => (bar_x, entry_top + 3.0, icon_size, advance, usize::MAX),
+            IconPosition::Bottom => {
+                (bar_x, bar_top + unit_h + 3.0, icon_size, advance, usize::MAX)
+            }
+            IconPosition::Left | IconPosition::Right => {
+                let size = icon_size.min(unit_h);
+                let gap = 2.0 * self.scale();
+                let (x, advance) = if self.config.icon_position == IconPosition::Left {
+                    (bar_x - gap - size, -(size + ICON_SPACING))
+                } else {
+                    (bar_x + bar_w + gap, size + ICON_SPACING)
+                };
+                (x, bar_top + (unit_h - size) / 2.0, size, advance, SIDE_ICON_SLOTS)
+            }
+        }
     }
 
     /// Boss-effect icon size for a given bar height, including the user's
@@ -506,7 +569,16 @@ impl BossHealthOverlay {
         let total_bar_h = name_row_h + bar_height;
         let unit_h = total_bar_h + gutter_h;
         let icon_size = self.icon_size(bar_height);
-        let icon_spacing = 2.0;
+        let strip_w = self.side_strip_width(icon_size);
+        let bar_x = padding
+            + if self.config.icon_position == IconPosition::Left {
+                strip_w
+            } else {
+                0.0
+            };
+        let bar_w = content_width - strip_w;
+        let icons_above =
+            self.config.show_icons && self.config.icon_position == IconPosition::Top;
         let marker_pct = 0.50;
 
         let samples = [
@@ -523,15 +595,21 @@ impl BossHealthOverlay {
         let mut y = padding;
 
         for &(name, progress, hp, pct) in samples.iter().take(self.visible_bosses()) {
-            let bar_top = y;
+            let entry_top = y;
+            let bar_top = entry_top
+                + if icons_above {
+                    self.icon_row_height(bar_height)
+                } else {
+                    0.0
+                };
             let health_text = if self.config.show_hp_value { hp } else { "" };
             let percent_text = if self.config.show_percent { pct } else { "" };
 
             // Shared background for the contiguous bar + gutter unit.
             self.frame.fill_rounded_rect(
-                padding,
+                bar_x,
                 bar_top,
-                content_width,
+                bar_w,
                 unit_h,
                 bar_radius,
                 gutter_bg(),
@@ -544,9 +622,9 @@ impl BossHealthOverlay {
                 .with_gradient(self.config.bar_gradient)
                 .render(
                     &mut self.frame,
-                    padding,
+                    bar_x,
                     bar_top,
-                    content_width,
+                    bar_w,
                     total_bar_h,
                     bar_font_size,
                     bar_radius,
@@ -554,7 +632,7 @@ impl BossHealthOverlay {
 
             // Sample phase HP marker line through the bar (thinner than the border).
             if self.config.show_hp_markers {
-                let marker_x = padding + marker_pct * content_width;
+                let marker_x = bar_x + marker_pct * bar_w;
                 let line_width = 0.6 * self.scale();
                 self.frame.fill_rect(
                     marker_x - line_width / 2.0,
@@ -569,9 +647,9 @@ impl BossHealthOverlay {
                 name,
                 health_text,
                 percent_text,
-                padding,
+                bar_x,
                 bar_top,
-                content_width,
+                bar_w,
                 total_bar_h,
                 bar_font_size * 0.79,
                 bar_font_size,
@@ -589,9 +667,9 @@ impl BossHealthOverlay {
                     marker,
                     shield,
                     target,
-                    padding,
+                    bar_x,
                     bar_top + total_bar_h,
-                    content_width,
+                    bar_w,
                     gutter_h,
                     gutter_font,
                     bar_radius,
@@ -604,17 +682,17 @@ impl BossHealthOverlay {
                 let border_color = color_from_rgba(self.config.border_color);
                 if gutter_h > 0.0 {
                     self.frame.fill_rect(
-                        padding,
+                        bar_x,
                         bar_top + total_bar_h - border_width / 2.0,
-                        content_width,
+                        bar_w,
                         border_width,
                         border_color,
                     );
                 }
                 self.frame.stroke_rounded_rect(
-                    padding,
+                    bar_x,
                     bar_top,
-                    content_width,
+                    bar_w,
                     unit_h,
                     bar_radius,
                     border_width,
@@ -622,26 +700,31 @@ impl BossHealthOverlay {
                 );
             }
 
-            y += unit_h;
+            y = bar_top + unit_h;
 
-            // Reserved icon row: placeholder slots where boss-effect icons
+            // Reserved icon strip: placeholder slots where boss-effect icons
             // appear in-fight.
             if self.config.show_icons {
-                let icon_y = y + 3.0;
-                let mut icon_x = padding;
-                for _ in 0..3 {
+                let (mut icon_x, icon_y, size, advance, max_icons) = self
+                    .icon_strip_geometry(bar_x, bar_w, entry_top, bar_top, unit_h, icon_size);
+                // Beside the bar every reserved slot is shown so the strip's
+                // true footprint is visible; above/below (uncapped) show 3.
+                let slots = if max_icons == usize::MAX { 3 } else { max_icons };
+                for _ in 0..slots {
                     draw_icon_placeholder(
                         &mut self.frame,
                         icon_x,
                         icon_y,
-                        icon_size,
-                        icon_size,
+                        size,
+                        size,
                         2.0,
                         bar_color,
                     );
-                    icon_x += icon_size + icon_spacing;
+                    icon_x += advance;
                 }
-                y += self.icon_row_height(bar_height);
+                if self.config.icon_position == IconPosition::Bottom {
+                    y += self.icon_row_height(bar_height);
+                }
             }
 
             y += entry_spacing;
@@ -698,8 +781,16 @@ impl BossHealthOverlay {
         let content_width = width - padding * 2.0;
         let bar_radius = 4.0 * self.scale() * compression;
         let icon_size = self.icon_size(bar_height);
-        let icon_spacing = 2.0;
-        let time_font_size = icon_size * 0.38;
+        let strip_w = self.side_strip_width(icon_size);
+        let bar_x = padding
+            + if self.config.icon_position == IconPosition::Left {
+                strip_w
+            } else {
+                0.0
+            };
+        let bar_w = content_width - strip_w;
+        let icons_above =
+            self.config.show_icons && self.config.icon_position == IconPosition::Top;
 
         // Fixed per-entry skeleton: one contiguous unit of name row + readout
         // row + gutter row. Row heights
@@ -755,16 +846,22 @@ impl BossHealthOverlay {
                 String::new()
             };
 
-            let bar_top = y;
+            let entry_top = y;
+            let bar_top = entry_top
+                + if icons_above {
+                    self.icon_row_height(bar_height)
+                } else {
+                    0.0
+                };
             let total_bar_h = name_row_h + bar_height;
             let unit_h = total_bar_h + gutter_h;
 
             // Shared background for the contiguous bar + gutter unit, so the
             // two read as one shape with no seam.
             self.frame.fill_rounded_rect(
-                padding,
+                bar_x,
                 bar_top,
-                content_width,
+                bar_w,
                 unit_h,
                 bar_radius,
                 gutter_bg(),
@@ -777,9 +874,9 @@ impl BossHealthOverlay {
                 .with_gradient(self.config.bar_gradient)
                 .render(
                     &mut self.frame,
-                    padding,
+                    bar_x,
                     bar_top,
-                    content_width,
+                    bar_w,
                     total_bar_h,
                     bar_font_size,
                     bar_radius,
@@ -788,7 +885,7 @@ impl BossHealthOverlay {
             // ── HP Marker Line (vertical line through the bar) ──────────
             // Slightly thinner than the 0.8px border stroke.
             if let Some((hp_pct, _)) = marker {
-                let marker_x = padding + (hp_pct / 100.0) * content_width;
+                let marker_x = bar_x + (hp_pct / 100.0) * bar_w;
                 let line_width = 0.6 * self.scale();
                 self.frame.fill_rect(
                     marker_x - line_width / 2.0,
@@ -804,16 +901,16 @@ impl BossHealthOverlay {
                 &entry.name,
                 &health_text,
                 &percent_text,
-                padding,
+                bar_x,
                 bar_top,
-                content_width,
+                bar_w,
                 total_bar_h,
                 bar_font_size * 0.79,
                 bar_font_size,
                 font_color,
             );
 
-            y += total_bar_h;
+            y = bar_top + total_bar_h;
 
             // ── Gutter row (reserved while enabled): shield/marker/target ──
             if gutter_h > 0.0 {
@@ -842,9 +939,9 @@ impl BossHealthOverlay {
                     marker_label.as_deref(),
                     shield_info.as_ref().map(|(frac, amt)| (*frac, amt.as_str())),
                     target_info,
-                    padding,
+                    bar_x,
                     y,
-                    content_width,
+                    bar_w,
                     gutter_h,
                     gutter_font,
                     bar_radius,
@@ -860,17 +957,17 @@ impl BossHealthOverlay {
                 let border_color = color_from_rgba(self.config.border_color);
                 if gutter_h > 0.0 {
                     self.frame.fill_rect(
-                        padding,
+                        bar_x,
                         bar_top + total_bar_h - border_width / 2.0,
-                        content_width,
+                        bar_w,
                         border_width,
                         border_color,
                     );
                 }
                 self.frame.stroke_rounded_rect(
-                    padding,
+                    bar_x,
                     bar_top,
-                    content_width,
+                    bar_w,
                     unit_h,
                     bar_radius,
                     border_width,
@@ -878,7 +975,7 @@ impl BossHealthOverlay {
                 );
             }
 
-            // ── Icon Row (space always reserved while icons are enabled,
+            // ── Icon strip (space always reserved while icons are enabled,
             // so a landing effect never resizes the entry) ──────────────
             if self.config.show_icons {
                 let icons = self
@@ -887,10 +984,11 @@ impl BossHealthOverlay {
                     .get(&entry.entity_id)
                     .map(Vec::as_slice)
                     .unwrap_or(&[]);
-                let icon_y = y + 3.0;
-                let mut icon_x = padding;
+                let (mut icon_x, icon_y, icon_size, advance, max_icons) = self
+                    .icon_strip_geometry(bar_x, bar_w, entry_top, bar_top, unit_h, icon_size);
+                let time_font_size = icon_size * 0.38;
 
-                for icon_entry in icons {
+                for icon_entry in icons.iter().take(max_icons) {
                     let drawn = if icon_entry.show_icon {
                         if let Some(ref img) = icon_entry.icon {
                             let (iw, ih, ref rgba) = **img;
@@ -942,10 +1040,12 @@ impl BossHealthOverlay {
                         false,
                     );
 
-                    icon_x += icon_size + icon_spacing;
+                    icon_x += advance;
                 }
 
-                y += self.icon_row_height(bar_height);
+                if self.config.icon_position == IconPosition::Bottom {
+                    y += self.icon_row_height(bar_height);
+                }
             }
 
             y += entry_spacing;

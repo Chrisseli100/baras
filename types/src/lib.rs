@@ -2268,6 +2268,20 @@ impl Default for EnemyFramesConfig {
 // Boss Health Settings
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Which side of each boss HP bar the effect-icon strip occupies. Space for
+/// the strip is always reserved while icons are enabled, so effects landing
+/// mid-fight never resize the layout. Beside the bar (left/right) horizontal
+/// space is scarce, so only a few icon slots are reserved there.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IconPosition {
+    Top,
+    #[default]
+    Bottom,
+    Left,
+    Right,
+}
+
 /// Configuration for the boss health bar overlay
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BossHealthConfig {
@@ -2288,10 +2302,13 @@ pub struct BossHealthConfig {
     /// When true, show active shields (gutter fill + remaining amount)
     #[serde(default = "default_true")]
     pub show_shield: bool,
-    /// When true, show boss-effect icons; their row's space is always
-    /// reserved below each bar so entries never resize when effects land
+    /// When true, show boss-effect icons; their strip's space is always
+    /// reserved so entries never resize when effects land
     #[serde(default = "default_true")]
     pub show_icons: bool,
+    /// Which side of the bar the effect-icon strip occupies
+    #[serde(default)]
+    pub icon_position: IconPosition,
     /// Font scale multiplier (0.3 - 3.0, default 1.0)
     #[serde(default = "default_scaling_factor")]
     pub font_scale: f32,
@@ -2299,7 +2316,7 @@ pub struct BossHealthConfig {
     /// more gently, the bar height itself (0.5 - 2.0)
     #[serde(default = "default_scaling_factor", alias = "target_scale")]
     pub lower_bar_scale: f32,
-    /// Scale multiplier for the boss-effect icons below the bar (0.5 - 2.0)
+    /// Scale multiplier for the boss-effect icons (0.5 - 2.0)
     #[serde(default = "default_scaling_factor")]
     pub icon_scale: f32,
     /// How many bosses the window is sized for (1 - 7): entries render at
@@ -2343,6 +2360,7 @@ impl Default for BossHealthConfig {
             show_hp_markers: true,
             show_shield: true,
             show_icons: true,
+            icon_position: IconPosition::Bottom,
             font_scale: 1.0,
             lower_bar_scale: 1.0,
             icon_scale: 1.0,
