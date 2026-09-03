@@ -3812,9 +3812,26 @@ async fn build_boss_health_data(
             HashMap::new()
         };
 
+    // Resolve game icons for active shields (deduped by ability id).
+    let mut shield_icons: HashMap<u64, StdArc<(u32, u32, Vec<u8>)>> = HashMap::new();
+    if let Some(cache) = icon_cache {
+        for id in entries
+            .iter()
+            .flat_map(|e| e.active_shields.iter())
+            .filter_map(|s| s.icon_ability_id)
+        {
+            if !shield_icons.contains_key(&id)
+                && let Some(data) = cache.get_icon(id)
+            {
+                shield_icons.insert(id, StdArc::new((data.width, data.height, data.rgba)));
+            }
+        }
+    }
+
     Some(BossHealthData {
         entries,
         boss_icons,
+        shield_icons,
         force_clear: false,
     })
 }

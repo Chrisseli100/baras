@@ -767,6 +767,8 @@ pub struct ShieldDefinition {
     pub total: i64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hp: Vec<ShieldHpEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_ability_id: Option<u64>,
 }
 
 /// Entity definition (mirrors baras_core::dsl::EntityDefinition)

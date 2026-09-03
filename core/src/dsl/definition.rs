@@ -13,7 +13,7 @@ use crate::dsl::audio::AudioConfig;
 use crate::combat_log::Position;
 use crate::dsl::triggers::{PositionConstraint, matches_position_constraints};
 use crate::game_data::Difficulty;
-use baras_types::AlertTrigger;
+use baras_types::{AlertTrigger, EffectSelector};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Root Config Structure
@@ -205,9 +205,28 @@ pub struct ShieldDefinition {
     /// Falls back to `total` (default 0) if no entry matches.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hp: Vec<ShieldHpEntry>,
+
+    /// Ability/effect ID whose game icon is shown beside the shield amount on
+    /// the HP bar. Falls back to the first effect ID in `start_trigger`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_ability_id: Option<u64>,
 }
 
 impl ShieldDefinition {
+    /// Icon ID to render: explicit `icon_ability_id`, else the first effect
+    /// ID selector in `start_trigger` (mirrors effect-definition auto-detect).
+    pub fn icon_id(&self) -> Option<u64> {
+        self.icon_ability_id.or_else(|| match &self.start_trigger {
+            Trigger::EffectApplied { effects, .. } | Trigger::EffectRemoved { effects, .. } => {
+                effects.iter().find_map(|sel| match sel {
+                    EffectSelector::Id(id) => Some(*id),
+                    EffectSelector::Name(_) => None,
+                })
+            }
+            _ => None,
+        })
+    }
+
     /// Resolve the effective shield HP for the given encounter difficulty.
     ///
     /// Checks `hp` entries in order (first match wins) before falling back

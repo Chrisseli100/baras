@@ -55,6 +55,8 @@ pub struct BossHealthData {
     /// Keyed by id rather than name so two NPCs that share a display name show
     /// only the effects actually applied to each one.
     pub boss_icons: HashMap<i64, Vec<BossEffectIcon>>,
+    /// Decoded game icons for active shields, keyed by `ActiveShield::icon_ability_id`.
+    pub shield_icons: HashMap<u64, Arc<(u32, u32, Vec<u8>)>>,
     /// Force the bar to clear even when `clear_after_combat` is disabled. Sent at
     /// the start of a new encounter so a stale boss HP bar doesn't linger into the
     /// next fight (e.g. pulling trash after a boss).
@@ -195,8 +197,8 @@ impl BossHealthOverlay {
 
     /// Draw the gutter row contents: the bottom strip of the contiguous
     /// bar+gutter unit, whose space is always reserved so entries never resize
-    /// as elements toggle. Hosts the shield (blue fill + remaining amount,
-    /// centered), the next phase marker (left) and the current target (right);
+    /// as elements toggle. Hosts the shield (blue fill + game icon and
+    /// remaining amount, centered), the next phase marker (left) and the current target (right);
     /// absent elements simply leave their slot empty. The target renders its
     /// role icon (tank/heal/dps) before the name when the role is known, and
     /// falls back to a "⌖" prefix otherwise. The unit's shared background
@@ -205,7 +207,7 @@ impl BossHealthOverlay {
     fn draw_gutter_row(
         &mut self,
         marker: Option<&str>,
-        shield: Option<(f32, &str)>,
+        shield: Option<(f32, &str, Option<&Arc<(u32, u32, Vec<u8>)>>)>,
         target: Option<(&str, Option<Role>)>,
         x: f32,
         y: f32,
@@ -216,7 +218,7 @@ impl BossHealthOverlay {
         font_color: Color,
     ) {
         let pad_x = 4.0 * self.scale();
-        if let Some((frac, _)) = shield {
+        if let Some((frac, _, _)) = shield {
             let sh_w = w * frac.clamp(0.0, 1.0);
             if sh_w > 0.0 {
                 self.frame
@@ -263,9 +265,26 @@ impl BossHealthOverlay {
                 self.draw_text_bold(&display, x + w - tw - pad_x, text_y, font, font_color);
             }
         }
-        if let Some((_, amount)) = shield {
+        if let Some((_, amount, icon)) = shield {
+            // Game icon + amount, centered together as one group.
             let (tw, _) = self.measure_text_bold(amount, font);
-            self.draw_text_bold(amount, x + (w - tw) / 2.0, text_y, font, font_color);
+            let icon_size = h * 0.8;
+            let icon_gap = 2.0 * self.scale();
+            let icon_w = icon.map_or(0.0, |_| icon_size + icon_gap);
+            let group_x = x + (w - icon_w - tw) / 2.0;
+            if let Some(img) = icon {
+                let (iw, ih, ref rgba) = **img;
+                self.frame.draw_image(
+                    rgba,
+                    iw,
+                    ih,
+                    group_x,
+                    y + (h - icon_size) / 2.0,
+                    icon_size,
+                    icon_size,
+                );
+            }
+            self.draw_text_bold(amount, group_x + icon_w, text_y, font, font_color);
         }
     }
 
@@ -658,7 +677,7 @@ impl BossHealthOverlay {
 
             if gutter_h > 0.0 {
                 let marker = self.config.show_hp_markers.then_some("50% Burn");
-                let shield = self.config.show_shield.then_some((0.6, "150.00K"));
+                let shield = self.config.show_shield.then_some((0.6, "150.00K", None));
                 let target = self
                     .config
                     .show_target
@@ -927,17 +946,23 @@ impl BossHealthOverlay {
                         } else {
                             0.0
                         };
+                        let icon = shield
+                            .icon_ability_id
+                            .and_then(|id| self.data.shield_icons.get(&id).cloned());
                         (
                             frac,
                             formatting::format_compact(
                                 shield.remaining,
                                 self.european_number_format,
                             ),
+                            icon,
                         )
                     });
                 self.draw_gutter_row(
                     marker_label.as_deref(),
-                    shield_info.as_ref().map(|(frac, amt)| (*frac, amt.as_str())),
+                    shield_info
+                        .as_ref()
+                        .map(|(frac, amt, icon)| (*frac, amt.as_str(), icon.as_ref())),
                     target_info,
                     bar_x,
                     y,

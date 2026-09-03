@@ -23,6 +23,8 @@ pub struct ActiveShield {
     pub label: String,
     pub remaining: i64,
     pub total: i64,
+    /// Game icon to show beside the amount (see `ShieldDefinition::icon_id`)
+    pub icon_ability_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]

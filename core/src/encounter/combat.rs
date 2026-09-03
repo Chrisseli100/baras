@@ -583,6 +583,7 @@ impl CombatEncounter {
                                         label: shield_def.label.clone(),
                                         remaining,
                                         total: effective_total,
+                                        icon_ability_id: shield_def.icon_id(),
                                     })
                             })
                             .collect()

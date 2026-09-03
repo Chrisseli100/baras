@@ -587,6 +587,7 @@ fn EntityEditForm(
                                 },
                                 total: 0,
                                 hp: vec![],
+                                icon_ability_id: None,
                             });
                             draft.set(d);
                         },
@@ -608,6 +609,22 @@ fn EntityEditForm(
                                 oninput: move |e| {
                                     let mut d = draft();
                                     d.shields[i].label = e.value();
+                                    draft.set(d);
+                                }
+                            }
+                            input {
+                                class: "input-inline",
+                                style: "width: 150px;",
+                                placeholder: "Icon ID (auto)",
+                                title: "Ability ID for the icon shown beside the shield amount. Leave blank to use the start trigger's first effect ID.",
+                                value: "{shield.icon_ability_id.map(|id| id.to_string()).unwrap_or_default()}",
+                                oninput: move |e| {
+                                    let mut d = draft();
+                                    d.shields[i].icon_ability_id = if e.value().is_empty() {
+                                        None
+                                    } else {
+                                        e.value().parse::<u64>().ok()
+                                    };
                                     draft.set(d);
                                 }
                             }
