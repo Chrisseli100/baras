@@ -15,6 +15,7 @@ trigger = { type = "effect_applied", effects = [
 refresh_abilities = [{ ability = 808192586022912, on_first_damage = true }]
 duration_secs = 18.0
 is_affected_by_alacrity = true
+discplines = ["Corruption", "Madness"]
 color = [62, 173, 28, 255]
 
 [[effect]]
@@ -738,5 +739,48 @@ track_outside_combat = false
 [effect.trigger]
 type = "effect_applied"
 effects = [3426078232150278]
+source = "local_player"
+target = "any"
+
+[[effect]]
+id = "retractable_blade"
+name = "Retractable Blade"
+duration_secs = 18.0
+is_affected_by_alacrity = true
+color = [194, 8, 29, 255]
+display_targets = ["dot_tracker"]
+icon_ability_id = 2029831608860928
+refresh_abilities = [
+  { ability = 2029831608860672, on_first_damage = true },
+  { ability = 814278554681344, on_first_damage = true },
+  { ability = 3915725978730496, on_first_damage = true },
+]
+
+[effect.trigger]
+type = "effect_applied"
+effects = [2029831608860928]
+source = "local_player"
+target = "any"
+
+[[effect]]
+id = "affliction_lightning"
+name = "Affliction (Lightning)"
+display_text = "Affliction"
+duration_secs = 18.0
+is_affected_by_alacrity = true
+color = [194, 8, 29, 255]
+display_targets = ["dot_tracker"]
+disciplines = ["Lightning"]
+icon_ability_id = 808192586022912
+refresh_abilities = [
+  { ability = 808192586022912, on_first_damage = true },
+  { ability = 863460225187840, trigger = "damage" },
+  { ability = 4484383943688192, trigger = "damage" },
+  { ability = 808484643799040, trigger = "damage" },
+]
+
+[effect.trigger]
+type = "effect_applied"
+effects = [808192586022912]
 source = "local_player"
 target = "any"
