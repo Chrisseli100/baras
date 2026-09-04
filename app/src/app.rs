@@ -2095,7 +2095,7 @@ pub fn App() -> Element {
                                 }
                                 p { class: "hint", "When enabled, closing the window hides to system tray instead of quitting." }
                                 div { class: "setting-row",
-                                    label { "Web overlay" }
+                                    label { "Overlay Streaming Source" }
                                     input {
                                         r#type: "checkbox",
                                         checked: web_overlay_enabled(),
@@ -2113,7 +2113,7 @@ pub fn App() -> Element {
                                         }
                                     }
                                 }
-                                p { class: "hint", "Mirror the Baras overlays currently shown into any streaming software with a browser source." }
+                                p { class: "hint", "Mirror visible overlays into a locally hosted browser page that can be used as a browser source for OBS and other streaming software." }
                                 if web_overlay_enabled() {
                                     code { class: "web-overlay-url", "{WEB_OVERLAY_URL}" }
                                 }
@@ -2970,11 +2970,11 @@ fn add_parsely_guild(
 // Player Stats Bar
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Inline bar for alacrity and latency settings
+/// Inline bar for alacrity and duration bias settings
 #[component]
 fn PlayerStatsBar() -> Element {
     let mut alacrity = use_signal(|| 0.0f32);
-    let mut latency = use_signal(|| 0u16);
+    let mut latency = use_signal(|| 0i16);
     let mut loaded = use_signal(|| false);
 
     // Load from config on mount
@@ -3025,14 +3025,13 @@ fn PlayerStatsBar() -> Element {
                 }
             }
             div { class: "stat-input",
-                label { "Latency (ms)" }
+                label { "Bias Adjustment (ms)" }
                 input {
                     r#type: "text",
-                    title: "Your network latency in milliseconds for ability timing",
                     value: "{latency()}",
                     onchange: move |e| {
-                        if let Ok(val) = e.value().parse::<u16>() {
-                            latency.set(val.clamp(0, 500));
+                        if let Ok(val) = e.value().parse::<i16>() {
+                            latency.set(val.clamp(-500, 500));
                             save_config();
                         }
                     }
@@ -3040,7 +3039,7 @@ fn PlayerStatsBar() -> Element {
             }
             span {
                 class: "stats-help-icon",
-                title: "Alacrity and Latency affect duration of certain HoTs and effects",
+                title: "Alacrity shortens the duration of your HOTS. Use the bias adjustment field to adjust durations by +/- X ms if a consistent discrepancy is noticed.",
                 i { class: "fa-solid fa-circle-question" }
             }
         }

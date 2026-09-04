@@ -116,7 +116,7 @@ pub const TICK_BIAS_SECS: f32 = 0.030;
 /// # Arguments
 /// * `base_duration_secs` - Base duration from effect definition
 /// * `alacrity_percent` - Player's alacrity percentage (e.g., 15.4 for 15.4%)
-/// * `latency_ms` - Average network latency in milliseconds
+/// * `latency_ms` - Bias adjustment in milliseconds (may be negative)
 ///
 /// # Returns
 /// Adjusted duration in seconds
@@ -124,11 +124,11 @@ pub const TICK_BIAS_SECS: f32 = 0.030;
 pub fn calculate_effect_duration(
     base_duration_secs: f32,
     alacrity_percent: f32,
-    latency_ms: u16,
+    latency_ms: i16,
 ) -> f32 {
     let alacrity_decimal = alacrity_percent / 100.0;
     let latency_secs = latency_ms as f32 / 1000.0;
-    (base_duration_secs / (1.0 + alacrity_decimal)) + latency_secs + TICK_BIAS_SECS
+    ((base_duration_secs / (1.0 + alacrity_decimal)) + latency_secs + TICK_BIAS_SECS).max(0.0)
 }
 
 #[cfg(test)]

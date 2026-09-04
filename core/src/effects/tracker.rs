@@ -442,9 +442,9 @@ pub struct EffectTracker {
     /// Their bonus is added to `alacrity_percent` when new entries are created.
     alacrity_buffs: AlacrityBuffTracker,
 
-    /// Player's network latency in milliseconds
-    /// Added to effect durations to compensate for network delay
-    latency_ms: u16,
+    /// Bias adjustment in milliseconds (may be negative).
+    /// Added to alacrity-scaled effect durations to correct a consistent discrepancy.
+    latency_ms: i16,
 
     /// Queue of targets that received effects from local player.
     /// Drained by the service to attempt registration in the raid registry.
@@ -566,8 +566,8 @@ impl EffectTracker {
         self.alacrity_percent = alacrity_percent;
     }
 
-    /// Set the player's network latency for duration calculations
-    pub fn set_latency(&mut self, latency_ms: u16) {
+    /// Set the duration bias adjustment (ms, may be negative) for duration calculations
+    pub fn set_latency(&mut self, latency_ms: i16) {
         self.latency_ms = latency_ms;
     }
 
@@ -583,10 +583,10 @@ impl EffectTracker {
         Some(if alacrity > 0.0 { icd / (1.0 + alacrity / 100.0) } else { icd })
     }
 
-    /// Calculate effective duration for a definition, applying alacrity and latency if configured
+    /// Calculate effective duration for a definition, applying alacrity and bias if configured
     /// For cooldowns with cooldown_ready_secs, adds the ready period to the total duration
     ///
-    /// Formula: (base_duration / (1 + alacrity)) + latency + cooldown_ready_secs
+    /// Formula: (base_duration / (1 + alacrity)) + bias + cooldown_ready_secs
     ///
     /// `at` is the log time of the triggering event — temporary alacrity buffs
     /// are evaluated against it, never the wall-clock-interpolated anchor.
@@ -599,15 +599,15 @@ impl EffectTracker {
             } else {
                 base_secs
             };
-            // Add latency compensation for effects affected by alacrity (network-sensitive)
-            let with_latency = if def.is_affected_by_alacrity && self.latency_ms > 0 {
+            // Apply bias adjustment (may be negative) for effects affected by alacrity
+            let with_bias = if def.is_affected_by_alacrity && self.latency_ms != 0 {
                 adjusted + (self.latency_ms as f32 / 1000.0)
             } else {
                 adjusted
             };
             // Add cooldown_ready_secs to extend the total duration for the ready state
-            let total = with_latency + def.cooldown_ready_secs;
-            Duration::from_secs_f32(total)
+            let total = with_bias + def.cooldown_ready_secs;
+            Duration::from_secs_f32(total.max(0.0))
         })
     }
 

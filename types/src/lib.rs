@@ -3418,10 +3418,11 @@ pub struct AppConfig {
     #[serde(default = "default_alacrity")]
     pub alacrity_percent: f32,
 
-    /// Average network latency in milliseconds (e.g., 50 for 50ms).
-    /// Used to adjust effect duration calculations.
+    /// Bias adjustment in milliseconds applied to alacrity-scaled effect durations.
+    /// Positive lengthens, negative shortens; compensates for a consistent
+    /// observed discrepancy (e.g. network latency).
     #[serde(default = "default_latency")]
-    pub latency_ms: u16,
+    pub latency_ms: i16,
 
     /// Last version for which the changelog was shown.
     /// Used to show "What's New" popup only once per version.
@@ -3466,7 +3467,7 @@ fn default_alacrity() -> f32 {
     7.5
 }
 
-fn default_latency() -> u16 {
+fn default_latency() -> i16 {
     80
 }
 
