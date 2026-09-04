@@ -23,6 +23,7 @@ id = "weaken_mind"
 name = "Weaken Mind"
 display_target = "dot_tracker"
 track_outside_combat = false
+disciplines = ["Balance", "Seer"]
 trigger = { type = "effect_applied", effects = [
   812861215473664,
 ], source = "local_player", target = "any" }
@@ -763,12 +764,32 @@ source = "local_player"
 target = "any"
 
 [[effect]]
+id = "gut"
+name = "Gut"
+duration_secs = 18.0
+is_affected_by_alacrity = true
+color = [194, 8, 29, 255]
+display_targets = ["dot_tracker"]
+icon_ability_id = 2029878853501184
+refresh_abilities = [
+  { ability = 2029878853500928, on_first_damage = true },
+  { ability = 2021194429628416, on_first_damage = true },
+  { ability = 3963988526235648, on_first_damage = true },
+]
+
+[effect.trigger]
+type = "effect_applied"
+effects = [2029878853501184]
+source = "local_player"
+target = "any"
+
+[[effect]]
 id = "affliction_lightning"
 name = "Affliction (Lightning)"
 display_text = "Affliction"
 duration_secs = 18.0
 is_affected_by_alacrity = true
-color = [194, 8, 29, 255]
+color = [62, 173, 28, 255]
 display_targets = ["dot_tracker"]
 disciplines = ["Lightning"]
 icon_ability_id = 808192586022912
@@ -782,5 +803,28 @@ refresh_abilities = [
 [effect.trigger]
 type = "effect_applied"
 effects = [808192586022912]
+source = "local_player"
+target = "any"
+
+[[effect]]
+id = "weaken_mind_tk"
+name = "Weaken Mind (Telekinetics)"
+display_text = "Weaken Mind"
+duration_secs = 18.0
+is_affected_by_alacrity = true
+color = [153, 143, 121, 255]
+display_targets = ["dot_tracker"]
+disciplines = ["Telekinetics"]
+icon_ability_id = 812861215473664
+refresh_abilities = [
+  { ability = 812861215473664, on_first_damage = true },
+  { ability = 812796790964224, trigger = "damage" },
+  { ability = 947130483081216, trigger = "damage" },
+  { ability = 4525589859926016, trigger = "damage" },
+]
+
+[effect.trigger]
+type = "effect_applied"
+effects = [812861215473664]
 source = "local_player"
 target = "any"
