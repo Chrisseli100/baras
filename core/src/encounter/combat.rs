@@ -1110,23 +1110,11 @@ impl CombatEncounter {
         let sig = (self.active_boss_idx, self.difficulty);
         if sig != self.phase_eval_mask_sig {
             let mask: Vec<bool> = match self.active_boss_idx {
-                Some(idx) => {
-                    let difficulty = self.difficulty;
-                    self.boss_definitions[idx]
-                        .phases
-                        .iter()
-                        .map(|phase| {
-                            phase.enabled
-                                && (phase.difficulties.is_empty()
-                                    || difficulty.as_ref().map_or(false, |d| {
-                                        phase
-                                            .difficulties
-                                            .iter()
-                                            .any(|key| d.matches_config_key(key))
-                                    }))
-                        })
-                        .collect()
-                }
+                Some(idx) => self.boss_definitions[idx]
+                    .phases
+                    .iter()
+                    .map(|phase| phase.is_active_for(self.difficulty))
+                    .collect(),
                 None => Vec::new(),
             };
             self.phase_eval_mask = mask;

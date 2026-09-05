@@ -912,7 +912,7 @@ impl EventProcessor {
         let npc_ids: Vec<i64> = def.boss_npc_ids().collect();
         let def_id = def.id.clone();
         let boss_name = def.name.clone();
-        let initial_phase = def.initial_phase().cloned();
+        let initial_phase = def.initial_phase(enc.difficulty).cloned();
 
         enc.boss_encounter_triggers_pending.clear();
         enc.set_boss(ActiveBoss {

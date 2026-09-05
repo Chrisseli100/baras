@@ -875,11 +875,12 @@ impl BossEncounterDefinition {
 
     // ─── Phase/Counter Methods ───────────────────────────────────────────────
 
-    /// Get the initial phase (triggered by CombatStart)
-    pub fn initial_phase(&self) -> Option<&PhaseDefinition> {
+    /// Get the initial phase (triggered by CombatStart) for the given difficulty.
+    /// Disabled phases and phases scoped to other difficulties are skipped.
+    pub fn initial_phase(&self, difficulty: Option<Difficulty>) -> Option<&PhaseDefinition> {
         self.phases
             .iter()
-            .find(|p| p.start_trigger.contains_combat_start())
+            .find(|p| p.is_active_for(difficulty) && p.start_trigger.contains_combat_start())
     }
 
     /// Check if this encounter is for the given area

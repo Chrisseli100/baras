@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::condition::Condition;
 use super::triggers::Trigger;
 use super::CounterCondition;
+use crate::game_data::Difficulty;
 
 // Re-export Trigger as PhaseTrigger for backward compatibility during migration
 pub use super::triggers::Trigger as PhaseTrigger;
@@ -61,4 +62,73 @@ pub struct PhaseDefinition {
     /// skipped (timers that condition on this phase will also not fire).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub difficulties: Vec<String>,
+}
+
+impl PhaseDefinition {
+    /// Whether this phase should be evaluated at all for the given encounter
+    /// difficulty: folds the `enabled` flag and the `difficulties` gate.
+    pub fn is_active_for(&self, difficulty: Option<Difficulty>) -> bool {
+        self.enabled
+            && (self.difficulties.is_empty()
+                || difficulty.is_some_and(|d| {
+                    self.difficulties.iter().any(|key| d.matches_config_key(key))
+                }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn phase(id: &str, enabled: bool, difficulties: &[&str], trigger: Trigger) -> PhaseDefinition {
+        PhaseDefinition {
+            id: id.to_string(),
+            name: id.to_string(),
+            enabled,
+            display_text: None,
+            start_trigger: trigger,
+            end_trigger: None,
+            preceded_by: None,
+            conditions: vec![],
+            counter_condition: None,
+            resets_counters: vec![],
+            difficulties: difficulties.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn is_active_for_folds_enabled_and_difficulty() {
+        let any = phase("any", true, &[], Trigger::CombatStart);
+        assert!(any.is_active_for(None));
+        assert!(any.is_active_for(Some(Difficulty::Story8)));
+
+        let master = phase("master", true, &["master"], Trigger::CombatStart);
+        assert!(master.is_active_for(Some(Difficulty::Master8)));
+        assert!(!master.is_active_for(Some(Difficulty::Story8)));
+        assert!(!master.is_active_for(None), "scoped phase needs a known difficulty");
+
+        let disabled = phase("off", false, &[], Trigger::CombatStart);
+        assert!(!disabled.is_active_for(Some(Difficulty::Master8)));
+    }
+
+    #[test]
+    fn initial_phase_respects_difficulty_and_enabled() {
+        let mut def = crate::dsl::BossEncounterDefinition::default();
+        def.phases = vec![
+            phase("disabled_cs", false, &[], Trigger::CombatStart),
+            phase("story_cs", true, &["story"], Trigger::CombatStart),
+            phase("master_cs", true, &["master"], Trigger::CombatStart),
+        ];
+
+        assert_eq!(
+            def.initial_phase(Some(Difficulty::Story8)).map(|p| p.id.as_str()),
+            Some("story_cs")
+        );
+        assert_eq!(
+            def.initial_phase(Some(Difficulty::Master16)).map(|p| p.id.as_str()),
+            Some("master_cs")
+        );
+        assert_eq!(def.initial_phase(Some(Difficulty::Veteran8)), None);
+        assert_eq!(def.initial_phase(None), None);
+    }
 }
