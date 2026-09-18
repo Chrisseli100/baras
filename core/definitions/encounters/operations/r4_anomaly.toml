@@ -1527,6 +1527,22 @@ value = 1
 type = "phase_entered"
 phase_id = "kanoth_p4"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Add Encounter: Hallway
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[[boss]]
+id = "hallway"
+name = "Hallway"
+difficulties = ["story", "veteran", "master"]
+
+[[boss.entities]]
+name = "Attractor"
+ids = [4628720614637568]
+is_boss = false
+triggers_encounter = true
+is_kill_target = false
+show_on_hp_overlay = true
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Boss 4: Lady Dominique
