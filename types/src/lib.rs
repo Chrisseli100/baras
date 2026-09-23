@@ -3445,8 +3445,9 @@ pub struct AppConfig {
     pub default_profile_per_role: std::collections::HashMap<String, String>,
 
     /// Write the crops handed to OCR, and what came back, to disk on every
-    /// detection. On by default: it is what makes a bad reading diagnosable.
-    #[serde(default = "default_true")]
+    /// detection. Off by default: it is what makes a bad reading diagnosable,
+    /// at the cost of a few dozen PNGs per press.
+    #[serde(default)]
     pub ocr_debug_dump: bool,
 
     /// How many detections to keep. The oldest dumps are pruned before a new
@@ -3498,7 +3499,7 @@ impl AppConfig {
             european_number_format: false,
             data_explorer_auto_live: false,
             default_profile_per_role: std::collections::HashMap::new(),
-            ocr_debug_dump: true,
+            ocr_debug_dump: false,
             ocr_debug_max_dumps: 100,
         }
     }

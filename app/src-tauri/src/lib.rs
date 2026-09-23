@@ -103,6 +103,10 @@ fn spawn_auto_show_overlays(overlay_state: SharedOverlayState, service_handle: S
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // SAFETY: first thing in the process, before logging or the runtime spawn
+    // a thread; it only sets an environment variable.
+    unsafe { baras_raid_ocr::configure_threads() };
+
     // Initialize logging FIRST - guard must outlive app for buffered log flushing
     let _logging_guard = logging::init();
 

@@ -7,13 +7,12 @@ pub mod analysis;
 pub mod cpu;
 pub mod debug_dump;
 pub mod engine;
+mod runtime;
 
 pub use debug_dump::DebugDump;
+pub use runtime::{configure_threads, release_memory};
 
-use std::sync::OnceLock;
 use std::time::Instant;
-
-use rayon::prelude::*;
 
 use analysis::{
     Band, BandKind, BarPosition, PreparedCrop, detect_health_bar, harmonize_names,
@@ -24,12 +23,6 @@ use baras_core::raid_detect::{
     MIN_OCR_NAME_CHARS, MatchConfig, PlayerCandidate, RowAssignment, RowObservation,
 };
 use baras_overlay::capture::CapturedImage;
-
-/// Crops kept in flight during recognition.
-///
-/// This is the queue depth, not the number of threads, but the amount of crops
-/// 'in-flight' at the same time.
-const RECOGNITION_JOBS: usize = 8;
 
 /// A slot rectangle within the captured overlay image.
 pub type SlotRect = (u8, i32, i32, u32, u32);
@@ -345,13 +338,7 @@ impl Reading {
         }
 
         let crops: Vec<&PreparedCrop> = wanted.iter().map(|&i| &self.held[i].crop).collect();
-        let readings: Vec<Option<Result<String, engine::OcrError>>> =
-            match (engine::warm(), recognition_pool()) {
-                (Ok(()), Some(pool)) => {
-                    pool.install(|| crops.par_iter().map(|c| Some(engine::recognize(c))).collect())
-                }
-                _ => crops.iter().map(|c| Some(engine::recognize(c))).collect(),
-            };
+        let readings = spread(engine::recognize_many(&crops), crops.len());
 
         let mut read = 0;
         for (&i, reading) in wanted.iter().zip(readings) {
@@ -360,12 +347,12 @@ impl Reading {
                 continue;
             };
             let text = match reading {
-                Some(Ok(text)) if !text.trim().is_empty() => text,
+                Ok(text) if !text.trim().is_empty() => text,
                 other => {
                     if let Some(dump) = dump.as_deref_mut() {
                         let why = match other {
-                            Some(Err(e)) => format!("unreadable: {e}"),
-                            _ => "empty reading".to_string(),
+                            Err(e) => format!("unreadable: {e}"),
+                            Ok(_) => "empty reading".to_string(),
                         };
                         dump.band(held.row as u8, &held.band, &held.crop, "", &why);
                     }
@@ -401,19 +388,16 @@ impl Reading {
     }
 }
 
-/// `None` when the pool cannot be built.
-/// Fallback:read one at a time rather than fail.
-fn recognition_pool() -> Option<&'static rayon::ThreadPool> {
-    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
-    POOL.get_or_init(|| {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(RECOGNITION_JOBS)
-            .thread_name(|index| format!("baras-ocr-{index}"))
-            .build()
-            .inspect_err(|e| tracing::warn!("Reading crops one at a time: {e}"))
-            .ok()
-    })
-    .as_ref()
+/// One reading per crop from a batched result. The batch fails as a whole, so
+/// a failure is reported against every crop in it.
+fn spread(
+    batch: Result<Vec<String>, engine::OcrError>,
+    len: usize,
+) -> Vec<Result<String, engine::OcrError>> {
+    match batch {
+        Ok(texts) => texts.into_iter().map(Ok).collect(),
+        Err(e) => std::iter::repeat_n(Err(e), len).collect(),
+    }
 }
 
 /// Narrow name crops to the columns detection finds text in, dropping those
@@ -461,19 +445,17 @@ fn narrow_names(crops: &mut [(usize, Band, Option<PreparedCrop>)]) -> (usize, Ve
     (changed, textless)
 }
 
-/// Reads every crop. Lines up with `crops`, `None` where there was nothing to read.
+/// Reads every crop in one batch. Lines up with `crops`, `None` where there
+/// was nothing to read.
 fn recognize_all(
     crops: &[(usize, Band, Option<PreparedCrop>)],
 ) -> Vec<Option<Result<String, engine::OcrError>>> {
-    fn read(entry: &(usize, Band, Option<PreparedCrop>)) -> Option<Result<String, engine::OcrError>> {
-        entry.2.as_ref().map(engine::recognize)
-    }
-
-    // Load the model before spreading out, never inside a worker: see `warm`.
-    match (engine::warm(), recognition_pool()) {
-        (Ok(()), Some(pool)) => pool.install(|| crops.par_iter().map(read).collect()),
-        _ => crops.iter().map(read).collect(),
-    }
+    let present: Vec<&PreparedCrop> = crops.iter().filter_map(|e| e.2.as_ref()).collect();
+    let mut readings = spread(engine::recognize_many(&present), present.len()).into_iter();
+    crops
+        .iter()
+        .map(|entry| entry.2.as_ref().and_then(|_| readings.next()))
+        .collect()
 }
 
 /// Full detection pass: read the screen, then match against known players.

@@ -307,6 +307,8 @@ async fn detect_raid_names(
         if let Some(dump) = dump {
             dump.finish();
         }
+        // The tensors are freed; make the allocator give the pages back.
+        baras_raid_ocr::release_memory();
 
         // Completes the picture the capture timing starts.
         tracing::info!(

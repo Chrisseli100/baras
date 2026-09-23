@@ -51,7 +51,7 @@ const CANVAS_COLS: u32 = 600;
 /// Black rows between packed crops, so one crop's mask cannot reach the next.
 const BATCH_GAP: u32 = 8;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OcrError {
     ModelUnavailable(String),
     Recognition(String),
@@ -120,13 +120,12 @@ async fn ensure_one(
     urls: &[&str],
     sha256: &str,
 ) -> Result<(), OcrError> {
+    // A cached file of plausible size is trusted: it was hash-checked before it
+    // was written, and `engine()` reports one that fails to load.
     if let Ok(metadata) = std::fs::metadata(path)
         && metadata.len() >= MIN_MODEL_BYTES
     {
-        if engine_is_loaded() || validate_model_file(path).is_ok() {
-            return Ok(());
-        }
-        tracing::warn!("Replacing an unreadable OCR model at {path:?}");
+        return Ok(());
     }
     if path.exists() {
         std::fs::remove_file(path)
@@ -167,16 +166,10 @@ async fn ensure_one(
     };
 
     // Write beside the target and rename, so an interrupted download cannot
-    // leave a truncated file that later loads as a corrupt model. The temp name
-    // has to keep the `.rten` extension: `Model::load_file` picks its parser
-    // from the extension alone, and rejects anything else before reading a byte.
-    let temp = path.with_extension("part.rten");
+    // leave a truncated file where a model is expected.
+    let temp = path.with_extension("part");
     std::fs::write(&temp, &bytes)
         .map_err(|e| OcrError::ModelUnavailable(format!("cannot write model: {e}")))?;
-    if let Err(e) = validate_model_file(&temp) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(e);
-    }
     if let Err(e) = std::fs::rename(&temp, path) {
         let _ = std::fs::remove_file(&temp);
         return Err(OcrError::ModelUnavailable(format!(
@@ -227,18 +220,6 @@ fn hex(bytes: &[u8]) -> String {
 /// Process-wide engine, built once on first use.
 static ENGINE: OnceLock<Mutex<Option<Arc<OcrEngine>>>> = OnceLock::new();
 
-fn engine_is_loaded() -> bool {
-    ENGINE
-        .get()
-        .is_some_and(|cell| cell.lock().unwrap_or_else(|p| p.into_inner()).is_some())
-}
-
-fn validate_model_file(path: &std::path::Path) -> Result<(), OcrError> {
-    Model::load_file(path)
-        .map(|_| ())
-        .map_err(|e| OcrError::ModelUnavailable(format!("invalid model at {path:?}: {e}")))
-}
-
 /// Load a cached model, naming it when it is missing.
 fn load(path: Option<PathBuf>, kind: &str) -> Result<Model, OcrError> {
     let path = path.ok_or_else(|| OcrError::ModelUnavailable("no config directory".into()))?;
@@ -283,39 +264,79 @@ pub fn warm() -> Result<(), OcrError> {
     engine().map(|_| ())
 }
 
-/// Recognize the text in one prepared crop.
+/// Recognize the text in many prepared crops at once.
 ///
-/// The crop is treated as a single text line covering the whole image, since
-/// band detection already isolated it.
-pub fn recognize(crop: &PreparedCrop) -> Result<String, OcrError> {
+/// Each crop is treated as a single text line covering the whole crop, since
+/// band detection already isolated it. The crops are stacked onto one canvas
+/// and handed to recognition together: ocrs groups lines of similar width into
+/// one model run, where reading them one at a time ran the model once per crop
+/// and held one set of activations per crop in flight.
+///
+/// Readings line up with `crops`; a crop with nothing legible reads as `""`.
+pub fn recognize_many(crops: &[&PreparedCrop]) -> Result<Vec<String>, OcrError> {
+    if crops.is_empty() {
+        return Ok(Vec::new());
+    }
     let engine = engine()?;
+    let (canvas, tops) = pack(crops);
+    let lines: Vec<Vec<RotatedRect>> = crops
+        .iter()
+        .zip(&tops)
+        .map(|(crop, &top)| {
+            vec![RotatedRect::from_rect(Rect::from_tlhw(
+                top as f32,
+                0.0,
+                crop.height as f32,
+                crop.width as f32,
+            ))]
+        })
+        .collect();
 
-    let rgb = crop.to_rgb();
-    let source = ImageSource::from_bytes(&rgb, (crop.width, crop.height))
+    let rgb = canvas.to_rgb();
+    let source = ImageSource::from_bytes(&rgb, (canvas.width, canvas.height))
         .map_err(|e| OcrError::Recognition(format!("bad image source: {e}")))?;
     let input = engine
         .prepare_input(source)
         .map_err(|e| OcrError::Recognition(format!("prepare_input failed: {e}")))?;
-
-    let line = vec![RotatedRect::from_rect(Rect::from_tlhw(
-        0.0,
-        0.0,
-        crop.height as f32,
-        crop.width as f32,
-    ))];
-
     let recognized = engine
-        .recognize_text(&input, &[line])
+        .recognize_text(&input, &lines)
         .map_err(|e| OcrError::Recognition(format!("recognize_text failed: {e}")))?;
 
     Ok(recognized
         .into_iter()
-        .flatten()
-        .map(|line| line.to_string())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim()
-        .to_string())
+        .map(|line| line.map_or_else(String::new, |l| l.to_string().trim().to_string()))
+        .collect())
+}
+
+/// Stack crops top to bottom on one black canvas, `BATCH_GAP` rows apart.
+///
+/// Returns the canvas and each crop's top row on it. Unused canvas stays
+/// black, which both models read as "nothing here".
+fn pack(crops: &[&PreparedCrop]) -> (PreparedCrop, Vec<u32>) {
+    let width = crops.iter().map(|c| c.width).max().unwrap_or(0);
+    let height = crops.iter().map(|c| c.height).sum::<u32>()
+        + BATCH_GAP * crops.len().saturating_sub(1) as u32;
+    let mut gray = vec![0u8; (width * height) as usize];
+    let mut tops = Vec::with_capacity(crops.len());
+    let mut top = 0u32;
+    for crop in crops {
+        for row in 0..crop.height {
+            let from = (row * crop.width) as usize;
+            let to = ((top + row) * width) as usize;
+            gray[to..to + crop.width as usize]
+                .copy_from_slice(&crop.gray[from..from + crop.width as usize]);
+        }
+        tops.push(top);
+        top += crop.height + BATCH_GAP;
+    }
+    (
+        PreparedCrop {
+            width,
+            height,
+            gray,
+        },
+        tops,
+    )
 }
 
 /// Columns the detection model is confident hold text, for many crops.
@@ -368,38 +389,15 @@ fn detect_batch(crops: &[&PreparedCrop], batch: &[usize], out: &mut [Option<Opti
         return;
     }
 
-    let width = batch.iter().map(|&i| crops[i].width).max().unwrap_or(0);
-    let height = batch.iter().map(|&i| crops[i].height).sum::<u32>()
-        + BATCH_GAP * (batch.len() as u32 - 1);
-    if width == 0 || height == 0 {
+    let members: Vec<&PreparedCrop> = batch.iter().map(|&i| crops[i]).collect();
+    let (packed, tops) = pack(&members);
+    if packed.width == 0 || packed.height == 0 {
         return;
     }
-
-    // Unused canvas stays black, which reads as "no text".
-    let mut gray = vec![0u8; (width * height) as usize];
-    let mut tops = Vec::with_capacity(batch.len());
-    let mut top = 0u32;
-    for &i in batch {
-        let crop = crops[i];
-        for row in 0..crop.height {
-            let from = (row * crop.width) as usize;
-            let to = ((top + row) * width) as usize;
-            gray[to..to + crop.width as usize]
-                .copy_from_slice(&crop.gray[from..from + crop.width as usize]);
-        }
-        tops.push(top);
-        top += crop.height + BATCH_GAP;
-    }
-
-    let packed = PreparedCrop {
-        width,
-        height,
-        gray,
-    };
-    let regions: Vec<Region> = batch
+    let regions: Vec<Region> = members
         .iter()
         .zip(&tops)
-        .map(|(&i, &top)| (top, crops[i].width, crops[i].height))
+        .map(|(crop, &top)| (top, crop.width, crop.height))
         .collect();
     let Ok(spans) = detect(&engine, &packed, &regions) else {
         return;

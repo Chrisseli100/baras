@@ -102,7 +102,7 @@ pub fn App() -> Element {
     let mut upload_status = use_signal(HashMap::<String, (bool, String)>::new); // path -> (success, message)
     let mut file_browser_filter = use_signal(String::new);
     let mut hide_small_log_files = use_signal(|| true);
-    let mut ocr_debug_dump = use_signal(|| true);
+    let mut ocr_debug_dump = use_signal(|| false);
     let mut ocr_debug_max_dumps = use_signal(|| 100u32);
 
     // UI Session State - unified state that persists across tab switches

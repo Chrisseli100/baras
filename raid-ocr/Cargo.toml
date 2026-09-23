@@ -27,8 +27,13 @@ tracing = { workspace = true }
 png = "0.17"
 chrono = "0.4.42"
 
-# Make sure we can have multiple crops 'in flight'
-rayon = "1"
-
 # Lanczos-3 upscaling of the crops.
 fast_image_resize = "6"
+
+# Physical core count, for capping rten's thread pool.
+num_cpus = "1"
+
+# `malloc_trim` after a detection pass: glibc otherwise keeps every thread's
+# freed tensors in its own arena.
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+libc = "0.2"

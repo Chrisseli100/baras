@@ -97,6 +97,11 @@ pub fn prepare(slot: &CapturedImage, band: &Band) -> Option<PreparedCrop> {
     );
 
     let scaled = upscale_lanczos3(stretched, crop.width, crop.height, out_w, out_h);
+    // The resizer reports a rejected geometry as an empty buffer; a crop whose
+    // pixels do not match its size would corrupt the canvas it is packed onto.
+    if scaled.len() != (out_w * out_h) as usize {
+        return None;
+    }
 
     Some(PreparedCrop {
         width: out_w,
