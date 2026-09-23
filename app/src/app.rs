@@ -1678,7 +1678,7 @@ pub fn App() -> Element {
                                     }
                                     button {
                                         class: if cooldowns_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },
-                                        title: "Tracks ability cooldowns",
+                                        title: "Tracks ability cooldowns (Group A)",
                                         onclick: move |_| { spawn(async move {
                                             if api::toggle_overlay(OverlayType::Cooldowns, cooldowns_on).await {
                                                 cooldowns_enabled.set(!cooldowns_on);
@@ -1686,7 +1686,7 @@ pub fn App() -> Element {
                                             }
                                         }); },
                                         i { class: "fa-solid fa-rotate overlay-btn-icon" }
-                                        "Cooldowns"
+                                        "Cooldowns A"
                                     }
                                     button {
                                         class: if cooldowns_b_on { "btn btn-overlay btn-active" } else { "btn btn-overlay" },

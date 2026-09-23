@@ -572,7 +572,7 @@ pub fn SettingsPanel(
                         TabButton { label: "Effects A", tab_key: "effects_a", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Effects B", tab_key: "effects_b", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Effects C", tab_key: "effects_c", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
-                        TabButton { label: "Cooldowns", tab_key: "cooldowns", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
+                        TabButton { label: "Cooldowns A", tab_key: "cooldowns", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "Cooldowns B", tab_key: "cooldowns_b", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                         TabButton { label: "DOT Tracker", tab_key: "dot_tracker", selected_tab: selected_tab, metrics_global_open: metrics_global_open }
                     }

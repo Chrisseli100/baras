@@ -860,7 +860,7 @@ impl DisplayTarget {
             Self::EffectsA => "Effects A",
             Self::EffectsB => "Effects B",
             Self::EffectsC => "Effects C",
-            Self::Cooldowns => "Cooldowns",
+            Self::Cooldowns => "Cooldowns A",
             Self::CooldownsB => "Cooldowns B",
             Self::DotTracker => "DOT Tracker",
             Self::BossHealth => "Boss HP Bar",
