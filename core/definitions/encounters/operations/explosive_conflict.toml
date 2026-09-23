@@ -1100,7 +1100,7 @@ id = "cv_minefield_enrage_nim"
 name = "Minefield Enrage (NiM)"
 display_text = "Minefield Enrage"
 color = [214, 37, 32, 255]
-difficulties = ["veteran"]
+difficulties = ["master"]
 duration_secs = 330
 show_at_secs = 120.0
 trigger = { type = "combat_start" }
