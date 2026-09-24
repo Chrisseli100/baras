@@ -12,12 +12,14 @@ fn main() {
     generate_alacrity_buffs_map(&out_dir);
     generate_discipline_abilities_map(&out_dir);
     generate_interrupt_abilities_set(&out_dir);
+    generate_mirror_abilities_map(&out_dir);
 
     println!("cargo:rerun-if-changed=data/off_gcd.json");
     println!("cargo:rerun-if-changed=data/attack_types.csv");
     println!("cargo:rerun-if-changed=data/alacrity_abilities.csv");
     println!("cargo:rerun-if-changed=data/discipline_unique_abilities.csv");
     println!("cargo:rerun-if-changed=data/interrupts.csv");
+    println!("cargo:rerun-if-changed=data/ability_data.csv");
 }
 
 fn generate_off_gcd_set(out_dir: &str) {
@@ -185,4 +187,66 @@ fn generate_discipline_abilities_map(out_dir: &str) {
         builder.build()
     )
     .unwrap();
+}
+
+/// Split a CSV line, honoring double-quoted fields (ability names can contain commas).
+fn split_csv_line(line: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut cur = String::new();
+    let mut in_quotes = false;
+    for c in line.chars() {
+        match c {
+            '"' => in_quotes = !in_quotes,
+            ',' if !in_quotes => fields.push(std::mem::take(&mut cur)),
+            _ => cur.push(c),
+        }
+    }
+    fields.push(cur);
+    fields
+}
+
+/// Republic/Imperial mirror pairs from the full ability dump.
+/// Columns used: fqn(0), global_combat_id(1), name(2), mirror_fqn(6).
+fn generate_mirror_abilities_map(out_dir: &str) {
+    let csv = fs::read_to_string("data/ability_data.csv").expect("failed to read ability_data.csv");
+    let csv = csv.trim_start_matches('\u{feff}');
+
+    const IMPERIAL: [&str; 4] = ["agent", "bounty_hunter", "sith_warrior", "sith_inquisitor"];
+
+    // Pass 1: fqn → (id, name, is_imperial) for every row that has a mirror.
+    let mut by_fqn: BTreeMap<String, (i64, String, bool)> = BTreeMap::new();
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    for line in csv.lines().skip(1) {
+        let f = split_csv_line(line);
+        if f.len() < 7 || f[6].is_empty() {
+            continue;
+        }
+        let Ok(id) = f[1].trim().parse::<i64>() else { continue };
+        let class = f[0].split('.').nth(1).unwrap_or("");
+        by_fqn.insert(f[0].clone(), (id, f[2].clone(), IMPERIAL.contains(&class)));
+        pairs.push((f[0].clone(), f[6].clone()));
+    }
+
+    // Pass 2: id → mirror (id, name, faction). BTreeMap for deterministic output.
+    let mut entries = BTreeMap::new();
+    for (fqn, mirror_fqn) in &pairs {
+        let (Some((id, _, is_imperial)), Some((mid, mname, _))) = (by_fqn.get(fqn), by_fqn.get(mirror_fqn)) else {
+            continue;
+        };
+        entries.insert(
+            *id,
+            format!("MirrorAbility {{ mirror_id: {mid}i64, mirror_name: {mname:?}, is_imperial: {is_imperial} }}"),
+        );
+    }
+
+    let path = Path::new(out_dir).join("mirror_abilities.rs");
+    let mut file = BufWriter::new(fs::File::create(&path).unwrap());
+
+    let mut builder = phf_codegen::Map::new();
+    for (id, entry) in &entries {
+        builder.entry(*id, entry);
+    }
+
+    writeln!(file, "pub static MIRROR_ABILITIES: phf::Map<i64, MirrorAbility> = {};", builder.build())
+        .unwrap();
 }

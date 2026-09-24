@@ -22,7 +22,8 @@ use crate::components::overview_table::{OverviewSort, OverviewTable, OverviewTot
 use crate::components::phase_timeline::PhaseTimelineFilter;
 use crate::components::rotation_view::RotationView;
 use crate::components::{ToastSeverity, use_parsely_upload, use_toast};
-use crate::types::{DataTab, SortColumn, SortDirection, UiSessionState, UsageSortColumn, ViewMode};
+use crate::components::mirror_names::{self, ABILITY_NAMING, display_id, display_name};
+use crate::types::{AbilityNaming, DataTab, SortColumn, SortDirection, UiSessionState, UsageSortColumn, ViewMode};
 use crate::utils::js_set;
 use baras_types::formatting;
 
@@ -144,6 +145,9 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
     // (overview_sub_tab removed — NPC Health and Challenges now shown side-by-side)
 
 
+
+    // Mirror-class naming map (fetched once per app lifetime)
+    mirror_names::ensure_loaded();
 
     // Toast notifications
     let mut toast = use_toast();
@@ -1218,7 +1222,15 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
         let col = *sort_column.read();
         let dir = *sort_direction.read();
         let mode = *breakdown_mode.read();
-        let list: Vec<AbilityBreakdown> = abilities.read().clone();
+        let list: Vec<AbilityBreakdown> = abilities
+            .read()
+            .iter()
+            .cloned()
+            .map(|mut a| {
+                a.ability_name = display_name(a.ability_id, &a.ability_name).into_owned();
+                a
+            })
+            .collect();
 
         // Sort function for abilities within groups
         let sort_abilities = |mut items: Vec<AbilityBreakdown>| -> Vec<AbilityBreakdown> {
@@ -1813,6 +1825,17 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                             class: if matches!(view_mode(), ViewMode::Rotation) { "data-tab active" } else { "data-tab" },
                             onclick: move |_| view_mode.set(ViewMode::Rotation),
                             "Rotation"
+                        }
+                        // Mirror-class naming toggle (Republic / Imperial names for class abilities)
+                        div { class: "naming-toggle", title: "Show class abilities with Republic or Imperial names",
+                            for (naming, label) in [(AbilityNaming::AsLogged, "Log"), (AbilityNaming::Republic, "Rep"), (AbilityNaming::Imperial, "Imp")] {
+                                button {
+                                    key: "{label}",
+                                    class: if *ABILITY_NAMING.read() == naming { "naming-toggle-btn active" } else { "naming-toggle-btn" },
+                                    onclick: move |_| *ABILITY_NAMING.write() = naming,
+                                    "{label}"
+                                }
+                            }
                         }
                         button {
                             class: "panel-fullscreen-btn",
@@ -2932,7 +2955,7 @@ pub fn DataExplorerPanel(mut props: DataExplorerProps) -> Element {
                                                         tr { key: "{stats.target.as_deref().unwrap_or(\"\")}-{idx}-{ability.ability_id}", class: if ability.is_shield { if stats.target.is_some() { "ability-row shield-row indented" } else { "ability-row shield-row" } } else if stats.target.is_some() { "ability-row indented" } else { "ability-row" },
                                                             td { class: "ability-name-cell",
                                                                 span { class: "ability-name-inner",
-                                                                    AbilityIcon { ability_id: ability.ability_id }
+                                                                    AbilityIcon { ability_id: display_id(ability.ability_id) }
                                                                     if !ability.ability_name.is_empty() {
                                                                         "{ability.ability_name}"
                                                                     } else {
@@ -3443,6 +3466,9 @@ fn UsageTab(
     let rows: Vec<AbilityUsageRow> = match &*usage_read {
         Some(Some(data)) => {
             let mut sorted = data.clone();
+            for r in &mut sorted {
+                r.ability_name = display_name(r.ability_id, &r.ability_name).into_owned();
+            }
             sort_usage_rows(&mut sorted, sort_col, sort_dir);
             sorted
         }
@@ -3590,7 +3616,7 @@ fn UsageTab(
                                     },
                                     td { class: "ability-name-cell",
                                         span { class: "ability-name-inner",
-                                            AbilityIcon { ability_id: row.ability_id }
+                                            AbilityIcon { ability_id: display_id(row.ability_id) }
                                             span { "{row.ability_name}" }
                                             span { class: "ability-id-muted", " ({row.ability_id})" }
                                         }

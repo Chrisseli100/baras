@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 use crate::api;
 use crate::api::{RotationAnalysis, TimeRange};
 use crate::components::ability_icon::AbilityIcon;
+use crate::components::mirror_names::{display_id, display_name};
 use baras_types::formatting;
 
 #[derive(Props, Clone, PartialEq)]
@@ -131,7 +132,11 @@ pub fn RotationView(props: RotationViewProps) -> Element {
         });
     });
 
-    let abilities = available_abilities.read().clone();
+    let abilities: Vec<(i64, String)> = available_abilities
+        .read()
+        .iter()
+        .map(|(id, name)| (*id, display_name(*id, name).into_owned()))
+        .collect();
     let source = props.selected_source.clone();
 
     rsx! {
@@ -212,14 +217,16 @@ pub fn RotationView(props: RotationViewProps) -> Element {
                                     for (j, slot) in cycle.slots.iter().enumerate() {
                                         {
                                         let gcd_time = slot.gcd_ability.time_secs;
+                                        let gcd_name = display_name(slot.gcd_ability.ability_id, &slot.gcd_ability.ability_name).into_owned();
                                         rsx! {
                                         div { class: "gcd-slot", key: "{j}",
                                             // Off-GCD weaves stacked above (reversed: last weave nearest GCD)
                                             for (k, weave) in slot.off_gcd.iter().rev().enumerate() {
                                                 {
                                                 let weave_time = weave.time_secs;
+                                                let weave_name = display_name(weave.ability_id, &weave.ability_name).into_owned();
                                                 rsx! {
-                                                div { title: "{weave.ability_name}",
+                                                div { title: "{weave_name}",
                                                     oncontextmenu: move |e: MouseEvent| {
                                                         if props.on_range_change.is_some() {
                                                             e.prevent_default();
@@ -229,16 +236,16 @@ pub fn RotationView(props: RotationViewProps) -> Element {
                                                     },
                                                     AbilityIcon {
                                                         key: "w{k}",
-                                                        ability_id: weave.ability_id,
+                                                        ability_id: display_id(weave.ability_id),
                                                         size: 28,
-                                                        fallback: weave.ability_name.clone(),
+                                                        fallback: weave_name.clone(),
                                                     }
                                                 }
                                                 }
                                                 }
                                             }
                                             // GCD ability on bottom
-                                            div { title: "{slot.gcd_ability.ability_name}",
+                                            div { title: "{gcd_name}",
                                                 oncontextmenu: move |e: MouseEvent| {
                                                     if props.on_range_change.is_some() {
                                                         e.prevent_default();
@@ -247,9 +254,9 @@ pub fn RotationView(props: RotationViewProps) -> Element {
                                                     }
                                                 },
                                                 AbilityIcon {
-                                                    ability_id: slot.gcd_ability.ability_id,
+                                                    ability_id: display_id(slot.gcd_ability.ability_id),
                                                     size: 40,
-                                                    fallback: slot.gcd_ability.ability_name.clone(),
+                                                    fallback: gcd_name.clone(),
                                                 }
                                             }
                                             // GCD gap timing

@@ -185,6 +185,30 @@ impl PvpFaction {
     }
 }
 
+/// How class ability names are displayed in the Data Explorer.
+/// `Republic`/`Imperial` swap mirror-class abilities to that faction's name;
+/// abilities without a mirror (NPC, generic) are always shown as logged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AbilityNaming {
+    #[default]
+    AsLogged,
+    Republic,
+    Imperial,
+}
+
+/// Mirror-class counterpart of a class ability (from the ability data dump).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorAbility {
+    /// The ability this entry describes.
+    pub id: i64,
+    pub mirror_id: i64,
+    pub mirror_name: String,
+    /// Faction of the ability this entry is keyed by.
+    pub is_imperial: bool,
+}
+
 /// Raid overview row - aggregated stats per player across all metrics.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RaidOverviewRow {

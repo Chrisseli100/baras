@@ -7,7 +7,7 @@ use serde::Serialize;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 
-use crate::types::{AppConfig, OverlayStatus, OverlayType, SessionInfo};
+use crate::types::{AppConfig, MirrorAbility, OverlayStatus, OverlayType, SessionInfo};
 use crate::utils::js_set;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -839,6 +839,11 @@ pub async fn get_icon_preview(ability_id: u64) -> Option<String> {
         Ok(result) => from_js(result),
         Err(_) => None, // Icon not found - graceful fallback
     }
+}
+
+/// Republic ⇄ Imperial mirror ability pairs.
+pub async fn get_mirror_abilities() -> Vec<MirrorAbility> {
+    from_js(invoke("get_mirror_abilities", JsValue::NULL).await).unwrap_or_default()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

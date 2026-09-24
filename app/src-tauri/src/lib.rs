@@ -340,6 +340,7 @@ pub fn run() {
             commands::delete_effect_definition,
             commands::duplicate_effect_definition,
             commands::get_icon_preview,
+            commands::get_mirror_abilities,
             // Effect export/import
             commands::export_effects_toml,
             commands::preview_import_effects,

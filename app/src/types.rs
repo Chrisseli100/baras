@@ -11,6 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 pub use baras_types::{
     // Selectors (unified ID-or-Name matching)
+    AbilityNaming,
     AbilitySelector,
     // Config types
     AlertsOverlayConfig,
@@ -28,6 +29,7 @@ pub use baras_types::{
     DataExplorerState,
     DataTab,
     DotTrackerConfig,
+    MirrorAbility,
     ChargeDirection,
     EffectModifier,
     EffectSelector,

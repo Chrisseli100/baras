@@ -9,11 +9,13 @@
 //! - `timers` - Encounter timer CRUD for the timer editor UI (LEGACY)
 //! - `encounters` - Unified encounter item CRUD (NEW - replaces timers)
 //! - `effects` - Effect definition CRUD for the effect editor UI
+//! - `game_data` - Static game-data lookups (mirror abilities)
 //! - `parsely` - Parsely.io log upload
 //! - `url` - URL opening with portal support for Linux
 
 mod effects;
 mod encounters;
+mod game_data;
 mod overlay;
 mod parsely;
 mod query;
@@ -24,6 +26,7 @@ mod url;
 // Re-export all commands for the invoke_handler
 pub use effects::*;
 pub use encounters::*;
+pub use game_data::*;
 pub use overlay::*;
 pub use parsely::*;
 pub use query::*;

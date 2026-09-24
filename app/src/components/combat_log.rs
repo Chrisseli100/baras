@@ -7,6 +7,7 @@ use wasm_bindgen::{JsCast, prelude::*};
 
 use crate::api::{self, CombatLogFilters, CombatLogFindMatch, CombatLogRow, CombatLogSortColumn, GroupedEntityNames, SortDirection, TimeRange};
 use crate::components::ability_icon::AbilityIcon;
+use crate::components::mirror_names::{display_id, display_name};
 use crate::types::CombatLogSessionState;
 use baras_types::formatting;
 
@@ -1215,13 +1216,13 @@ pub fn CombatLog(props: CombatLogProps) -> Element {
                                 }
                                 div { class: "log-cell log-ability", style: "width: {col_ability}px; min-width: {col_ability}px;",
                                     if row.ability_id != 0 {
-                                        AbilityIcon { key: "{row.ability_id}", ability_id: row.ability_id, size: 16 }
+                                        AbilityIcon { key: "{row.ability_id}", ability_id: display_id(row.ability_id), size: 16 }
                                     }
                                     if show_ids_val && row.ability_id != 0 {
                                         span { class: "log-id-prefix", "[{row.ability_id}] " }
                                     }
                                     if !row.ability_name.is_empty() {
-                                        "{row.ability_name}"
+                                        "{display_name(row.ability_id, &row.ability_name)}"
                                     }
                                 }
                                 div { class: "log-cell log-effect", style: "width: {col_effect}px; min-width: {col_effect}px;",
