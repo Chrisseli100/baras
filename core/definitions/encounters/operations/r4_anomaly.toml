@@ -80,25 +80,32 @@ id = "burn"
 name = "Burn"
 start_trigger = { type = "ability_cast", abilities = [4471730970034176] }
 
-# -- Challenges
-[[boss.challenge]]
-id = "bomb_dps"
-name = "Bomb DPS"
-metric = "damage"
-conditions = [{ type = "target", match = { selector = [4470446774812672] } }]
-color = [24, 156, 139, 255]
-
 [[boss.challenge]]
 id = "ip_cpt_burn"
 name = "Burn"
 metric = "damage"
 enabled = true
-columns = "total_percent"
+columns = "total_per_second"
 
 [[boss.challenge.conditions]]
 type = "phase"
 phase_ids = ["burn"]
 
+[[boss.challenges]]
+id = "ip_cpt_big_grenade"
+name = "Big Grenade"
+metric = "effect_count"
+enabled = true
+columns = "total_only"
+difficulties = ["story", "veteran"]
+
+[[boss.challenges.conditions]]
+type = "effect"
+effect_ids = [4471271408533778]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
 # -- Counters
 [[boss.counters]]
 id = "ip_cpt_stacks"

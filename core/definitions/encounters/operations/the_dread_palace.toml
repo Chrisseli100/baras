@@ -1062,6 +1062,10 @@ difficulties = ["veteran", "master"]
 type = "effect"
 effect_ids = [3277841730895872, 3349606339444736]
 
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
+
 [[boss]]
 id = "calphayus"
 name = "Calphayus"
