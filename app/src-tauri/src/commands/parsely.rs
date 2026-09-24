@@ -12,6 +12,7 @@ use crate::service::ServiceHandle;
 
 const PARSELY_URL: &str = "https://parsely.io/api/upload2";
 const USER_AGENT: &str = "BARAS v0.1.0";
+const REFERER: &str = "baras-app";
 
 /// Extra seconds of trailing log lines to include beyond the encounter's end_line
 /// when uploading to Parsely. Ensures late-arriving damage/death events from SWTOR's
@@ -101,6 +102,7 @@ pub async fn upload_to_parsely(
     let response = client
         .post(PARSELY_URL)
         .header("User-Agent", USER_AGENT)
+        .header("Referer", REFERER)
         .multipart(form)
         .timeout(std::time::Duration::from_secs(300))
         .send()
@@ -224,6 +226,7 @@ pub async fn upload_encounter_to_parsely(
     let response = client
         .post(PARSELY_URL)
         .header("User-Agent", USER_AGENT)
+        .header("Referer", REFERER)
         .multipart(form)
         .timeout(std::time::Duration::from_secs(300))
         .send()
