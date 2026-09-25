@@ -80,14 +80,14 @@ id = "burn"
 name = "Burn"
 start_trigger = { type = "ability_cast", abilities = [4471730970034176] }
 
-[[boss.challenge]]
+[[boss.challenges]]
 id = "ip_cpt_burn"
 name = "Burn"
 metric = "damage"
 enabled = true
 columns = "total_per_second"
 
-[[boss.challenge.conditions]]
+[[boss.challenges.conditions]]
 type = "phase"
 phase_ids = ["burn"]
 
