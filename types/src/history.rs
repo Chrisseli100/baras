@@ -3,6 +3,8 @@
 //! The backend keeps the full per-log summaries; only these compact rows and
 //! aggregates cross IPC.
 
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 /// One recorded pull, reduced to what the History table shows.
@@ -92,6 +94,10 @@ pub struct HistoryState {
     pub selected: Option<(String, String)>,
     /// Per-boss difficulty tab; empty = all
     pub difficulty: String,
+    /// Operation sections the user has opened in the sidebar tree
+    pub expanded: HashSet<String>,
+    /// Sidebar boss/operation name filter
+    pub boss_search: String,
 }
 
 /// Progress lines emitted by `baras-parse-worker --backfill` (one JSON per

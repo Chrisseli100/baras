@@ -4,8 +4,6 @@
 //! The backend keeps the index; this panel only ever holds the tree aggregates
 //! and the rows for the selected boss.
 
-use std::collections::HashSet;
-
 use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 
@@ -65,8 +63,8 @@ fn effective_selection(selected: Option<BossKey>, bosses: &[BossNode]) -> Option
 }
 
 /// Group consecutive nodes (already sorted by operation) into tree sections
-fn group_by_operation(bosses: &[BossNode]) -> Vec<(&str, Vec<&BossNode>)> {
-    let mut tree: Vec<(&str, Vec<&BossNode>)> = Vec::new();
+fn group_by_operation<'a>(bosses: impl Iterator<Item = &'a BossNode>) -> Vec<(&'a str, Vec<&'a BossNode>)> {
+    let mut tree: Vec<(&'a str, Vec<&'a BossNode>)> = Vec::new();
     for node in bosses {
         match tree.last_mut() {
             Some((op, nodes)) if *op == node.operation => nodes.push(node),
@@ -86,7 +84,8 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
     let mut filter = use_signal(|| props.state.read().history.filter.clone());
     let mut difficulty_filter = use_signal(|| props.state.read().history.difficulty.clone());
     let mut selected = use_signal(|| props.state.read().history.selected.clone());
-    let mut collapsed = use_signal(HashSet::<String>::new);
+    let mut expanded = use_signal(|| props.state.read().history.expanded.clone());
+    let mut boss_search = use_signal(|| props.state.read().history.boss_search.clone());
     let mut sort_key = use_signal(|| SortKey::Date);
     let mut sort_desc = use_signal(|| true);
     let mut state = props.state;
@@ -95,6 +94,8 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
         s.history.filter = filter.read().clone();
         s.history.difficulty = difficulty_filter.read().clone();
         s.history.selected = selected.read().clone();
+        s.history.expanded = expanded.read().clone();
+        s.history.boss_search = boss_search.read().clone();
     });
     let mut set_filter = move |update: fn(&mut PullFilter, String), value: String| {
         update(&mut filter.write(), value);
@@ -139,7 +140,10 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
         .as_ref()
         .map(|o| (o.characters.as_slice(), o.disciplines.as_slice(), o.bosses.as_slice()))
         .unwrap_or((&[], &[], &[]));
-    let tree = group_by_operation(bosses);
+    let search = boss_search.read().to_lowercase();
+    let tree = group_by_operation(bosses.iter().filter(|n| {
+        search.is_empty() || n.boss.to_lowercase().contains(&search) || n.operation.to_lowercase().contains(&search)
+    }));
 
     let current = effective_selection(selected.read().clone(), bosses);
     let current_node = current
@@ -347,6 +351,15 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
 
             div { class: "pull-history-body",
                 aside { class: "explorer-sidebar",
+                    div { class: "sidebar-search",
+                        input {
+                            class: "boss-search-input",
+                            r#type: "text",
+                            placeholder: "Filter bosses...",
+                            value: "{boss_search}",
+                            oninput: move |e| boss_search.set(e.value()),
+                        }
+                    }
                     div { class: "sidebar-encounter-list",
                         if !loading && tree.is_empty() {
                             div { class: "sidebar-empty",
@@ -358,14 +371,14 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
                         for (op, nodes) in tree.iter() {
                             {
                                 let op_key = op.to_string();
-                                let is_collapsed = collapsed.read().contains(*op);
+                                let is_collapsed = search.is_empty() && !expanded.read().contains(*op);
                                 let chevron = if is_collapsed { "fa-chevron-right" } else { "fa-chevron-down" };
                                 let op_pulls: u32 = nodes.iter().map(|n| n.pulls).sum();
                                 rsx! {
                                     div {
                                         class: "sidebar-section-header",
                                         onclick: move |_| {
-                                            let mut set = collapsed.write();
+                                            let mut set = expanded.write();
                                             if !set.remove(&op_key) {
                                                 set.insert(op_key.clone());
                                             }

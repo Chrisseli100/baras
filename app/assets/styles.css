@@ -7399,6 +7399,10 @@ a.contributor-name:hover {
   color: var(--swtor-blue-dim);
 }
 
+.sidebar-search {
+  padding: 0.5em 0.5em 0;
+}
+
 .sidebar-encounter-list {
   flex: 1;
   overflow-y: auto;
