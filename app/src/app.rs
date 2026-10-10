@@ -157,12 +157,6 @@ pub fn App() -> Element {
     let mut screen_capture_starting = use_signal(|| false);
     let mut screen_capture_error = use_signal(|| None::<String>);
 
-    use_future(move || async move {
-        if api::prepare_screen_capture().await {
-            screen_capture_permission_open.set(true);
-        }
-    });
-
     // Audio settings
     let mut audio_enabled = use_signal(|| true);
     let mut audio_volume = use_signal(|| 80u8);

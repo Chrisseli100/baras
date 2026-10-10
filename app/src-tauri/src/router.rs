@@ -79,7 +79,13 @@ pub fn spawn_overlay_router(
                 // Wait for registry actions
                 action = registry_rx.recv() => {
                     if let Some(action) = action {
-                        process_registry_action(&service_handle, &detection_gate, action).await;
+                        process_registry_action(
+                            &service_handle,
+                            &overlay_state,
+                            &detection_gate,
+                            action,
+                        )
+                        .await;
                     }
                 }
             }
@@ -90,6 +96,7 @@ pub fn spawn_overlay_router(
 /// Process a registry action from the raid overlay
 async fn process_registry_action(
     service_handle: &ServiceHandle,
+    overlay_state: &SharedOverlayState,
     detection_gate: &Arc<Semaphore>,
     action: RaidRegistryAction,
 ) {
@@ -104,14 +111,12 @@ async fn process_registry_action(
             service_handle.clear_raid_registry().await;
         }
         RaidRegistryAction::CapturePermissionRequired => {
-            if let Some(window) = service_handle.app_handle.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-            let _ = service_handle
-                .app_handle
-                .emit("screen-capture-permission-required", ());
+            // Off the router loop: the portal can block on a compositor dialog.
+            let service_handle = service_handle.clone();
+            let overlay_state = overlay_state.clone();
+            tauri::async_runtime::spawn(async move {
+                request_capture_permission(&service_handle, &overlay_state).await;
+            });
         }
         RaidRegistryAction::DetectNames {
             started_at,
@@ -131,6 +136,39 @@ async fn process_registry_action(
             });
         }
     }
+}
+
+/// A detect press found no capture session. A permission saved by an earlier
+/// run is restored silently and the detection re-run; otherwise the main window
+/// asks. Nothing touches the portal before the first press.
+async fn request_capture_permission(
+    service_handle: &ServiceHandle,
+    overlay_state: &SharedOverlayState,
+) {
+    use baras_overlay::capture;
+
+    if capture::portal_required()
+        && capture::has_portal_restore_token()
+        && capture::enable_portal().await.is_ok()
+    {
+        let raid_tx = overlay_state
+            .lock()
+            .ok()
+            .and_then(|state| state.get_raid_tx().cloned());
+        if let Some(tx) = raid_tx {
+            let _ = tx.send(OverlayCommand::DetectRaidNames).await;
+        }
+        return;
+    }
+
+    if let Some(window) = service_handle.app_handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+    let _ = service_handle
+        .app_handle
+        .emit("screen-capture-permission-required", ());
 }
 
 struct RaidOcrResult {
