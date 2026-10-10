@@ -1735,3 +1735,140 @@ fn test_duplicate_area_entered_keeps_restated_effects() {
         "entering a different area must clear active effects"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Deferred DOT refresh: target snapshot
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn target_changed_signal(source_id: i64, target_id: i64, timestamp: chrono::NaiveDateTime) -> GameSignal {
+    GameSignal::TargetChanged {
+        source_id,
+        source_entity_type: EntityType::Player,
+        source_npc_id: 0,
+        source_name: empty_istr(),
+        target_id,
+        target_entity_type: EntityType::Npc,
+        target_name: empty_istr(),
+        target_npc_id: 0,
+        timestamp,
+    }
+}
+
+fn damage_taken_signal(ability_id: i64, source_id: i64, target_id: i64, timestamp: chrono::NaiveDateTime) -> GameSignal {
+    GameSignal::DamageTaken {
+        ability_id,
+        ability_name: empty_istr(),
+        source_id,
+        source_entity_type: EntityType::Player,
+        source_name: empty_istr(),
+        source_npc_id: 0,
+        target_id,
+        target_entity_type: EntityType::Npc,
+        target_name: empty_istr(),
+        target_npc_id: 0,
+        timestamp,
+        absorbed: 0,
+        defense_type_id: 0,
+        is_crit: false,
+    }
+}
+
+/// Scorch-like DOT: silent refreshes confirmed by the next damage event from the ability.
+fn dot_tracker_with_two_targets(
+    scorch: u64,
+    local: i64,
+    dummy_a: i64,
+    dummy_b: i64,
+    ts: chrono::NaiveDateTime,
+) -> EffectTracker {
+    let mut def = make_effect(
+        "scorch",
+        "Scorch",
+        Trigger::EffectApplied {
+            effects: vec![EffectSelector::Id(scorch)],
+            source: EntityFilter::LocalPlayer,
+            target: EntityFilter::Any,
+            position: vec![],
+        },
+        Some(30.0),
+    );
+    def.display_targets = vec![super::definition::DisplayTarget::DotTracker];
+    def.refresh_abilities = vec![RefreshAbility::Simple(baras_types::AbilitySelector::Id(scorch))];
+
+    let mut tracker = make_tracker(vec![def]);
+    tracker.set_player_context(local, 0);
+    tracker.handle_signal(&effect_applied_signal_with_source(scorch as i64, local, dummy_a, ts), None);
+    tracker.handle_signal(
+        &effect_applied_signal_with_source(scorch as i64, local, dummy_b, ts + chrono::Duration::seconds(3)),
+        None,
+    );
+    assert_eq!(tracker.active_effects().count(), 2);
+    tracker
+}
+
+fn expires_at(tracker: &EffectTracker, target_id: i64) -> chrono::NaiveDateTime {
+    tracker
+        .active_effects()
+        .find(|e| e.target_entity_id == target_id)
+        .and_then(|e| e.expires_at)
+        .expect("effect with expiry")
+}
+
+#[test]
+fn test_deferred_dot_refresh_ignores_bystander_tick() {
+    // Mirrors the multi-dummy Scorch log: the first damage event after a refresh cast
+    // is usually another target's periodic tick, not the hit on the cast target.
+    let (scorch, local, a, b) = (3384812186370048u64, 1i64, 10i64, 20i64);
+    let ts = now();
+    let mut tracker = dot_tracker_with_two_targets(scorch, local, a, b, ts);
+    let b_expiry = expires_at(&tracker, b);
+
+    let s = |secs_x10: i64| ts + chrono::Duration::milliseconds(secs_x10 * 100);
+    tracker.handle_signal(&target_changed_signal(local, a, s(100)), None);
+    tracker.handle_signal(&ability_activated_signal_with_source(scorch as i64, local, local, s(110)), None);
+    // Bystander B ticks 0.3s after the cast
+    tracker.handle_signal(&damage_taken_signal(scorch as i64, local, b, s(113)), None);
+    assert_eq!(expires_at(&tracker, b), b_expiry, "bystander tick must not claim the refresh");
+    // Real hit on A lands 1.1s after the cast
+    tracker.handle_signal(&damage_taken_signal(scorch as i64, local, a, s(121)), None);
+    assert_eq!(expires_at(&tracker, a), s(121) + chrono::Duration::seconds(30), "A refreshed on its own hit");
+    assert_eq!(expires_at(&tracker, b), b_expiry);
+}
+
+#[test]
+fn test_deferred_dot_refresh_falls_back_when_target_is_self() {
+    // A TargetSet on self carries no information: keep legacy first-damage behaviour.
+    let (scorch, local, a, b) = (3384812186370048u64, 1i64, 10i64, 20i64);
+    let ts = now();
+    let mut tracker = dot_tracker_with_two_targets(scorch, local, a, b, ts);
+
+    let s = |secs_x10: i64| ts + chrono::Duration::milliseconds(secs_x10 * 100);
+    tracker.handle_signal(&target_changed_signal(local, local, s(100)), None);
+    tracker.handle_signal(&ability_activated_signal_with_source(scorch as i64, local, local, s(110)), None);
+    tracker.handle_signal(&damage_taken_signal(scorch as i64, local, b, s(113)), None);
+    assert_eq!(expires_at(&tracker, b), s(113) + chrono::Duration::seconds(30));
+}
+
+#[test]
+fn test_logged_apply_clears_deferred_refresh() {
+    // A fresh application that the game logs is authoritative; a bystander's tick
+    // right after it must not receive a phantom refresh.
+    let (scorch, local, a, b) = (3384812186370048u64, 1i64, 10i64, 20i64);
+    let ts = now();
+    let mut tracker = dot_tracker_with_two_targets(scorch, local, a, b, ts);
+    let b_expiry = expires_at(&tracker, b);
+
+    let s = |secs_x10: i64| ts + chrono::Duration::milliseconds(secs_x10 * 100);
+    // A's DOT expires naturally, then is re-cast with a logged ApplyEffect
+    tracker.handle_signal(&effect_removed_signal_with_source(scorch as i64, local, a, s(300)), None);
+    tracker.handle_signal(&target_changed_signal(local, a, s(302)), None);
+    tracker.handle_signal(&ability_activated_signal_with_source(scorch as i64, local, local, s(305)), None);
+    let mut apply = effect_applied_signal_with_source(scorch as i64, local, a, s(305));
+    if let GameSignal::EffectApplied { action_id, .. } = &mut apply {
+        *action_id = scorch as i64;
+    }
+    tracker.handle_signal(&apply, None);
+    tracker.handle_signal(&damage_taken_signal(scorch as i64, local, b, s(311)), None);
+    assert_eq!(expires_at(&tracker, b), b_expiry, "B must not get a phantom refresh");
+    assert_eq!(expires_at(&tracker, a), s(305) + chrono::Duration::seconds(30));
+}

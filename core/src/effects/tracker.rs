@@ -388,6 +388,10 @@ struct PendingDotRefresh {
     source_id: i64,
     /// When the ability was activated
     timestamp: NaiveDateTime,
+    /// Caster's selected target at activation (None when unknown or self).
+    /// Only a damage event on this target may confirm the refresh — a bystander's
+    /// periodic tick from the same DOT must not claim it.
+    target_id: Option<i64>,
 }
 
 /// State for collecting AoE damage targets after finding anchor
@@ -1110,7 +1114,7 @@ impl EffectTracker {
         &mut self,
         effect_id: i64,
         effect_name: IStr,
-        _action_id: i64,
+        action_id: i64,
         _action_name: IStr,
         source_id: i64,
         source_name: IStr,
@@ -1228,6 +1232,7 @@ impl EffectTracker {
                         // timer_expired was set OR by handle_effect_removed — exactly once.
                         existing.refresh(timestamp, duration);
                         self.ticking_count += 1;
+                        Self::clear_pending_dot_refresh(&mut self.pending_dot_refresh, action_id, target_id);
                     } else {
                         // Don't refresh the duration here — wait for a DamageTaken
                         // event to confirm a real hit (handle_damage_for_dot_refresh).
@@ -1280,6 +1285,11 @@ impl EffectTracker {
                     });
                 }
             } else {
+                // A logged application is authoritative: drop any deferred refresh for
+                // this cast so a bystander's tick can't claim it afterwards.
+                if def.display_targets.contains(&DisplayTarget::DotTracker) {
+                    Self::clear_pending_dot_refresh(&mut self.pending_dot_refresh, action_id, target_id);
+                }
                 // Create new effect
                 let display_text = def.display_text().to_string();
                 let icon_ability_id = def.icon_ability_id.unwrap_or(effect_id as u64);
@@ -1533,6 +1543,9 @@ impl EffectTracker {
                     ability_id: action_id,
                     source_id,
                     timestamp,
+                    // The game logs a TargetSet on self alongside a fresh application,
+                    // so a self snapshot carries no information — fall back to first damage.
+                    target_id: current_target_id.filter(|&t| t != 0 && Some(t) != local_player_id),
                 });
                 continue;
             }
@@ -1844,8 +1857,14 @@ impl EffectTracker {
             return;
         }
 
+        // With a target snapshot, only that target's hit confirms the refresh.
+        // Other targets ticking the same DOT are bystanders — leave pending intact.
+        if pending.target_id.is_some_and(|t| t != target_id) {
+            return;
+        }
+
         let source_id = pending.source_id;
-        // Consume pending state — only the first non-self damage event triggers the refresh
+        // Consume pending state — the confirming damage event triggers the refresh
         self.pending_dot_refresh = None;
 
         // Find all definitions whose refresh ability is configured to defer to the
@@ -1871,6 +1890,18 @@ impl EffectTracker {
                     effect.refresh(timestamp, *duration);
                 }
             }
+        }
+    }
+
+    /// Drop a deferred DOT refresh once its cast has been confirmed by a logged
+    /// ApplyEffect on the same target (or on any target when no snapshot was taken).
+    /// Takes the field directly so it can run while `self.definitions` is borrowed.
+    fn clear_pending_dot_refresh(pending: &mut Option<PendingDotRefresh>, action_id: i64, target_id: i64) {
+        if pending
+            .as_ref()
+            .is_some_and(|p| p.ability_id == action_id && p.target_id.is_none_or(|t| t == target_id))
+        {
+            *pending = None;
         }
     }
 
