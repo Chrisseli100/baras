@@ -8,7 +8,7 @@ use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 
 use baras_types::formatting;
-use baras_types::history::{BackfillEvent, BossNode, PullFilter, PullRow};
+use baras_types::history::{BackfillEvent, BossNode, PullFilter, PullRow, PullSortKey as SortKey};
 
 use crate::api;
 use crate::components::class_icons::{get_class_icon, get_role_icon};
@@ -42,14 +42,6 @@ fn preset_start(days: Option<i32>) -> String {
 
 /// Tree selection: (operation, boss)
 type BossKey = (String, String);
-
-#[derive(Clone, Copy, PartialEq)]
-enum SortKey {
-    Date,
-    Duration,
-    Dps,
-    Hps,
-}
 
 fn short_ts(iso: &str) -> String {
     iso.get(..16).unwrap_or(iso).replacen('T', " ", 1)
@@ -86,8 +78,8 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
     let mut selected = use_signal(|| props.state.read().history.selected.clone());
     let mut expanded = use_signal(|| props.state.read().history.expanded.clone());
     let mut boss_search = use_signal(|| props.state.read().history.boss_search.clone());
-    let mut sort_key = use_signal(|| SortKey::Date);
-    let mut sort_desc = use_signal(|| true);
+    let mut sort_key = use_signal(|| props.state.read().history.sort_key);
+    let mut sort_desc = use_signal(|| props.state.read().history.sort_desc);
     let mut state = props.state;
     use_effect(move || {
         let mut s = state.write();
@@ -96,6 +88,8 @@ pub fn HistoryPanel(props: HistoryPanelProps) -> Element {
         s.history.selected = selected.read().clone();
         s.history.expanded = expanded.read().clone();
         s.history.boss_search = boss_search.read().clone();
+        s.history.sort_key = *sort_key.read();
+        s.history.sort_desc = *sort_desc.read();
     });
     let mut set_filter = move |update: fn(&mut PullFilter, String), value: String| {
         update(&mut filter.write(), value);

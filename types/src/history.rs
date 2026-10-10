@@ -86,8 +86,18 @@ impl Default for PullFilter {
     }
 }
 
+/// Column the History pull table is sorted by.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum PullSortKey {
+    #[default]
+    Date,
+    Duration,
+    Dps,
+    Hps,
+}
+
 /// History tab selections kept across tab switches (see `UiSessionState`).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HistoryState {
     pub filter: PullFilter,
     /// Selected (operation, boss)
@@ -98,6 +108,22 @@ pub struct HistoryState {
     pub expanded: HashSet<String>,
     /// Sidebar boss/operation name filter
     pub boss_search: String,
+    pub sort_key: PullSortKey,
+    pub sort_desc: bool,
+}
+
+impl Default for HistoryState {
+    fn default() -> Self {
+        Self {
+            filter: PullFilter::default(),
+            selected: None,
+            difficulty: String::new(),
+            expanded: HashSet::new(),
+            boss_search: String::new(),
+            sort_key: PullSortKey::Date,
+            sort_desc: true,
+        }
+    }
 }
 
 /// Progress lines emitted by `baras-parse-worker --backfill` (one JSON per
