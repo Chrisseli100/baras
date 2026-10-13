@@ -842,6 +842,21 @@ effects = [4112590099709952]
 source = "any"
 target = "any"
 
+[[boss.challenges]]
+id = "a&e_k_countermeasure_stacks"
+name = "Countermeasure Stacks"
+metric = "effect_stacks"
+enabled = true
+columns = "total_only"
+
+[[boss.challenges.conditions]]
+type = "effect"
+effect_ids = [4114162057740686]
+
+[[boss.challenges.conditions]]
+type = "target"
+match = "any_player"
+
 [[boss.counters]]
 id = "a&e_k_rad"
 name = "Radiance Stacks"
