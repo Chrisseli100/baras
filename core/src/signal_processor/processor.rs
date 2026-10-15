@@ -1554,10 +1554,11 @@ impl EventProcessor {
             return;
         }
 
-        // Ensure we have valid source and target
-        if event.source_entity.entity_type == EntityType::Empty
-            || event.target_entity.entity_type == EntityType::Empty
-        {
+        // Require a target. The source may be Empty (environmental damage logs
+        // `[]` as source); it passes through with log_id/class_id 0 so triggers
+        // can match it with `source = { selector = [0] }`, mirroring the
+        // raw-event path used by phases and victory triggers.
+        if event.target_entity.entity_type == EntityType::Empty {
             return;
         }
 
@@ -1589,10 +1590,11 @@ impl EventProcessor {
             return;
         }
 
-        // Ensure we have valid source and target
-        if event.source_entity.entity_type == EntityType::Empty
-            || event.target_entity.entity_type == EntityType::Empty
-        {
+        // Require a target. The source may be Empty (environmental damage logs
+        // `[]` as source); it passes through with log_id/class_id 0 so triggers
+        // can match it with `source = { selector = [0] }`, mirroring the
+        // raw-event path used by phases and victory triggers.
+        if event.target_entity.entity_type == EntityType::Empty {
             return;
         }
 

@@ -1919,3 +1919,33 @@ fn test_phase_ended_counter_no_double_increment() {
         "shield_count should be 1 (not 2)"
     );
 }
+
+/// Environmental damage logs `[]` as the source. The DamageTaken signal must
+/// still be emitted so signal-based consumers (timers) can match it with
+/// `source = { selector = [0] }`, the same way the raw-event path already does.
+#[test]
+fn test_damage_signal_emitted_for_empty_source() {
+    let line = "[13:10:31.746] [] [@Arkane Phantom#689993162029843|(-584.45,-32.36,-30.31,153.11)|(241723/442713)] [Venomous Bile {4311124962967854}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (0 -)";
+    let parser = LogParser::new(chrono::Local::now().naive_local());
+    let mut processor = EventProcessor::new();
+    let mut cache = SessionCache::default();
+
+    let event = parser.parse_line(1, line).expect("line should parse");
+    let (signals, _, _) = processor.process_event(event, &mut cache);
+
+    let damage = signals.iter().find_map(|s| match s {
+        GameSignal::DamageTaken {
+            source_entity_type,
+            source_npc_id,
+            source_id,
+            ability_id,
+            ..
+        } => Some((*source_entity_type, *source_npc_id, *source_id, *ability_id)),
+        _ => None,
+    });
+    assert_eq!(
+        damage,
+        Some((crate::combat_log::EntityType::Empty, 0, 0, 4311124962967854)),
+        "DamageTaken should be emitted with an Empty source"
+    );
+}

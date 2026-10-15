@@ -1613,3 +1613,60 @@ fn test_integration_timer_expiration_with_real_log() {
         "Follow Up Timer should have been triggered by Quick Timer expiring"
     );
 }
+
+/// A damage_taken timer with `source = { selector = [0] }` must fire on
+/// environmental damage (empty `[]` source), matching victory-trigger behavior.
+#[test]
+fn test_damage_taken_empty_source_selector_zero() {
+    use crate::combat_log::EntityType;
+    use crate::context::IStr;
+
+    let make_signal = || GameSignal::DamageTaken {
+        ability_id: 4137075708264448,
+        ability_name: IStr::default(),
+        source_id: 0,
+        source_entity_type: EntityType::Empty,
+        source_name: IStr::default(),
+        source_npc_id: 0,
+        target_id: 12345,
+        target_entity_type: EntityType::Player,
+        target_name: IStr::default(),
+        target_npc_id: 0,
+        timestamp: now(),
+        absorbed: 0,
+        defense_type_id: 0,
+        is_crit: false,
+    };
+    let make_def = |source: EntityFilter| {
+        make_timer(
+            "energized_slice",
+            "Energized Slice",
+            TimerTrigger::DamageTaken {
+                abilities: vec![AbilitySelector::Id(4137075708264448)],
+                source,
+                target: EntityFilter::Any,
+                mitigation: vec![],
+                position: vec![],
+            },
+            10.9,
+        )
+    };
+
+    // selector [0] matches the empty source
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_def(EntityFilter::Selector(vec![EntitySelector::Id(0)]))]);
+    manager.handle_signal(&make_signal(), None);
+    assert_eq!(manager.active_timers().len(), 1, "selector [0] should match empty source");
+
+    // "any" matches too
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_def(EntityFilter::Any)]);
+    manager.handle_signal(&make_signal(), None);
+    assert_eq!(manager.active_timers().len(), 1, "any should match empty source");
+
+    // a real NPC selector does not
+    let mut manager = TimerManager::new();
+    manager.load_definitions(vec![make_def(EntityFilter::Selector(vec![EntitySelector::Id(999)]))]);
+    manager.handle_signal(&make_signal(), None);
+    assert_eq!(manager.active_timers().len(), 0, "NPC selector must not match empty source");
+}

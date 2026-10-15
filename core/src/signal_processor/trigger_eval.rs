@@ -420,8 +420,8 @@ pub fn check_signal_trigger(
 /// inspecting the CombatEvent fields directly. Source/target filters are
 /// checked when a FilterContext is provided.
 ///
-/// For EffectRemoved, this also checks the action that caused the removal
-/// (e.g., "Dying Light" removing "Surging Flame"), not just the effect itself.
+/// EffectRemoved matches only the effect being removed, never the action that
+/// removed it, so phases/counters/victory agree with the signal-based timer path.
 pub fn check_event_trigger(
     trigger: &Trigger,
     event: &CombatEvent,
@@ -498,22 +498,11 @@ pub fn check_event_trigger(
         return true;
     }
 
-    // Check EffectRemoved triggers
-    // Matches either:
-    // 1. The effect being removed (event.effect.effect_id)
-    // 2. The ability doing the removing (event.action.action_id)
+    // Check EffectRemoved triggers (the effect being removed only)
     if event.effect.type_id == effect_type_id::REMOVEEFFECT {
         let eff_id = event.effect.effect_id as u64;
         let eff_name = crate::context::resolve(event.effect.effect_name);
         if trigger.matches_effect_removed(eff_id, Some(eff_name))
-            && check_event_filters(trigger, event, filter_ctx)
-        {
-            return true;
-        }
-        // Also try matching the ability doing the removing
-        let action_id = event.action.action_id as u64;
-        let action_name = crate::context::resolve(event.action.name);
-        if trigger.matches_effect_removed(action_id, Some(action_name))
             && check_event_filters(trigger, event, filter_ctx)
         {
             return true;
@@ -584,5 +573,43 @@ pub fn check_timer_trigger(
             check_timer_trigger(c, expired_timer_ids, started_timer_ids, canceled_timer_ids)
         }),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::combat_log::LogParser;
+
+    // Real Dxun line: the "Dying Light" action removes the "Surging Flame" effect.
+    const REMOVE_LINE: &str = "[00:00:20.292] [The Ultimate Hunter {4381150109761536}:25340001190499|(56.40,227.46,35.07,-185.82)|(105540/10553973)] [=] [Dying Light {4381085685252096}] [RemoveEffect {836045448945478}: Surging Flame {4381085685252434}]";
+    const DYING_LIGHT_ACTION: u64 = 4381085685252096;
+    const SURGING_FLAME_EFFECT: u64 = 4381085685252434;
+
+    fn parse(line: &str) -> CombatEvent {
+        LogParser::new(chrono::Local::now().naive_local())
+            .parse_line(1, line)
+            .expect("line should parse")
+    }
+
+    fn effect_removed(id: u64) -> Trigger {
+        toml::from_str(&format!("type = \"effect_removed\"\neffects = [{id}]")).unwrap()
+    }
+
+    #[test]
+    fn effect_removed_matches_removed_effect_only() {
+        let event = parse(REMOVE_LINE);
+
+        assert!(
+            check_event_trigger(&effect_removed(SURGING_FLAME_EFFECT), &event, None),
+            "should match the effect being removed"
+        );
+        // Regression: the event path used to also match the action that caused
+        // the removal, making phase/victory triggers fire on "ability X removes
+        // ANY effect" while the signal-based timer path did not.
+        assert!(
+            !check_event_trigger(&effect_removed(DYING_LIGHT_ACTION), &event, None),
+            "must not match the action doing the removing"
+        );
     }
 }
